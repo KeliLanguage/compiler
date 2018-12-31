@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Lib where
 
 import System.IO
@@ -6,7 +7,22 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
+import qualified Data.Text as T
 
+
+data KeliDecl 
+    = KeliConstDecl String KeliExpr
+    | KeliFuncDecl {
+        funcDeclParams     :: [KeliFuncDeclParam],
+        funcDeclIds        :: [String],
+        funcDeclReturnType :: KeliExpr
+    }
+
+data KeliFuncDeclParam = KeliFuncDeclParam {
+    funcDeclParamId   :: String,
+    funcDeclParamType :: KeliExpr
+}
+    
 
 data KeliExpr 
     = KeliNumber Float
@@ -15,8 +31,8 @@ data KeliExpr
     | KeliTuple  [KeliExpr]
     | KeliId     String
     | KeliFuncCall {
-        funcCallParams     :: [KeliExpr],
-        funcCallSignaturee :: [String]
+        funcCallParams :: [KeliExpr],
+        funcCallIds    :: [String]
     }
     | KeliLambda {
         lambdaParams :: [String],
@@ -61,8 +77,7 @@ data Stmt
     | If BExpr Stmt Stmt
     | While BExpr Stmt
     | Skip
-    deriving (Show)
-
+    deriving (Show) 
 
 languageDef =
   emptyDef { Token.commentStart    = "/*"
@@ -82,7 +97,7 @@ languageDef =
                                      , "and"
                                      , "or"
                                      ]
-           , Token.reservedOpNames = ["+", "-", "*", "/", ":="
+           , Token.reservedOpNames = ["+", "-", "*", "/", "="
                                      , "<", ">", "and", "or", "not"
                                      ]
            }
@@ -99,6 +114,7 @@ parens     = Token.parens     lexer -- parses surrounding parenthesis:
 integer    = Token.integer    lexer -- parses an integer
 semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
+symbol     = Token.symbol     lexer -- custom symbol
 
 whileParser :: Parser Stmt
 whileParser = whiteSpace >> statement
@@ -107,8 +123,8 @@ statement :: Parser Stmt
 statement =  parens statement <|> sequenceOfStmt
 
 sequenceOfStmt = do
-    list <- (sepBy1 statement' semi)
-    return (if length list == 1 then head list else Seq list)
+    list <- (sepBy1 statement' (symbol ";"))
+    return (Seq list)
 
 statement' :: Parser Stmt
 statement' 
@@ -142,7 +158,7 @@ skipStmt
 assignStmt :: Parser Stmt
 assignStmt 
     =  identifier      >>= \var
-    -> reservedOp ":=" >>= \_
+    -> reservedOp "="  >>= \_
     -> aExpression     >>= \expr
     -> return (Assign var expr)
 
@@ -188,6 +204,7 @@ relation =   (reservedOp ">" >> return Greater)
 
 parseString :: String -> Stmt
 parseString str =
-  case parse whileParser "" str of
-    Left e  -> error $ show e
-    Right r -> r
+    case parse whileParser "" preprocessed of
+        Left e  -> error $ show e
+        Right r -> r
+    where preprocessed = T.unpack (T.replace "\n\n" ";" (T.pack str))
