@@ -104,14 +104,22 @@ keliConstDecl
 
 keliExpr :: Parser KeliExpr
 keliExpr 
-    =   parens keliExpr
+    =   keliAtomicExpr 
+    <|> keliFuncCall
+
+keliFuncCall :: Parser KeliExpr
+keliFuncCall = undefined
+    
+keliAtomicExpr :: Parser KeliExpr
+keliAtomicExpr 
+    = parens keliExpr
     <|> liftM KeliNumber number
     <|> liftM KeliId identifier
 
 keliFuncDecl :: Parser KeliDecl
 keliFuncDecl 
-    =   keliMonoFuncDecl
-    <|> keliPolyFuncDecl
+    =   keliPolyFuncDecl
+    <|> keliMonoFuncDecl
 
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
@@ -126,21 +134,27 @@ keliMonoFuncDecl
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
-    =  keliFuncDeclParam >>= \param
+    =  keliFuncDeclParam >>= \param1
     -> reservedOp "."    >>= \_ 
-    -> identifier        >>= \id
+    -> keliIdParamPair   >>= \xs
     -> reservedOp "->"   >>= \_
     -> keliExpr          >>= \typeExpr
     -> reservedOp "="    >>= \_
     -> keliExpr          >>= \expr
-    -> return (KeliFuncDecl [param] [id] typeExpr)
+    -> return (KeliFuncDecl (param1:(map snd xs)) (map fst xs) typeExpr)
 
+keliIdParamPair = 
+    many1 (
+            identifier        >>= \id 
+        ->  keliFuncDeclParam >>= \param
+        -> return (id, param)
+    )
 
 keliFuncDeclParam :: Parser KeliFuncDeclParam
 keliFuncDeclParam 
     =  identifier     >>= \id
     -> reservedOp ":" >>= \_
-    -> keliExpr       >>= \typeExpr
+    -> keliAtomicExpr >>= \typeExpr
     -> return (KeliFuncDeclParam id typeExpr)
 
 preprocess :: String -> String
