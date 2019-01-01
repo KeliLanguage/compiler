@@ -79,8 +79,9 @@ number     = Token.naturalOrFloat lexer
 semi       = Token.semi           lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace     lexer -- parses whitespace
 symbol     = Token.symbol         lexer -- custom symbol
-string     = Token.stringLiteral  lexer
+stringLit  = Token.stringLiteral  lexer
 dot        = Token.dot            lexer
+operator   = Token.operator       lexer
 
 keliParser :: Parser KeliDecl
 keliParser = whiteSpace >> keliDecl
@@ -92,7 +93,7 @@ keliDecl = do
 
 keliDecl' :: Parser KeliDecl
 keliDecl' 
-    =  keliFuncDecl
+    =  try keliFuncDecl
    <|> keliConstDecl
 
 keliConstDecl :: Parser KeliDecl
@@ -104,8 +105,8 @@ keliConstDecl
 
 keliExpr :: Parser KeliExpr
 keliExpr 
-    =   keliAtomicExpr 
-    <|> keliFuncCall
+    =   try keliFuncCall
+    <|> keliAtomicExpr 
 
 keliFuncCall :: Parser KeliExpr
 keliFuncCall = undefined
@@ -115,6 +116,7 @@ keliAtomicExpr
     = parens keliExpr
     <|> liftM KeliNumber number
     <|> liftM KeliId identifier
+    <|> liftM KeliString stringLit
 
 keliFuncDecl :: Parser KeliDecl
 keliFuncDecl 
@@ -125,7 +127,7 @@ keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
     =  keliFuncDeclParam >>= \param
     -> reservedOp "."    >>= \_ 
-    -> identifier        >>= \id
+    -> keliFuncId        >>= \id
     -> reservedOp "->"   >>= \_
     -> keliExpr          >>= \typeExpr
     -> reservedOp "="    >>= \_
@@ -145,10 +147,12 @@ keliPolyFuncDecl
 
 keliIdParamPair = 
     many1 (
-            identifier        >>= \id 
+            keliFuncId        >>= \id 
         ->  keliFuncDeclParam >>= \param
         -> return (id, param)
     )
+
+keliFuncId = choice [identifier, operator]
 
 keliFuncDeclParam :: Parser KeliFuncDeclParam
 keliFuncDeclParam 
