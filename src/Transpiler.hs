@@ -1,7 +1,7 @@
 module Transpiler 
 where
 
-import Lib
+import Ast
 
 class Transpilable a where
     transpile :: a -> String
