@@ -49,29 +49,6 @@ data KeliExpr
     }
     deriving (Show)
 
-
-data AExpr 
-    = Var String
-    | IntConst Double
-    | Neg AExpr
-    | ABinary ABinOp AExpr AExpr
-    deriving (Show)
-
-data ABinOp 
-    = Add
-    | Subtract
-    | Multiply
-    | Divide
-    deriving (Show)
-
-data Stmt 
-    = Seqs [Stmt]
-    | Assign String AExpr
-    | If AExpr Stmt Stmt
-    | While AExpr Stmt
-    | Skip
-    deriving (Show) 
-
 languageDef =
   emptyDef { Token.commentStart    = "/*"
            , Token.commentEnd      = "*/"
@@ -133,7 +110,8 @@ keliExpr
 
 keliFuncDecl :: Parser KeliDecl
 keliFuncDecl 
-    = keliMonoFuncDecl
+    =   keliMonoFuncDecl
+    <|> keliPolyFuncDecl
 
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
@@ -146,68 +124,24 @@ keliMonoFuncDecl
     -> keliExpr          >>= \expr
     -> return (KeliFuncDecl [param] [id] typeExpr)
 
+keliPolyFuncDecl :: Parser KeliDecl
+keliPolyFuncDecl   
+    =  keliFuncDeclParam >>= \param
+    -> reservedOp "."    >>= \_ 
+    -> identifier        >>= \id
+    -> reservedOp "->"   >>= \_
+    -> keliExpr          >>= \typeExpr
+    -> reservedOp "="    >>= \_
+    -> keliExpr          >>= \expr
+    -> return (KeliFuncDecl [param] [id] typeExpr)
+
+
 keliFuncDeclParam :: Parser KeliFuncDeclParam
 keliFuncDeclParam 
     =  identifier     >>= \id
     -> reservedOp ":" >>= \_
     -> keliExpr       >>= \typeExpr
     -> return (KeliFuncDeclParam id typeExpr)
-
-whileParser :: Parser Stmt
-whileParser = whiteSpace >> statement
-
-statement :: Parser Stmt
-statement =  parens statement <|> sequenceOfStmt
-
-sequenceOfStmt = do
-    list <- (sepBy1 statement' (symbol ";"))
-    return (Seqs list)
-
-statement' :: Parser Stmt
-statement' 
-    = ifStmt
-   <|> assignStmt
-
-ifStmt :: Parser Stmt
-ifStmt 
-    =  reserved "if"   >>= \_
-    -> aExpression     >>= \expr
-    -> reserved "then" >>= \_
-    -> statement       >>= \stmt1
-    -> reserved "else" >>= \_
-    -> statement       >>= \stmt2
-    -> return (If expr stmt1 stmt2)
-
-assignStmt :: Parser Stmt
-assignStmt 
-    =  identifier      >>= \var
-    -> reservedOp "="  >>= \_
-    -> aExpression     >>= \expr
-    -> return (Assign var expr)
-
-aExpression :: Parser AExpr
-aExpression = buildExpressionParser aOperators aTerm
-
-aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
-             , [Infix  (reservedOp "*"   >> return (ABinary Multiply)) AssocLeft,
-                Infix  (reservedOp "/"   >> return (ABinary Divide  )) AssocLeft]
-             , [Infix  (reservedOp "+"   >> return (ABinary Add     )) AssocLeft,
-                Infix  (reservedOp "-"   >> return (ABinary Subtract)) AssocLeft]
-              ]
-
-aTerm 
-    =  parens aExpression
-   <|> liftM Var identifier
-   <|> liftM IntConst float
-   <|> liftM IntConst float
-
-
-
-parseString :: String -> Stmt
-parseString str =
-    case parse whileParser "" (preprocess str) of
-        Left e  -> error $ show e
-        Right r -> r
 
 preprocess :: String -> String
 preprocess str = T.unpack (T.replace "\n\n" ";" (T.pack str))
