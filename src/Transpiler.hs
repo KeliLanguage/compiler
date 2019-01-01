@@ -8,7 +8,7 @@ class Transpilable a where
 
 instance Transpilable KeliDecl where
     transpile x = case x of 
-        KeliConstDecl id expr -> "const " ++ id ++ "=" ++ (transpile expr)
+        KeliConstDecl id expr _ -> "const " ++ id ++ "=" ++ (transpile expr)
 
 instance Transpilable KeliExpr where
     transpile x = case x of 

@@ -11,21 +11,30 @@ import qualified Data.Text as T
 
 
 data KeliDecl 
-    = KeliConstDecl String KeliExpr
+    = Seq [KeliDecl] -- Sequences of Declarations
+    | KeliConstDecl { 
+        constDeclId    :: String,
+        constDeclValue :: KeliExpr,
+        constDeclType  :: Maybe KeliExpr
+    }
     | KeliFuncDecl {
         funcDeclParams     :: [KeliFuncDeclParam],
         funcDeclIds        :: [String],
         funcDeclReturnType :: KeliExpr
     }
+    deriving (Show)
 
-data KeliFuncDeclParam = KeliFuncDeclParam {
-    funcDeclParamId   :: String,
-    funcDeclParamType :: KeliExpr
-}
+data KeliFuncDeclParam 
+    = KeliFuncDeclParam {
+        funcDeclParamId   :: String,
+        funcDeclParamType :: KeliExpr
+    }
+    deriving (Show)
+
     
 
 data KeliExpr 
-    = KeliNumber Float
+    = KeliNumber (Either Integer Double)
     | KeliString String
     | KeliArray  [KeliExpr]
     | KeliTuple  [KeliExpr]
@@ -38,28 +47,12 @@ data KeliExpr
         lambdaParams :: [String],
         lambdaBody   :: KeliExpr
     }
-
-
-data BExpr 
-    = BoolConst Bool
-    | Not BExpr
-    | BBinary BBinOp BExpr BExpr
-    | RBinary RBinOp AExpr AExpr
     deriving (Show)
 
-data BBinOp 
-    = And 
-    | Or 
-    deriving (Show)
-
-data RBinOp 
-    = Greater 
-    | Less 
-    deriving (Show)
 
 data AExpr 
     = Var String
-    | IntConst Integer
+    | IntConst Double
     | Neg AExpr
     | ABinary ABinOp AExpr AExpr
     deriving (Show)
@@ -72,10 +65,10 @@ data ABinOp
     deriving (Show)
 
 data Stmt 
-    = Seq [Stmt]
+    = Seqs [Stmt]
     | Assign String AExpr
-    | If BExpr Stmt Stmt
-    | While BExpr Stmt
+    | If AExpr Stmt Stmt
+    | While AExpr Stmt
     | Skip
     deriving (Show) 
 
@@ -84,37 +77,81 @@ languageDef =
            , Token.commentEnd      = "*/"
            , Token.commentLine     = "//"
            , Token.identStart      = letter
-           , Token.identLetter     = alphaNum
-           , Token.reservedNames   = [ "if"
-                                     , "then"
-                                     , "else"
-                                     , "while"
-                                     , "do"
-                                     , "skip"
-                                     , "true"
-                                     , "false"
-                                     , "not"
-                                     , "and"
-                                     , "or"
-                                     ]
-           , Token.reservedOpNames = ["+", "-", "*", "/", "="
-                                     , "<", ">", "and", "or", "not"
-                                     ]
+           , Token.identLetter     = alphaNum <|> char '_'
+           , Token.reservedOpNames = [
+                 "="
+               , "->"
+               , "."
+               , ":"
+               ]
            }
 
 lexer = Token.makeTokenParser languageDef
 
-identifier = Token.identifier lexer -- parses an identifier
-reserved   = Token.reserved   lexer -- parses a reserved name
-reservedOp = Token.reservedOp lexer -- parses an operator
-parens     = Token.parens     lexer -- parses surrounding parenthesis:
-                                    --   parens p
-                                    -- takes care of the parenthesis and
-                                    -- uses p to parse what's inside them
-integer    = Token.integer    lexer -- parses an integer
-semi       = Token.semi       lexer -- parses a semicolon
-whiteSpace = Token.whiteSpace lexer -- parses whitespace
-symbol     = Token.symbol     lexer -- custom symbol
+-- Refer http://hackage.haskell.org/package/parsec-3.1.13.0/docs/Text-ParserCombinators-Parsec-Token.html
+identifier = Token.identifier     lexer -- parses an identifier
+reserved   = Token.reserved       lexer -- parses a reserved name
+reservedOp = Token.reservedOp     lexer -- parses an operator
+parens     = Token.parens         lexer -- parses surrounding parenthesis:
+                                        --   parens p
+                                        -- takes care of the parenthesis and
+                                        -- uses p to parse what's inside them
+integer    = Token.integer        lexer -- parses an integer
+float      = Token.float          lexer
+number     = Token.naturalOrFloat lexer
+semi       = Token.semi           lexer -- parses a semicolon
+whiteSpace = Token.whiteSpace     lexer -- parses whitespace
+symbol     = Token.symbol         lexer -- custom symbol
+string     = Token.stringLiteral  lexer
+dot        = Token.dot            lexer
+
+keliParser :: Parser KeliDecl
+keliParser = whiteSpace >> keliDecl
+
+keliDecl :: Parser KeliDecl
+keliDecl = do
+    list <- (sepBy1 keliDecl' (symbol ";"))
+    return (Seq list)
+
+keliDecl' :: Parser KeliDecl
+keliDecl' 
+    =  keliFuncDecl
+   <|> keliConstDecl
+
+keliConstDecl :: Parser KeliDecl
+keliConstDecl 
+    =  identifier     >>= \id
+    -> reservedOp "=" >>= \_
+    -> keliExpr       >>= \expr
+    -> return (KeliConstDecl id expr Nothing)
+
+keliExpr :: Parser KeliExpr
+keliExpr 
+    =   parens keliExpr
+    <|> liftM KeliNumber number
+    <|> liftM KeliId identifier
+
+keliFuncDecl :: Parser KeliDecl
+keliFuncDecl 
+    = keliMonoFuncDecl
+
+keliMonoFuncDecl :: Parser KeliDecl
+keliMonoFuncDecl
+    =  keliFuncDeclParam >>= \param
+    -> reservedOp "."    >>= \_ 
+    -> identifier        >>= \id
+    -> reservedOp "->"   >>= \_
+    -> keliExpr          >>= \typeExpr
+    -> reservedOp "="    >>= \_
+    -> keliExpr          >>= \expr
+    -> return (KeliFuncDecl [param] [id] typeExpr)
+
+keliFuncDeclParam :: Parser KeliFuncDeclParam
+keliFuncDeclParam 
+    =  identifier     >>= \id
+    -> reservedOp ":" >>= \_
+    -> keliExpr       >>= \typeExpr
+    -> return (KeliFuncDeclParam id typeExpr)
 
 whileParser :: Parser Stmt
 whileParser = whiteSpace >> statement
@@ -124,36 +161,22 @@ statement =  parens statement <|> sequenceOfStmt
 
 sequenceOfStmt = do
     list <- (sepBy1 statement' (symbol ";"))
-    return (Seq list)
+    return (Seqs list)
 
 statement' :: Parser Stmt
 statement' 
     = ifStmt
-   <|> whileStmt
-   <|> skipStmt
    <|> assignStmt
 
 ifStmt :: Parser Stmt
 ifStmt 
     =  reserved "if"   >>= \_
-    -> bExpression     >>= \cond 
+    -> aExpression     >>= \expr
     -> reserved "then" >>= \_
     -> statement       >>= \stmt1
     -> reserved "else" >>= \_
     -> statement       >>= \stmt2
-    -> return (If cond stmt1 stmt2)
-
-whileStmt :: Parser Stmt
-whileStmt 
-    =  reserved "while" >>= \_
-    -> bExpression      >>= \cond
-    -> statement        >>= \stmt
-    -> return (While cond stmt)
-
-skipStmt :: Parser Stmt
-skipStmt 
-    =  reserved "skip" >>= \_
-    -> return Skip
+    -> return (If expr stmt1 stmt2)
 
 assignStmt :: Parser Stmt
 assignStmt 
@@ -165,9 +188,6 @@ assignStmt
 aExpression :: Parser AExpr
 aExpression = buildExpressionParser aOperators aTerm
 
-bExpression :: Parser BExpr
-bExpression = buildExpressionParser bOperators bTerm
-    
 aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
              , [Infix  (reservedOp "*"   >> return (ABinary Multiply)) AssocLeft,
                 Infix  (reservedOp "/"   >> return (ABinary Divide  )) AssocLeft]
@@ -175,36 +195,25 @@ aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          
                 Infix  (reservedOp "-"   >> return (ABinary Subtract)) AssocLeft]
               ]
 
-bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          ]
-             , [Infix  (reservedOp "and" >> return (BBinary And     )) AssocLeft,
-                Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
-             ]
-
 aTerm 
     =  parens aExpression
    <|> liftM Var identifier
-   <|> liftM IntConst integer
+   <|> liftM IntConst float
+   <|> liftM IntConst float
 
-bTerm
-    =   parens bExpression
-    <|> (reserved "true"  >> return (BoolConst True))
-    <|> (reserved "false" >> return (BoolConst False))
-    <|> rExpression
-
-
-rExpression =
-  do a1 <- aExpression
-     op <- relation
-     a2 <- aExpression
-     return $ RBinary op a1 a2
-
-relation =   (reservedOp ">" >> return Greater)
-         <|> (reservedOp "<" >> return Less)
 
 
 parseString :: String -> Stmt
 parseString str =
-    case parse whileParser "" preprocessed of
+    case parse whileParser "" (preprocess str) of
         Left e  -> error $ show e
         Right r -> r
-    where preprocessed = T.unpack (T.replace "\n\n" ";" (T.pack str))
+
+preprocess :: String -> String
+preprocess str = T.unpack (T.replace "\n\n" ";" (T.pack str))
+
+parseKeli :: String -> KeliDecl
+parseKeli input =
+    case parse keliParser "" (preprocess input) of
+        Left  e -> error $ show e
+        Right r -> r
