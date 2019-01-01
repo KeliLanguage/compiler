@@ -23,7 +23,8 @@ data KeliDecl
     | KeliFuncDecl {
         funcDeclParams     :: [KeliFuncDeclParam],
         funcDeclIds        :: [String],
-        funcDeclReturnType :: KeliExpr
+        funcDeclReturnType :: KeliExpr,
+        funcDeclBody       :: KeliExpr
     }
     deriving (Show)
 
@@ -116,11 +117,14 @@ keliFuncCall
     =  keliAtomicExpr   >>= \param1
     -> reservedOp "."   >>= \_
     -> keliFuncCallTail >>= \chain
-    -> return $ trace (show (flattenFuncCallChain chain)) $ (foldl 
-        (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next))) -- reducer
-        (KeliFuncCall [param1] [])               -- initial value
-        (map (\x -> KeliFuncCall (snd x) (fst x)) (flattenFuncCallChain chain)) -- foldee
-    )
+    -> let pairs          = (flattenFuncCallChain chain) in
+       let firstChain     = head pairs in
+       let remainingChain = tail pairs in
+        return (foldl 
+            (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next))) -- reducer
+            (KeliFuncCall (param1:(snd firstChain)) (fst firstChain))               -- initial value
+            (map (\x -> KeliFuncCall (snd x) (fst x)) remainingChain) -- foldee
+        )
 
 data KeliFuncCallChain
     = KeliFuncCallChain KeliFuncCallChain KeliFuncCallChain
@@ -169,7 +173,7 @@ keliMonoFuncDecl
     -> keliExpr          >>= \typeExpr
     -> reservedOp "="    >>= \_
     -> keliExpr          >>= \expr
-    -> return (KeliFuncDecl [param] [id] typeExpr)
+    -> return (KeliFuncDecl [param] [id] typeExpr expr)
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
@@ -180,7 +184,7 @@ keliPolyFuncDecl
     -> keliExpr          >>= \typeExpr
     -> reservedOp "="    >>= \_
     -> keliExpr          >>= \expr
-    -> return (KeliFuncDecl (param1:(map snd xs)) (map fst xs) typeExpr)
+    -> return (KeliFuncDecl (param1:(map snd xs)) (map fst xs) typeExpr expr)
 
 keliIdParamPair = 
     many1 (
