@@ -4,10 +4,13 @@ module Lib where
 import System.IO
 import Control.Monad
 import Text.ParserCombinators.Parsec
+import Text.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import qualified Data.Text as T
+import Data.List
+import Debug.Trace
 
 
 data KeliDecl 
@@ -105,23 +108,57 @@ keliConstDecl
 
 keliExpr :: Parser KeliExpr
 keliExpr 
-    =   try keliFuncCall
-    <|> keliAtomicExpr 
+    =  try keliFuncCall
+   <|> keliAtomicExpr 
 
 keliFuncCall :: Parser KeliExpr
-keliFuncCall = undefined
-    
+keliFuncCall 
+    =  keliAtomicExpr   >>= \param1
+    -> reservedOp "."   >>= \_
+    -> keliFuncCallTail >>= \chain
+    -> return $ trace (show (flattenFuncCallChain chain)) $ (foldl 
+        (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next))) -- reducer
+        (KeliFuncCall [param1] [])               -- initial value
+        (map (\x -> KeliFuncCall (snd x) (fst x)) (flattenFuncCallChain chain)) -- foldee
+    )
+
+data KeliFuncCallChain
+    = KeliFuncCallChain KeliFuncCallChain KeliFuncCallChain
+    | KeliPartialFuncCall {
+        partialFuncCallIds    :: [String],
+        partialFuncCallParams :: [KeliExpr]
+    }
+
+flattenFuncCallChain :: KeliFuncCallChain -> [([String], [KeliExpr])]
+flattenFuncCallChain (KeliFuncCallChain x y) = (flattenFuncCallChain x ++ flattenFuncCallChain y)
+flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
+
+keliFuncCallTail :: Parser KeliFuncCallChain
+keliFuncCallTail
+    = buildExpressionParser [[Infix (reservedOp "." >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
+
+keliPartialFuncCall
+    -- binary/ternary/polynary
+    = try ((many1 ( keliFuncId     >>= \id 
+                 -> keliAtomicExpr >>= \expr
+                 -> return (id, expr)
+            )) >>= \pairs
+            -> return (KeliPartialFuncCall (map fst pairs) (map snd pairs))
+    )
+    -- unary
+   <|> (keliFuncId >>= \id -> return (KeliPartialFuncCall [id] []))
+
 keliAtomicExpr :: Parser KeliExpr
 keliAtomicExpr 
-    = parens keliExpr
-    <|> liftM KeliNumber number
-    <|> liftM KeliId identifier
-    <|> liftM KeliString stringLit
+    =  parens keliExpr
+   <|> liftM KeliNumber number
+   <|> liftM KeliId identifier
+   <|> liftM KeliString stringLit
 
 keliFuncDecl :: Parser KeliDecl
 keliFuncDecl 
-    =   keliPolyFuncDecl
-    <|> keliMonoFuncDecl
+    =  try keliPolyFuncDecl
+   <|> keliMonoFuncDecl
 
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
@@ -167,5 +204,11 @@ preprocess str = T.unpack (T.replace "\n\n" ";" (T.pack str))
 parseKeli :: String -> KeliDecl
 parseKeli input =
     case parse keliParser "" (preprocess input) of
+        Left  e -> error $ show e
+        Right r -> r
+
+
+debugParseKeli input =
+    case parse (keliParser >> parserTrace "debug") "" (preprocess input) of
         Left  e -> error $ show e
         Right r -> r
