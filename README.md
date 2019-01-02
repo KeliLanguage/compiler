@@ -1,5 +1,17 @@
 # compiler-demo
 
+## How to setup this project?
+
+```
+stack build
+```
+
+## How to run test?
+
+```
+stack test
+```
+
 ## How to run ghci?
 
 The following command is to prevent stack overflow due to unknown infinite loop.

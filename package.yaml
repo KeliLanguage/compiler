@@ -24,6 +24,7 @@ dependencies:
 - text
 - parsec
 - unordered-containers
+- hspec
 
 library:
   source-dirs: src
@@ -49,3 +50,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - compiler-demo
+    - hspec
