@@ -16,7 +16,6 @@ import Data.List
 import Debug.Trace
 
 
-
 keliParser :: Parser KeliDecl
 keliParser = whiteSpace >> keliDecl
 
@@ -45,9 +44,9 @@ keliExpr
 
 keliFuncCall :: Parser KeliExpr
 keliFuncCall 
-    =  keliAtomicExpr   >>= \param1
-    -> reservedOp ","   >>= \_
-    -> keliFuncCallTail >>= \chain
+    =  keliAtomicExpr     >>= \param1
+    -> char ',' >> spaces >>= \_
+    -> keliFuncCallTail   >>= \chain
     -> let pairs          = (flattenFuncCallChain chain) in
        let firstChain     = head pairs in
        let remainingChain = tail pairs in
@@ -70,7 +69,7 @@ flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 
 keliFuncCallTail :: Parser KeliFuncCallChain
 keliFuncCallTail
-    = buildExpressionParser [[Infix (reservedOp "," >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
+    = buildExpressionParser [[Infix (char ',' >> spaces >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
 
 keliPartialFuncCall
     -- binary/ternary/polynary
@@ -97,24 +96,24 @@ keliFuncDecl
 
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
-    =  keliFuncDeclParam >>= \param
-    -> reservedOp ","    >>= \_ 
-    -> keliFuncId        >>= \id
-    -> reservedOp "->"   >>= \_
-    -> keliExpr          >>= \typeExpr
-    -> reservedOp "="    >>= \_
-    -> keliExpr          >>= \expr
+    =  keliFuncDeclParam  >>= \param
+    -> char ',' >> spaces >>= \_ 
+    -> keliFuncId         >>= \id
+    -> reservedOp "->"    >>= \_
+    -> keliExpr           >>= \typeExpr
+    -> reservedOp "="     >>= \_
+    -> keliExpr           >>= \expr
     -> return (KeliFuncDecl [param] [id] typeExpr expr)
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
-    =  keliFuncDeclParam >>= \param1
-    -> reservedOp ","    >>= \_ 
-    -> keliIdParamPair   >>= \xs
-    -> reservedOp "->"   >>= \_
-    -> keliExpr          >>= \typeExpr
-    -> reservedOp "="    >>= \_
-    -> keliExpr          >>= \expr
+    =  keliFuncDeclParam  >>= \param1
+    -> char ',' >> spaces >>= \_ 
+    -> keliIdParamPair    >>= \xs
+    -> reservedOp "->"    >>= \_
+    -> keliExpr           >>= \typeExpr
+    -> reservedOp "="     >>= \_
+    -> keliExpr           >>= \expr
     -> return (KeliFuncDecl (param1:(map snd xs)) (map fst xs) typeExpr expr)
 
 keliIdParamPair = 
@@ -136,7 +135,7 @@ keliFuncDeclParam
 preprocess :: String -> String
 preprocess str = 
     let packed = T.pack str in
-    T.unpack (T.replace "->" " -> " (T.replace "," ", " (T.replace "\n\n" ";" packed)))
+    T.unpack (T.replace "\n\n" ";" packed)
 
 parseKeli :: String -> Either ParseError KeliDecl 
 parseKeli input = parse keliParser "" (preprocess input)

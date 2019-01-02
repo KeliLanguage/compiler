@@ -2,11 +2,12 @@ import Test.Hspec
 import Control.Exception (evaluate)
 import Parser
 import Ast
+import Debug.Trace
 
 testParseKeli x = 
     (case (parseKeli x) of
-        Right _ -> True
-        Left  _ -> False) `shouldBe` True
+        Right _   -> True
+        Left  err -> trace (show err) $ False) `shouldBe` True
 
 main :: IO ()
 main = hspec $ do
@@ -21,7 +22,7 @@ main = hspec $ do
             testParseKeli "this:string,reverse->string=undefined"
 
         it "monofunc decl (operator)" $ do
-            testParseKeli "this:string,!!->string=undefined"
+            testParseKeli "this:string,! ->string=undefined"
 
         it "polyfunc decl (word) 1" $ do
             testParseKeli "this:string,splitby that:string->string=undefined"
@@ -30,7 +31,7 @@ main = hspec $ do
             testParseKeli "this:string,replace that:string with the:string->string=undefined"
 
         it "polyfunc decl (operator) 1" $ do
-            testParseKeli "this:int, + that:int->int=undefined"
+            testParseKeli "this:int , == that:int->int=undefined"
 
         it "monofunc call (word)" $ do
             testParseKeli "=x,reverse" 
