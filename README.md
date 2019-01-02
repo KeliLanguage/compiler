@@ -24,3 +24,11 @@ Refer https://stackoverflow.com/questions/35342591/haskell-limit-ghci-memory
 ```sh
 stack ghci --package pretty-simple --ghci-options="+RTS -M256m -K256m -RTS -interactive-print=Text.Pretty.Simple.pPrint" 
 ```
+
+## Versioning
+
+We will be using SemVer + CalVer, as the following format:
+
+```
+MAJOR.YY.MM.DD
+```
