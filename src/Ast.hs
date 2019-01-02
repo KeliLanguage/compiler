@@ -1,16 +1,20 @@
 module Ast where 
 
+import Text.Parsec.Pos
+
+type StringToken = (SourcePos, String)
+type NumberToken = (SourcePos, (Either Integer Double))
 
 data KeliDecl 
     = Seq [KeliDecl] -- Sequences of Declarations
     | KeliConstDecl { 
-        constDeclId    :: Maybe String, -- because we can ignore the identifier
+        constDeclId    :: Maybe StringToken, -- because we can ignore the identifier
         constDeclValue :: KeliExpr,
         constDeclType  :: Maybe KeliExpr
     }
     | KeliFuncDecl {
         funcDeclParams     :: [KeliFuncDeclParam],
-        funcDeclIds        :: [String],
+        funcDeclIds        :: [StringToken],
         funcDeclReturnType :: KeliExpr,
         funcDeclBody       :: KeliExpr
     }
@@ -18,23 +22,21 @@ data KeliDecl
 
 data KeliFuncDeclParam 
     = KeliFuncDeclParam {
-        funcDeclParamId   :: String,
+        funcDeclParamId   :: StringToken,
         funcDeclParamType :: KeliExpr
     }
     deriving (Show)
 
 data KeliExpr 
-    = KeliNumber (Either Integer Double)
-    | KeliString String
-    | KeliArray  [KeliExpr]
-    | KeliTuple  [KeliExpr]
-    | KeliId     String
+    = KeliNumber NumberToken
+    | KeliString StringToken
+    | KeliId     StringToken
     | KeliFuncCall {
         funcCallParams :: [KeliExpr],
-        funcCallIds    :: [String]
+        funcCallIds    :: [StringToken]
     }
     | KeliLambda {
-        lambdaParams :: [String],
+        lambdaParams :: [StringToken],
         lambdaBody   :: KeliExpr
     }
     deriving (Show)

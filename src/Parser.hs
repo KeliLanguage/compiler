@@ -32,10 +32,14 @@ keliDecl'
 
 keliConstDecl :: Parser KeliDecl
 keliConstDecl 
-    =  optionMaybe identifier     >>= \id
+    =  optionMaybe (
+            getPosition >>= \pos
+        ->  identifier  >>= \id 
+        -> return (pos, id)
+    )                             >>= \token
     -> reservedOp "="             >>= \_
     -> keliExpr                   >>= \expr
-    -> return (KeliConstDecl id expr Nothing)
+    -> return (KeliConstDecl token expr Nothing)
 
 keliExpr :: Parser KeliExpr
 keliExpr 
@@ -59,11 +63,11 @@ keliFuncCall
 data KeliFuncCallChain
     = KeliFuncCallChain KeliFuncCallChain KeliFuncCallChain
     | KeliPartialFuncCall {
-        partialFuncCallIds    :: [String],
+        partialFuncCallIds    :: [StringToken],
         partialFuncCallParams :: [KeliExpr]
     }
 
-flattenFuncCallChain :: KeliFuncCallChain -> [([String], [KeliExpr])]
+flattenFuncCallChain :: KeliFuncCallChain -> [([StringToken], [KeliExpr])]
 flattenFuncCallChain (KeliFuncCallChain x y) = (flattenFuncCallChain x ++ flattenFuncCallChain y)
 flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 
@@ -73,21 +77,26 @@ keliFuncCallTail
 
 keliPartialFuncCall
     -- binary/ternary/polynary
-    = try ((many1 ( keliFuncId     >>= \id 
+    = try ((many1 ( 
+                    getPosition    >>= \pos
+                 -> keliFuncId     >>= \id 
                  -> keliAtomicExpr >>= \expr
-                 -> return (id, expr)
+                 -> return ((pos, id), expr)
             )) >>= \pairs
             -> return (KeliPartialFuncCall (map fst pairs) (map snd pairs))
     )
     -- unary
-   <|> (keliFuncId >>= \id -> return (KeliPartialFuncCall [id] []))
+   <|> (
+            getPosition >>= \pos
+        ->  keliFuncId  >>= \id 
+        ->  return (KeliPartialFuncCall [(pos, id)] []))
 
 keliAtomicExpr :: Parser KeliExpr
 keliAtomicExpr 
     =  parens keliExpr
-   <|> liftM KeliNumber number
-   <|> liftM KeliId identifier
-   <|> liftM KeliString stringLit
+   <|> (getPosition >>= \pos -> number     >>= \n   -> return (KeliNumber (pos, n)))
+   <|> (getPosition >>= \pos -> identifier >>= \id  -> return (KeliId (pos, id)))
+   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (KeliString (pos, str)))
 
 keliFuncDecl :: Parser KeliDecl
 keliFuncDecl 
@@ -98,12 +107,13 @@ keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
     =  keliFuncDeclParam  >>= \param
     -> char ',' >> spaces >>= \_ 
+    -> getPosition        >>= \pos
     -> keliFuncId         >>= \id
     -> reservedOp "->"    >>= \_
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl [param] [id] typeExpr expr)
+    -> return (KeliFuncDecl [param] [(pos, id)] typeExpr expr)
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
@@ -118,19 +128,21 @@ keliPolyFuncDecl
 
 keliIdParamPair = 
     many1 (
-            keliFuncId        >>= \id 
+            getPosition       >>= \pos
+        ->  keliFuncId        >>= \id 
         ->  keliFuncDeclParam >>= \param
-        -> return (id, param)
+        -> return ((pos, id), param)
     )
 
 keliFuncId = choice [identifier, operator]
 
 keliFuncDeclParam :: Parser KeliFuncDeclParam
 keliFuncDeclParam 
-    =  identifier     >>= \id
+    =  getPosition    >>= \pos
+    -> identifier     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (KeliFuncDeclParam id typeExpr)
+    -> return (KeliFuncDeclParam (pos, id) typeExpr)
 
 preprocess :: String -> String
 preprocess str = 
