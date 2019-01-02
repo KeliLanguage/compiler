@@ -8,7 +8,9 @@ import Data.List
 buildDeclTable :: KeliDecl -> KeliDeclTable
 buildDeclTable (Seq decls) = fromList (
     map (\x -> (
-        let key = (case x of KeliConstDecl {constDeclId = id}  -> id
+        let key = (case x of KeliConstDecl {constDeclId = id}  -> case id of 
+                                                                    Just x  -> x 
+                                                                    Nothing -> undefined
                              KeliFuncDecl  {funcDeclIds = ids} -> (intercalate [] ids))
         in (key, x)
     )) decls)

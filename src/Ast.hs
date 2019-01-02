@@ -4,7 +4,7 @@ module Ast where
 data KeliDecl 
     = Seq [KeliDecl] -- Sequences of Declarations
     | KeliConstDecl { 
-        constDeclId    :: String,
+        constDeclId    :: Maybe String, -- because we can ignore the identifier
         constDeclValue :: KeliExpr,
         constDeclType  :: Maybe KeliExpr
     }

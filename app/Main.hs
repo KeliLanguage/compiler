@@ -9,9 +9,11 @@ import Analyzer
 main :: IO ()
 main = print "hello world"
 
-keli filename = do 
+keli filename = do
     contents <- readFile filename
     let ast = parseKeli contents
-    let table = buildDeclTable ast
+    let table = (case ast of 
+                    Right ast -> buildDeclTable ast
+                    Left err  -> (error $ show err))
     return table
 

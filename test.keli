@@ -1,12 +1,3 @@
-this:((k.pair v).list).toHashMap -> k.hashmap v = undefined
-
-main = console.log "hello world"
-
-this:integer.toValidMonth -> integer.maybe =
-    this.>= 1 .and (this.<= 12).
-        if_true  (ok.value this)
-        if_false nope
-
 this:((k,pair v),list),toHashMap -> k,hashmap v = undefined
 
 main = console,log "hello world"

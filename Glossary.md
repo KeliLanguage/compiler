@@ -7,3 +7,4 @@
 |func|function|
 |expr|expression|
 |param|parameter|
+|id|identifier|

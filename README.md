@@ -12,7 +12,7 @@ stack build
 ## How to run test?
 
 ```
-stack test
+stack test --file-watch
 ```
 
 ## How to run ghci?

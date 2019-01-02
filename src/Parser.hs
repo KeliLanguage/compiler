@@ -33,9 +33,9 @@ keliDecl'
 
 keliConstDecl :: Parser KeliDecl
 keliConstDecl 
-    =  identifier     >>= \id
-    -> reservedOp "=" >>= \_
-    -> keliExpr       >>= \expr
+    =  optionMaybe identifier     >>= \id
+    -> reservedOp "="             >>= \_
+    -> keliExpr                   >>= \expr
     -> return (KeliConstDecl id expr Nothing)
 
 keliExpr :: Parser KeliExpr
@@ -46,7 +46,7 @@ keliExpr
 keliFuncCall :: Parser KeliExpr
 keliFuncCall 
     =  keliAtomicExpr   >>= \param1
-    -> reservedOp "."   >>= \_
+    -> reservedOp ","   >>= \_
     -> keliFuncCallTail >>= \chain
     -> let pairs          = (flattenFuncCallChain chain) in
        let firstChain     = head pairs in
@@ -70,7 +70,7 @@ flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 
 keliFuncCallTail :: Parser KeliFuncCallChain
 keliFuncCallTail
-    = buildExpressionParser [[Infix (reservedOp "." >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
+    = buildExpressionParser [[Infix (reservedOp "," >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
 
 keliPartialFuncCall
     -- binary/ternary/polynary
@@ -98,7 +98,7 @@ keliFuncDecl
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
     =  keliFuncDeclParam >>= \param
-    -> reservedOp "."    >>= \_ 
+    -> reservedOp ","    >>= \_ 
     -> keliFuncId        >>= \id
     -> reservedOp "->"   >>= \_
     -> keliExpr          >>= \typeExpr
@@ -109,7 +109,7 @@ keliMonoFuncDecl
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
     =  keliFuncDeclParam >>= \param1
-    -> reservedOp "."    >>= \_ 
+    -> reservedOp ","    >>= \_ 
     -> keliIdParamPair   >>= \xs
     -> reservedOp "->"   >>= \_
     -> keliExpr          >>= \typeExpr
@@ -136,10 +136,7 @@ keliFuncDeclParam
 preprocess :: String -> String
 preprocess str = 
     let packed = T.pack str in
-    T.unpack (T.replace "." ". " (T.replace "\n\n" ";" packed))
+    T.unpack (T.replace "->" " -> " (T.replace "," ", " (T.replace "\n\n" ";" packed)))
 
-parseKeli :: String -> KeliDecl
-parseKeli input =
-    case parse keliParser "" (preprocess input) of
-        Left  e -> error $ show e
-        Right r -> r
+parseKeli :: String -> Either ParseError KeliDecl 
+parseKeli input = parse keliParser "" (preprocess input)
