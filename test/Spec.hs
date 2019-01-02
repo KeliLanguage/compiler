@@ -12,38 +12,29 @@ testParseKeli x =
 main :: IO ()
 main = hspec $ do
     describe "keli parser" $ do
+        it "multiline decl" $ do
+            testParseKeli "x=5\n\ny=5"
+            testParseKeli "x=5\n\n\ny=5"
+            testParseKeli "x=5\n\n\n\ny=5"
+
         it "const decl" $ do
             testParseKeli "x=5" 
-        
-        it "id-less const decl" $ do
-            testParseKeli "=5"
+            testParseKeli "=5" 
 
-        it "monofunc decl (word)" $ do
+        it "monofunc decl" $ do
             testParseKeli "this:string,reverse->string=undefined"
-
-        it "monofunc decl (operator)" $ do
             testParseKeli "this:string,! ->string=undefined"
 
-        it "polyfunc decl (word) 1" $ do
+        it "polyfunc decl" $ do
             testParseKeli "this:string,splitby that:string->string=undefined"
-
-        it "polyfunc decl (word) 2" $ do
             testParseKeli "this:string,replace that:string with the:string->string=undefined"
-
-        it "polyfunc decl (operator) 1" $ do
             testParseKeli "this:int , == that:int->int=undefined"
 
-        it "monofunc call (word)" $ do
+        it "monofunc call" $ do
             testParseKeli "=x,reverse" 
-
-        it "monofunc call (operator)" $ do
             testParseKeli "=x,!" 
 
-        it "polyfunc call 1 (word)" $ do
+        it "polyfunc call" $ do
             testParseKeli "=compiler,import x" 
-
-        it "polyfunc call 2 (word)" $ do
             testParseKeli "=x,replace a with b" 
-
-        it "polyfunc call (operator)" $ do
             testParseKeli "=x,+ y" 

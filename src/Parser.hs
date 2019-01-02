@@ -8,6 +8,7 @@ import System.IO
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Combinator
+import Text.Parsec.Char
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
@@ -15,13 +16,12 @@ import qualified Data.Text as T
 import Data.List
 import Debug.Trace
 
-
 keliParser :: Parser KeliDecl
 keliParser = whiteSpace >> keliDecl
 
 keliDecl :: Parser KeliDecl
 keliDecl = do
-    list <- (sepBy1 keliDecl' (symbol ";"))
+    list <- (sepEndBy1 keliDecl' (many1 (symbol ";;;")))
     eof
     return (Seq list)
 
@@ -135,7 +135,7 @@ keliFuncDeclParam
 preprocess :: String -> String
 preprocess str = 
     let packed = T.pack str in
-    T.unpack (T.replace "\n\n" ";" packed)
+    T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
 parseKeli :: String -> Either ParseError KeliDecl 
 parseKeli input = parse keliParser "" (preprocess input)

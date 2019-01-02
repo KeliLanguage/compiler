@@ -11,6 +11,7 @@ main = print "hello world"
 
 keli filename = do
     contents <- readFile filename
+    putStrLn (show contents)
     let ast = parseKeli contents
     let table = (case ast of 
                     Right ast -> buildDeclTable ast
