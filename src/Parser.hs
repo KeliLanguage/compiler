@@ -133,16 +133,12 @@ keliFuncDeclParam
     -> return (KeliFuncDeclParam id typeExpr)
 
 preprocess :: String -> String
-preprocess str = T.unpack (T.replace "\n\n" ";" (T.pack str))
+preprocess str = 
+    let packed = T.pack str in
+    T.unpack (T.replace "." ". " (T.replace "\n\n" ";" packed))
 
 parseKeli :: String -> KeliDecl
 parseKeli input =
     case parse keliParser "" (preprocess input) of
-        Left  e -> error $ show e
-        Right r -> r
-
-
-debugParseKeli input =
-    case parse (keliParser >> parserTrace "debug") "" (preprocess input) of
         Left  e -> error $ show e
         Right r -> r

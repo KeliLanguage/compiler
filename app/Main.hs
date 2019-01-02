@@ -3,8 +3,15 @@ module Main where
 import Lib
 import Transpiler
 import Parser
+import Compiler
+import Analyzer
 
 main :: IO ()
-main = do 
-    putStrLn "hello world"
+main = print "hello world"
+
+keli filename = do 
+    contents <- readFile filename
+    let ast = parseKeli contents
+    let table = buildDeclTable ast
+    return table
 
