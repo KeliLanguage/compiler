@@ -12,7 +12,7 @@ languageDef =
            , Token.identLetter     = alphaNum <|> char '_'
            , Token.reservedOpNames = [
                  "="
-               , "->"
+               , "|"
                , ","
                , ":"
                ]

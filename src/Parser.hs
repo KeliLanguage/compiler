@@ -109,7 +109,7 @@ keliMonoFuncDecl
     -> char ',' >> spaces >>= \_ 
     -> getPosition        >>= \pos
     -> keliFuncId         >>= \id
-    -> reservedOp "->"    >>= \_
+    -> reservedOp "|"    >>= \_
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
@@ -120,7 +120,7 @@ keliPolyFuncDecl
     =  keliFuncDeclParam  >>= \param1
     -> char ',' >> spaces >>= \_ 
     -> keliIdParamPair    >>= \xs
-    -> reservedOp "->"    >>= \_
+    -> reservedOp "|"    >>= \_
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr

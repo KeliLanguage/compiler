@@ -22,13 +22,13 @@ main = hspec $ do
             testParseKeli "=5" 
 
         it "monofunc decl" $ do
-            testParseKeli "this:string,reverse->string=undefined"
-            testParseKeli "this:string,! ->string=undefined"
+            testParseKeli "this:string,reverse|string=undefined"
+            testParseKeli "this:string,! |string=undefined"
 
         it "polyfunc decl" $ do
-            testParseKeli "this:string,splitby that:string->string=undefined"
-            testParseKeli "this:string,replace that:string with the:string->string=undefined"
-            testParseKeli "this:int , == that:int->int=undefined"
+            testParseKeli "this:string,splitby that:string|string=undefined"
+            testParseKeli "this:string,replace that:string with the:string|string=undefined"
+            testParseKeli "this:int , == that:int|int=undefined"
 
         it "monofunc call" $ do
             testParseKeli "=x,reverse" 
