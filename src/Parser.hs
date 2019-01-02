@@ -23,6 +23,7 @@ keliParser = whiteSpace >> keliDecl
 keliDecl :: Parser KeliDecl
 keliDecl = do
     list <- (sepBy1 keliDecl' (symbol ";"))
+    eof
     return (Seq list)
 
 keliDecl' :: Parser KeliDecl
