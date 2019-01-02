@@ -1,5 +1,8 @@
 # compiler-demo
 
+## Namings
+Refer Glossary.md
+
 ## How to setup this project?
 
 ```
