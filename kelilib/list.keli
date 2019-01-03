@@ -1,3 +1,4 @@
+="this is a thing"
 a:type,list | type = 
     (data,
         tag nil),
@@ -34,6 +35,7 @@ xs:(a,list),filter f:(a,to boolean) | a,list =
             (f,apply(xs,current),
                 if_true (xs,current,cons(xs,next,filter f))
                 if_false (nil,cons(xs,next,filter f)))
+
 
 {a:type b:type}
 xs:(a,list),foldl f:(b,with a,to b) starting_with value:b | b =

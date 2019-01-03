@@ -30,6 +30,10 @@ main = hspec $ do
                 \ \n\n x:integer,up | string=undefined") `shouldBe` True
 
     describe "keli parser" $ do
+        it "comments" $ do
+            -- comments are just string expressions!
+            testParseKeli "=\"this is a comment\"\npi=3.142"
+
         it "lambda expr" $ do
             testParseKeli "hi = x | console,log x"
             testParseKeli "hi = x y | x, +y"

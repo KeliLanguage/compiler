@@ -22,7 +22,7 @@ keliParser = whiteSpace >> keliDecl
 
 keliDecl :: Parser [KeliDecl]
 keliDecl = do
-    list <- (sepEndBy1 keliDecl' (many1 (symbol ";;;")))
+    list <- many1 keliDecl'
     eof
     return list
 
@@ -166,9 +166,10 @@ keliFuncDeclParam
     -> return (KeliFuncDeclParam (pos, id) typeExpr)
 
 preprocess :: String -> String
-preprocess str = 
-    let packed = T.pack str in
-    T.unpack (T.replace "\n\n" "\n;;;\n" packed)
+preprocess str = str
+    -- just in case we need it in the future:
+    -- let packed = T.pack str in
+    -- T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
 parseKeli :: String -> Either ParseError [KeliDecl] 
 parseKeli input = parse keliParser "" (preprocess input)
