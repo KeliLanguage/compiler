@@ -7,26 +7,22 @@ a:type,list | type =
         current a
         next    (a,list))
 
-{a:type}
-x:a,cons xs:(a,list) -> a,list = cons, current a next xs
+a:type | x:a,cons xs:(a,list) | a,list = cons, current a next xs
 
-{a:type}
-xs:(a,list),++ ys:(a,list) | a,list =
+a:type | xs:(a,list),++ ys:(a,list) | a,list =
     xs,
         if_nil ys
         if_cons (xs,current,cons,(xs,next,++ys))
 
-{a:type}
-xs:(a,list),sum | integer = xs,foldl (x y | x, + y) starting_with 0
+a:type | xs:(a,list),sum | integer = 
+    xs,foldl (x y | x, + y) starting_with 0
 
-{a:type ; b:type}
-xs:(a,list),map f:(a,to b) | b,list = 
+a:type | b:type | xs:(a,list),map f:(a,to b) | b,list = 
     xs,
         if_nil  nil
         if_cons (f,apply(xs,current),cons(xs,next,map f)
 
-{a:type}
-xs:(a,list),filter f:(a,to boolean) | a,list =
+a:type | xs:(a,list),filter f:(a,to boolean) | a,list =
     xs,
         if_nil nil
         if_cons 
@@ -34,8 +30,7 @@ xs:(a,list),filter f:(a,to boolean) | a,list =
                 if_true (xs,current,cons,(xs,next,filter f))
                 if_false (nil,cons,(xs,next,filter f)))
 
-{a:type ; b:type}
-xs:(a,list),foldl f:(b,with a,to b) starting_with value:b | b =
+a:type | b:type | xs:(a,list),foldl f:(b,with a,to b) starting_with value:b | b =
     xs,
         if_nil value
         if_cons (xs,next,foldl f starting_with(f,apply(xs,current)))
