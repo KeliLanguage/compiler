@@ -9,3 +9,4 @@
 |param|parameter|
 |id|identifier|
 |ast|abstract syntax tree|
+|ir|intermediate representation|

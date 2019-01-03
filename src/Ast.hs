@@ -6,8 +6,7 @@ type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
 
 data KeliDecl 
-    = Seq [KeliDecl] -- Sequences of Declarations
-    | KeliConstDecl { 
+    = KeliConstDecl { 
         constDeclId    :: Maybe StringToken, -- because we can ignore the identifier
         constDeclValue :: KeliExpr,
         constDeclType  :: Maybe KeliExpr
@@ -28,7 +27,7 @@ data KeliFuncDeclParam
     deriving (Show)
 
 data KeliExpr 
-    = KeliNumber NumberToken
+    = KeliNumber NumberToken 
     | KeliString StringToken
     | KeliId     StringToken
     | KeliFuncCall {
@@ -38,5 +37,9 @@ data KeliExpr
     | KeliLambda {
         lambdaParams :: [StringToken],
         lambdaBody   :: KeliExpr
+    }
+    | KeliTypeCheckedExpr {
+        _expr :: KeliExpr,
+        _type :: KeliExpr
     }
     deriving (Show)

@@ -16,14 +16,14 @@ import qualified Data.Text as T
 import Data.List
 import Debug.Trace
 
-keliParser :: Parser KeliDecl
+keliParser :: Parser [KeliDecl]
 keliParser = whiteSpace >> keliDecl
 
-keliDecl :: Parser KeliDecl
+keliDecl :: Parser [KeliDecl]
 keliDecl = do
     list <- (sepEndBy1 keliDecl' (many1 (symbol ";;;")))
     eof
-    return (Seq list)
+    return list
 
 keliDecl' :: Parser KeliDecl
 keliDecl' 
@@ -156,5 +156,5 @@ preprocess str =
     let packed = T.pack str in
     T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
-parseKeli :: String -> Either ParseError KeliDecl 
+parseKeli :: String -> Either ParseError [KeliDecl] 
 parseKeli input = parse keliParser "" (preprocess input)

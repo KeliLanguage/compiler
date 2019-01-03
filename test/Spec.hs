@@ -3,14 +3,32 @@ import Control.Exception (evaluate)
 import Parser
 import Ast
 import Debug.Trace
+import Analyzer
+import Data.Either
 
 testParseKeli x = 
     (case (parseKeli x) of
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
+analyze x = 
+    let result = parseKeli x in
+        case result of 
+            Right decls -> buildDeclTable decls
+            Left err    -> trace (show err) $ undefined
+
+
 main :: IO ()
 main = hspec $ do
+    describe "keli analyzer" $ do
+        it "check for duplicated id" $ do
+            isLeft  (analyze "x=5\n\nx=5") `shouldBe` True
+            isRight (analyze "x=5\n\ny=5") `shouldBe` True
+
+            isRight  (analyze 
+                      "x:string,up  | string=undefined \
+                \ \n\n x:integer,up | string=undefined") `shouldBe` True
+
     describe "keli parser" $ do
         it "lambda expr" $ do
             testParseKeli "hi = x | console,log x"
