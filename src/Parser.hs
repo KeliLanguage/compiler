@@ -14,6 +14,7 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import qualified Data.Text as T
 import Data.List
+import Data.Maybe
 import Debug.Trace
 
 keliParser :: Parser [KeliDecl]
@@ -111,25 +112,38 @@ keliFuncDecl
 
 keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
-    =  keliFuncDeclParam  >>= \param
+    =  keliGenericParams  >>= \genparams
+    -> keliFuncDeclParam  >>= \param
     -> char ',' >> spaces >>= \_ 
     -> keliFuncId         >>= \token
     -> reservedOp "|"     >>= \_
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl [param] [token] typeExpr expr)
+    -> return (KeliFuncDecl (unpackMaybe genparams) [param] [token] typeExpr expr)
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
-    =  keliFuncDeclParam  >>= \param1
+    =  keliGenericParams  >>= \genparams
+    -> keliFuncDeclParam  >>= \param1
     -> char ',' >> spaces >>= \_ 
     -> keliIdParamPair    >>= \xs
     -> reservedOp "|"     >>= \_
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl (param1:(map snd xs)) (map fst xs) typeExpr expr)
+    -> return (KeliFuncDecl (unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr)
+
+unpackMaybe :: Maybe [a] -> [a]
+unpackMaybe (Just x) = x
+unpackMaybe Nothing  = []
+
+
+braces  = between (symbol "{") (symbol "}")
+keliGenericParams :: Parser (Maybe [KeliFuncDeclParam])
+keliGenericParams 
+    =  optionMaybe $ braces $ many1 (keliFuncDeclParam >>= \param ->  return param)
+
 
 keliIdParamPair = 
     many1 (

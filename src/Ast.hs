@@ -12,10 +12,11 @@ data KeliDecl
         constDeclType  :: Maybe KeliExpr
     }
     | KeliFuncDecl {
-        funcDeclParams     :: [KeliFuncDeclParam],
-        funcDeclIds        :: [StringToken],
-        funcDeclReturnType :: KeliExpr,
-        funcDeclBody       :: KeliExpr
+        funcDeclGenericParams :: [KeliFuncDeclParam],
+        funcDeclParams        :: [KeliFuncDeclParam],
+        funcDeclIds           :: [StringToken],
+        funcDeclReturnType    :: KeliExpr,
+        funcDeclBody          :: KeliExpr
     }
     deriving (Show)
 

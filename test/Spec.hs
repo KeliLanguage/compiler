@@ -46,6 +46,8 @@ main = hspec $ do
         it "monofunc decl" $ do
             testParseKeli "this:string,reverse|string=undefined"
             testParseKeli "this:string,! |string=undefined"
+            testParseKeli "{a:type}x:a,unit|a=undefined"
+            testParseKeli "{a:type b:type}x:(a,with b),invert|(b,with a)=x,second,with(x,first)"
 
         it "polyfunc decl" $ do
             testParseKeli "this:string,splitby that:string|string=undefined"
