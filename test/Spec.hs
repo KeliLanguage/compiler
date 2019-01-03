@@ -14,6 +14,7 @@ main = hspec $ do
     describe "keli parser" $ do
         it "lambda expr" $ do
             testParseKeli "hi = x | console,log x"
+            testParseKeli "hi = x y | x, +y"
 
         it "multiline decl" $ do
             testParseKeli "x=5\n\ny=5"
