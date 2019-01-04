@@ -30,6 +30,9 @@ main = hspec $ do
                 \ \n\n x:integer,up | string=undefined") `shouldBe` True
 
     describe "keli parser" $ do
+        it "id starting with underscore" $ do
+            testParseKeli "_=0"
+
         it "comments" $ do
             -- comments are just string expressions!
             testParseKeli "=\"this is a comment\"\npi=3.142"
