@@ -8,8 +8,8 @@ languageDef =
   emptyDef { Token.commentStart    = "/*"
            , Token.commentEnd      = "*/"
            , Token.commentLine     = "//"
-           , Token.identStart      = letter   <|> char '_'
-           , Token.identLetter     = alphaNum <|> char '_'
+           , Token.identStart      = letter   <|> char '_' 
+           , Token.identLetter     = alphaNum <|> char '_' <|> char '?'
            , Token.reservedOpNames = [
                  "="
                , "|"

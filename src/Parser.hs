@@ -51,7 +51,7 @@ keliExpr
 keliFuncCall :: Parser KeliExpr
 keliFuncCall 
     =  keliAtomicExpr     >>= \param1
-    -> char ',' >> spaces >>= \_
+    -> char '.' >> spaces >>= \_
     -> keliFuncCallTail   >>= \chain
     -> let pairs          = (flattenFuncCallChain chain) in
        let firstChain     = head pairs in
@@ -82,7 +82,7 @@ flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 
 keliFuncCallTail :: Parser KeliFuncCallChain
 keliFuncCallTail
-    = buildExpressionParser [[Infix (char ',' >> spaces >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
+    = buildExpressionParser [[Infix (char '.' >> spaces >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
 
 keliPartialFuncCall
     -- binary/ternary/polynary
@@ -114,7 +114,7 @@ keliMonoFuncDecl :: Parser KeliDecl
 keliMonoFuncDecl
     =  keliGenericParams  >>= \genparams
     -> keliFuncDeclParam  >>= \param
-    -> char ',' >> spaces >>= \_ 
+    -> char '.' >> spaces >>= \_ 
     -> keliFuncId         >>= \token
     -> reservedOp "|"     >>= \_
     -> keliExpr           >>= \typeExpr
@@ -126,7 +126,7 @@ keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
     =  keliGenericParams  >>= \genparams
     -> keliFuncDeclParam  >>= \param1
-    -> char ',' >> spaces >>= \_ 
+    -> char '.' >> spaces >>= \_ 
     -> keliIdParamPair    >>= \xs
     -> reservedOp "|"     >>= \_
     -> keliExpr           >>= \typeExpr
