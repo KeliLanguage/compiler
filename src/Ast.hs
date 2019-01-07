@@ -27,6 +27,16 @@ data KeliFuncDeclParam
     }
     deriving (Show)
 
+data KeliType  
+    = KeliTypeFloat
+    | KeliTypeInt
+    | KeliTypeString
+    | KeliTypeRecord [(StringToken, KeliType)]
+    | KeliTypeTagUnion [KeliTag]
+    deriving (Show)
+
+data KeliTag = KeliTag StringToken (Maybe KeliType) deriving (Show)
+
 data KeliExpr 
     = KeliNumber NumberToken 
     | KeliString StringToken
@@ -41,6 +51,26 @@ data KeliExpr
     }
     | KeliTypeCheckedExpr {
         _expr :: KeliExpr,
-        _type :: KeliExpr
+        _type :: KeliType
     }
+    | KeliRecord {
+        recordKeyValues :: [(StringToken, KeliExpr)]
+    }
+    | KeliRecordGetter {
+        recordGetterSubject      :: KeliExpr,
+        recordGetterPropertyName :: String
+    }
+    | KeliRecordSetter {
+        recordSetterSubject      :: KeliExpr,
+        recordSetterPropertyName :: StringToken,
+        recordSetterNewValue     :: KeliExpr
+    }
+    | KeliTagChecker {
+        tagCheckerSubject  :: KeliExpr,
+        tagCheckerBranches :: [(StringToken, KeliExpr)] -- [(Tag, KeliExpr)]
+    } 
+    | KeliTagConstructor {
+        tagConstructorId    :: StringToken,
+        tagConstructorCarry :: Maybe KeliExpr
+    } 
     deriving (Show)
