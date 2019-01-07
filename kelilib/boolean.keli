@@ -1,7 +1,7 @@
-bool = (_.tag true).or(_.tag false)
+bool = (_.tag true).or(_.tag false);
 
-x:bool.not | bool = x.true? false false? true
+x:bool.not | bool = x.true? false false? true;
 
-x:bool.and y:bool | bool = x.true? y false? false
+x:bool.and y:bool | bool = x.true? y false? false;
 
-x:bool.or y:bool | bool = x.true? true false? y
+x:bool.or y:bool | bool = x.true? true false? y;

@@ -13,8 +13,9 @@ languageDef =
            , Token.reservedOpNames = [
                  "="
                , "|"
-               , ","
+               , "."
                , ":"
+               , ";"
                ]
            }
 
