@@ -1,0 +1,7 @@
+_primitive = _primitive;
+int        = _primitive;
+str        = _primitive;
+
+record     = record;
+interface = interface;
+_ = _;

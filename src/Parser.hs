@@ -40,7 +40,9 @@ keliConstDecl
     )                             >>= \token
     -> reservedOp "="             >>= \_
     -> keliExpr                   >>= \expr
-    -> return (KeliConstDecl token expr Nothing)
+    -> case token of 
+        Just t  -> return (KeliConstDecl (KeliConst t expr Nothing))
+        Nothing -> return (KeliIdlessDecl expr)
 
 keliExpr :: Parser KeliExpr
 keliExpr 
@@ -120,7 +122,7 @@ keliMonoFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl (unpackMaybe genparams) [param] [token] typeExpr expr)
+    -> return (KeliFuncDecl (KeliFunc(unpackMaybe genparams) [param] [token] (KeliTypeUnchecked typeExpr) expr))
 
 keliPolyFuncDecl :: Parser KeliDecl
 keliPolyFuncDecl   
@@ -132,7 +134,7 @@ keliPolyFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl (unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr)
+    -> return (KeliFuncDecl (KeliFunc(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) (KeliTypeUnchecked typeExpr) expr))
 
 unpackMaybe :: Maybe [a] -> [a]
 unpackMaybe (Just x) = x
@@ -163,7 +165,7 @@ keliFuncDeclParam
     -> identifier     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (KeliFuncDeclParam (pos, id) typeExpr)
+    -> return (KeliFuncDeclParam (pos, id) (KeliTypeUnchecked typeExpr))
 
 preprocess :: String -> String
 preprocess str = str

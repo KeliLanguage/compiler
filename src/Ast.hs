@@ -1,38 +1,46 @@
 module Ast where 
 
 import Text.Parsec.Pos
+import Data.List
 
 type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
 
 data KeliDecl 
-    = KeliConstDecl { 
-        constDeclId    :: Maybe StringToken, -- because we can ignore the identifier
-        constDeclValue :: KeliExpr,
-        constDeclType  :: Maybe KeliExpr
-    }
-    | KeliFuncDecl {
-        funcDeclGenericParams :: [KeliFuncDeclParam],
-        funcDeclParams        :: [KeliFuncDeclParam],
-        funcDeclIds           :: [StringToken],
-        funcDeclReturnType    :: KeliExpr,
-        funcDeclBody          :: KeliExpr
-    }
+    = KeliConstDecl KeliConst
+    | KeliFuncDecl KeliFunc
+    | KeliIdlessDecl KeliExpr
     deriving (Show)
+
+data KeliConst = KeliConst { 
+    constDeclId    :: StringToken, -- because we can ignore the identifier
+    constDeclValue :: KeliExpr,
+    constDeclType  :: Maybe KeliType
+} deriving (Show)
+
+data KeliFunc = KeliFunc {
+    funcDeclGenericParams :: [KeliFuncDeclParam],
+    funcDeclParams        :: [KeliFuncDeclParam],
+    funcDeclIds           :: [StringToken],
+    funcDeclReturnType    :: KeliType,
+    funcDeclBody          :: KeliExpr
+} deriving (Show)
 
 data KeliFuncDeclParam 
     = KeliFuncDeclParam {
         funcDeclParamId   :: StringToken,
-        funcDeclParamType :: KeliExpr
+        funcDeclParamType :: KeliType
     }
     deriving (Show)
 
 data KeliType  
-    = KeliTypeFloat
+    = KeliTypeUnchecked KeliExpr
+    | KeliTypeFloat
     | KeliTypeInt
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [KeliTag]
+    | KeliTypeAlias StringToken KeliType
     deriving (Show)
 
 data KeliTag = KeliTag StringToken (Maybe KeliType) deriving (Show)
@@ -48,10 +56,6 @@ data KeliExpr
     | KeliLambda {
         lambdaParams :: [StringToken],
         lambdaBody   :: KeliExpr
-    }
-    | KeliTypeCheckedExpr {
-        _expr :: KeliExpr,
-        _type :: KeliType
     }
     | KeliRecord {
         recordKeyValues :: [(StringToken, KeliExpr)]
@@ -73,4 +77,45 @@ data KeliExpr
         tagConstructorId    :: StringToken,
         tagConstructorCarry :: Maybe KeliExpr
     } 
+    | KeliTypeCheckedExpr {
+        _expr :: KeliExpr,
+        _type :: KeliType
+    }
     deriving (Show)
+
+class Identifiable a where
+    getIdentifier :: a -> String
+
+instance Identifiable KeliDecl where
+    getIdentifier d = case d of
+        KeliConstDecl c -> getIdentifier c
+        KeliFuncDecl  f -> getIdentifier f
+
+instance Identifiable KeliFunc where
+    getIdentifier (KeliFunc{funcDeclIds=ids, funcDeclParams=params})
+        = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
+
+instance Identifiable KeliConst where
+    getIdentifier c = snd (constDeclId c)
+
+
+class Stringifiable a where
+    toString :: a -> String
+
+instance Stringifiable KeliType where
+    toString t = case t of
+        KeliTypeFloat  -> "float"
+        KeliTypeInt    -> "int"
+        KeliTypeString -> "str"
+        KeliTypeRecord kvs -> undefined
+        KeliTypeTagUnion tags -> undefined
+        KeliTypeAlias (_,id) _ -> id
+        KeliTypeUnchecked expr -> "unknown"
+
+
+class HaveType a where
+    getType :: a -> KeliType
+
+instance HaveType KeliExpr where
+    getType (KeliTypeCheckedExpr _ exprType) = exprType
+    getType e = KeliTypeUnchecked e

@@ -9,8 +9,15 @@ class Transpilable a where
 
 instance Transpilable KeliDecl where
     transpile x = case x of 
-        KeliConstDecl (Just id) expr _ -> "const " ++ (snd id) ++ "=" ++ (transpile expr)
-        KeliConstDecl Nothing   expr _ -> (transpile expr)
+        KeliConstDecl (KeliConst (_,id) expr _) 
+            -> "const " ++ id ++ "=" ++ (transpile expr)
+
+        KeliIdlessDecl e 
+            -> transpile e
+
+        KeliFuncDecl f@(KeliFunc _ params _ _ body) 
+            -> let params' = intercalate "," (map (snd . funcDeclParamId) params) in
+                "function " ++ getIdentifier f ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 instance Transpilable KeliExpr where
     transpile x = case x of 

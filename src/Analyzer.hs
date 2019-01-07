@@ -2,47 +2,13 @@
 module Analyzer where
 
 import Ast
+import SymbolTable
 import qualified Data.HashMap.Strict as H
 import Data.List 
 import Text.Parsec.Pos
+import StaticError
 
-buildDeclTable :: [KeliDecl] -> Either KeliError KeliDeclTable 
-buildDeclTable decls = foldl
-        ((\acc next -> 
-            case acc of 
-                Left  e -> Left e
-                Right table ->
-                    let key   = fst next in 
-                    let value = snd next in
-                    if H.member key table 
-                        then Left KeliError
-                        else Right (H.insert key value table)
-        )::Either KeliError KeliDeclTable -> (String, KeliDecl) -> Either KeliError KeliDeclTable)   -- reducer
-        (Right emptyKeliDeclTable) -- initial value
-        ((map toKeyValuePair idfulDecls) :: [(String, KeliDecl)]) -- foldee
-    where 
-        idfulDecls = filter (\x -> case x of 
-                                        KeliConstDecl {constDeclId = id} -> case id of
-                                            Just x -> True
-                                            Nothing -> False
-                                        KeliFuncDecl {} -> True) decls
-
-        toKeyValuePair :: KeliDecl -> (String, KeliDecl)
-        toKeyValuePair x =         
-            let key = (case x of 
-                        KeliConstDecl {constDeclId = id}  -> case id of 
-                            Just x  -> (snd x)
-                            Nothing -> undefined
-                        KeliFuncDecl  {
-                            funcDeclIds = ids,
-                            funcDeclParams = params
-                        } -> (intercalate [] (map snd ids)))
-            in (key, x)
-
-emptyKeliDeclTable :: KeliDeclTable
-emptyKeliDeclTable = H.empty
-
-analzyeAst :: [KeliDecl] -> KeliDeclTable -> ([KeliDecl], [KeliError])
+analzyeAst :: [KeliDecl] -> KeliSymTab -> ([KeliDecl], [KeliError])
 analzyeAst decls declTable = foldl 
         (\acc next -> 
             let (prevDecls, errors1) = acc in 
@@ -51,21 +17,48 @@ analzyeAst decls declTable = foldl
         ([], [])
         decls
 
-analyzeDecl :: KeliDecl -> KeliDeclTable -> (KeliDecl, [KeliError])
+analyzeDecl :: KeliDecl -> KeliSymTab -> (KeliDecl, [KeliError])
 analyzeDecl decl table = case decl of
     constDecl@(
-        KeliConstDecl {
+        KeliConstDecl KeliConst {
             constDeclId=id,
             constDeclValue=expr,
             constDeclType=expectedType
-        }) -> let (checkedExpr, errors) = typeCheckExpr expr table in
-            ((KeliConstDecl id checkedExpr expectedType), errors)
+        }) -> let (checkedExpr, errors) = typeCheckExpr table expr in
+            ((KeliConstDecl (KeliConst id checkedExpr expectedType)), errors)
     KeliFuncDecl  {}  -> undefined
 
-typeCheckExpr :: KeliExpr -> KeliDeclTable -> (KeliExpr, [KeliError])
-typeCheckExpr expr table = undefined
+typeCheckExpr :: KeliSymTab -> KeliExpr  -> (KeliExpr, [KeliError])
+typeCheckExpr table e = case e of 
+    (expr@(KeliNumber(_,n))) 
+        -> (KeliTypeCheckedExpr expr (case n of Left _ -> KeliTypeInt; Right _ -> KeliTypeFloat), [])
+    (expr@(KeliString _))    
+        -> (KeliTypeCheckedExpr expr KeliTypeString, [])
+    (expr@(KeliTypeCheckedExpr _ _)) 
+        -> (expr, [])
+    (expr@(KeliId (_,id)))
+        -> (case H.lookup id table of 
+                Just (KeliSymConst (KeliConst _ (KeliTypeCheckedExpr _ exprType) _))
+                    -> (KeliTypeCheckedExpr expr exprType, [])
+                _ 
+                    -> (expr, [KErrorUsingUndefinedId]))
+    (KeliFuncCall params ids)
+        -> 
+            let (typeCheckedParams, errors) = typeCheckExprs table params in
+            let funcCall = KeliFuncCall typeCheckedParams ids in 
+            case H.lookup (getFuncId funcCall) table of
+                Just (KeliSymFunc f) 
+                    -> (KeliTypeCheckedExpr funcCall (funcDeclReturnType f), errors)
+                _ 
+                    -> (funcCall, errors++[KErrorUsingUndefinedFunc])
+    where 
+        getFuncId (KeliFuncCall params ids) 
+            = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . getType) params)
+
+
+typeCheckExprs :: KeliSymTab -> [KeliExpr] -> ([KeliExpr], [KeliError])
+typeCheckExprs table exprs = 
+        foldl (\(exprs1, errs1) (expr2, errs2) -> (expr2:exprs1, errs1 ++ errs2)) ([],[]) 
+        (map (typeCheckExpr table) exprs)
+
     
-
-type KeliDeclTable = H.HashMap String KeliDecl
-
-data KeliError = KeliError

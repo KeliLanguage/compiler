@@ -2,11 +2,13 @@
 
 |Abbreviation|Meaning|
 |--|--|
+|ast|abstract syntax tree|
 |const|constant|
 |decl|declaration|
-|func|function|
 |expr|expression|
-|param|parameter|
+|func|function|
 |id|identifier|
-|ast|abstract syntax tree|
+|int|integer|
 |ir|intermediate representation|
+|param|parameter|
+|symtab|symbol table|

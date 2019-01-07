@@ -5,6 +5,7 @@ import Transpiler
 import Parser
 import Compiler
 import Analyzer
+import SymbolTable
 
 main :: IO ()
 main = print "hello world"
