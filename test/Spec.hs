@@ -5,6 +5,8 @@ import Ast
 import Debug.Trace
 import Analyzer
 import Data.Either
+import SymbolTable
+import StaticError
 
 testParseKeli x = 
     (case (parseKeli x) of
@@ -12,22 +14,22 @@ testParseKeli x =
         Left  err -> trace (show err) $ False) `shouldBe` True
 
 analyze x = 
-    let result = parseKeli x in
-        case result of 
-            Right decls -> buildDeclTable decls
-            Left err    -> trace (show err) $ undefined
-
+    let decls  = parseKeli x in
+    case decls of 
+        Right decls -> 
+            case buildSymTab decls of
+                Right symtab -> Right (analzyeAst decls symtab)
+                Left err -> Left err 
+        Left err -> trace (show err) $ undefined
+        
 
 main :: IO ()
 main = hspec $ do
-    -- describe "keli analyzer" $ do
-        -- it "check for duplicated id" $ do
-        --     isLeft  (analyze "x=5\n\nx=5") `shouldBe` True
-        --     isRight (analyze "x=5\n\ny=5") `shouldBe` True
+    describe "keli analyzer" $ do
+        it "check for duplicated const id" $ do
+            (case analyze "x=5;x=5;" of Left KErrorDuplicatedId -> True;_->False) `shouldBe` True
+            isRight (analyze "x=5;y=5;") `shouldBe` True
 
-        --     isRight  (analyze 
-        --               "x:string,up  | string=undefined \
-        --         \ \n\n x:integer,up | string=undefined") `shouldBe` True
 
     describe "keli parser" $ do
         it "identifiers" $ do

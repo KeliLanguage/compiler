@@ -6,3 +6,4 @@ data KeliError
     = KErrorDuplicatedId -- StringToken StringToken
     | KErrorUsingUndefinedId
     | KErrorUsingUndefinedFunc
+    deriving(Show)
