@@ -17,7 +17,7 @@ instance Identifiable KeliSym where
     getIdentifier sym = case sym of 
         (KeliSymFunc f)           -> getIdentifier f
         (KeliSymConst c)          -> getIdentifier c
-        (KeliSymSingleton (_,id)) -> id
+        (KeliSymSingleton id)     -> id
         (KeliSymType t)           -> getIdentifier t
     
 
@@ -29,14 +29,14 @@ buildSymTab decls = foldl
             case acc of 
                 Left  e -> Left e
                 Right table ->
-                    let key   = fst next in 
-                    let value = snd next in
+                    let (token,value) = next in 
+                    let key = snd token in
                     if H.member key table 
-                        then Left (KErrorDuplicatedId)
+                        then Left (KErrorDuplicatedId token)
                         else Right (H.insert key (toKeliSym value) table)
-        )::Either KeliError KeliSymTab -> (String, KeliDecl) -> Either KeliError KeliSymTab)   -- reducer
+        )::Either KeliError KeliSymTab -> (StringToken, KeliDecl) -> Either KeliError KeliSymTab)   -- reducer
         (Right emptyKeliSymTab) -- initial value
-        ((map toKeyValuePair idfulDecls) :: [(String, KeliDecl)]) -- foldee
+        ((map toKeyValuePair idfulDecls) :: [(StringToken, KeliDecl)]) -- foldee
     where 
         toKeliSym decl = case decl of
             KeliConstDecl (c@KeliConst{constDeclId=(_,id)}) -> case constDeclValue c of
@@ -58,7 +58,7 @@ buildSymTab decls = foldl
 
         idfulDecls = filter (\x -> case x of KeliIdlessDecl _ -> False; _ -> True) decls
 
-        toKeyValuePair :: KeliDecl -> (String, KeliDecl)
+        toKeyValuePair :: KeliDecl -> (StringToken, KeliDecl)
         toKeyValuePair x = (getIdentifier x, x)
         
 

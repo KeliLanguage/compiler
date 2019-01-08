@@ -29,12 +29,17 @@ main :: IO ()
 main = hspec $ do
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
-            (case testAnalyze "x=5;x=5;" of Left KErrorDuplicatedId -> True;_->False) `shouldBe` True
+            (case testAnalyze "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
             isRight (testAnalyze "x=5;y=5;") `shouldBe` True
 
         it "keli record" $ do
             baseCode <- getBaseCode
-            putStrLn (show (testAnalyze (baseCode ++ "animal=record.name str age int;")))
+            isRight (testAnalyze (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
+        
+        it "keli func" $ do
+            baseCode <- getBaseCode
+            -- TODO: Complete the test
+            putStrLn (show (testAnalyze (baseCode ++ "x:int.+y:int|int=undefined;")))
 
     describe "keli parser" $ do
         it "identifiers" $ do

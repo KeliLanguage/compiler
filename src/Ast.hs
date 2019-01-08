@@ -85,7 +85,7 @@ data KeliExpr
     deriving (Show, Eq)
 
 class Identifiable a where
-    getIdentifier :: a -> String
+    getIdentifier :: a -> StringToken
 
 instance Identifiable KeliDecl where
     getIdentifier d = case d of
@@ -94,13 +94,19 @@ instance Identifiable KeliDecl where
 
 instance Identifiable KeliFunc where
     getIdentifier (KeliFunc{funcDeclIds=ids, funcDeclParams=params})
-        = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
+        = (
+            fst (head ids)
+            ,
+            intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
+        )
 
 instance Identifiable KeliConst where
-    getIdentifier c = snd (constDeclId c)
+    getIdentifier c = constDeclId c
+
+
 
 instance Identifiable KeliType where
-    getIdentifier = toString
+    getIdentifier x = (newPos "" (-1) (-1), toString x)
 
 class Stringifiable a where
     toString :: a -> String
