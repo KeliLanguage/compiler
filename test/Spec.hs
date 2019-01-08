@@ -13,23 +13,28 @@ testParseKeli x =
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
-analyze x = 
+testAnalyze x = 
     let decls  = parseKeli x in
     case decls of 
         Right decls -> 
             case buildSymTab decls of
-                Right symtab -> Right (analzyeAst decls symtab)
+                Right symtab -> Right (analyze symtab)
                 Left err -> Left err 
         Left err -> trace (show err) $ undefined
+
         
+getBaseCode = readFile "./kelilib/base.keli"
 
 main :: IO ()
 main = hspec $ do
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
-            (case analyze "x=5;x=5;" of Left KErrorDuplicatedId -> True;_->False) `shouldBe` True
-            isRight (analyze "x=5;y=5;") `shouldBe` True
+            (case testAnalyze "x=5;x=5;" of Left KErrorDuplicatedId -> True;_->False) `shouldBe` True
+            isRight (testAnalyze "x=5;y=5;") `shouldBe` True
 
+        it "keli record" $ do
+            baseCode <- getBaseCode
+            putStrLn (show (testAnalyze (baseCode ++ "animal=record.name str age int;")))
 
     describe "keli parser" $ do
         it "identifiers" $ do

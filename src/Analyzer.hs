@@ -7,58 +7,131 @@ import qualified Data.HashMap.Strict as H
 import Data.List 
 import Text.Parsec.Pos
 import StaticError
+import Debug.Trace
+import Control.Monad
 
-analzyeAst :: [KeliDecl] -> KeliSymTab -> ([KeliDecl], [KeliError])
-analzyeAst decls declTable = foldl 
-        (\acc next -> 
-            let (prevDecls, errors1) = acc in 
-            let (decl2, errors2)     = analyzeDecl next declTable in
-            (decl2:prevDecls, errors1 ++ errors2))
-        ([], [])
-        decls
+analyze :: KeliSymTab -> Either KeliError KeliSymTab
+analyze symtab = 
+    let symbols = H.elems symtab in 
+    let constSymbols = filter (\x -> case x of KeliSymConst _ -> True; _->False) symbols in
+    let result = analyzeSymbols constSymbols symtab in
+    result
 
-analyzeDecl :: KeliDecl -> KeliSymTab -> (KeliDecl, [KeliError])
-analyzeDecl decl table = case decl of
+
+analyzeSymbols :: [KeliSym] -> KeliSymTab -> Either KeliError KeliSymTab
+analyzeSymbols symbols symtab = 
+        foldM
+        ((\symtab' next -> do
+            let key = getIdentifier next
+            analyzedSymbol <- analyzeSymbol next symtab' 
+            return (H.insert key analyzedSymbol symtab'))::KeliSymTab -> KeliSym -> Either KeliError KeliSymTab)
+        symtab
+        symbols
+
+analyzeSymbol :: KeliSym -> KeliSymTab -> Either KeliError KeliSym
+analyzeSymbol symbol table = case symbol of
     constDecl@(
-        KeliConstDecl KeliConst {
+        KeliSymConst KeliConst {
             constDeclId=id,
             constDeclValue=expr,
             constDeclType=expectedType
-        }) -> let (checkedExpr, errors) = typeCheckExpr table expr in
-            ((KeliConstDecl (KeliConst id checkedExpr expectedType)), errors)
-    KeliFuncDecl  {}  -> undefined
+        }) -> do 
+                checkedExpr <- typeCheckExpr table expr
+                case checkedExpr of
+                    KeliTypeExpr t -> return (KeliSymType t)
+                    _              -> return (KeliSymConst (KeliConst id checkedExpr expectedType))
 
-typeCheckExpr :: KeliSymTab -> KeliExpr  -> (KeliExpr, [KeliError])
+typeCheckExpr :: KeliSymTab -> KeliExpr  -> Either KeliError KeliExpr
 typeCheckExpr table e = case e of 
     (expr@(KeliNumber(_,n))) 
-        -> (KeliTypeCheckedExpr expr (case n of Left _ -> KeliTypeInt; Right _ -> KeliTypeFloat), [])
+        -> Right (KeliTypeCheckedExpr expr (case n of Left _ -> KeliTypeInt; Right _ -> KeliTypeFloat))
+
     (expr@(KeliString _))    
-        -> (KeliTypeCheckedExpr expr KeliTypeString, [])
+        -> Right (KeliTypeCheckedExpr expr KeliTypeString)
+
     (expr@(KeliTypeCheckedExpr _ _)) 
-        -> (expr, [])
-    (expr@(KeliId (_,id)))
+        -> Right expr
+
+    (expr@(KeliId token@(_,id)))
         -> (case H.lookup id table of 
                 Just (KeliSymConst (KeliConst _ (KeliTypeCheckedExpr _ exprType) _))
-                    -> (KeliTypeCheckedExpr expr exprType, [])
+                    -> Right (KeliTypeCheckedExpr expr exprType)
                 _ 
-                    -> (expr, [KErrorUsingUndefinedId]))
+                    -> Left (KErrorUsingUndefinedId token))
+
     (KeliFuncCall params ids)
         -> 
-            let (typeCheckedParams, errors) = typeCheckExprs table params in
-            let funcCall = KeliFuncCall typeCheckedParams ids in 
-            case H.lookup (getFuncId funcCall) table of
-                Just (KeliSymFunc f) 
-                    -> (KeliTypeCheckedExpr funcCall (funcDeclReturnType f), errors)
+            case head params of
+                KeliId token@(_,"record") 
+                    ->  if tail params == [] then 
+                            Left (KErrorIncorrectUsageOfRecord token)
+                        else if isType table (params !! 1) then -- assume user want to declare a record type
+                            let types = tail params in do
+                                resolvedTypes <- resolveTypes table types
+                                return 
+                                    (KeliTypeExpr
+                                        (KeliTypeRecord (zip ids resolvedTypes)))
+
+
+                        else -- assume user want to create an anonymous record
+                            let values = tail params in do
+                                typeCheckedExprs <- typeCheckExprs table values
+                                return 
+                                    (KeliTypeCheckedExpr 
+                                        (KeliRecord (zip ids typeCheckedExprs)) 
+                                        (KeliTypeRecord (zip ids (map getType typeCheckedExprs))))
+
                 _ 
-                    -> (funcCall, errors++[KErrorUsingUndefinedFunc])
+                    -> do
+                        typeCheckedParams <- typeCheckExprs table params
+                        let funcCall = KeliFuncCall typeCheckedParams ids in
+                            case H.lookup (getFuncId funcCall) table of
+                                Just (KeliSymFunc f) 
+                                    -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
+                                _ 
+                                    -> Left KErrorUsingUndefinedFunc
     where 
         getFuncId (KeliFuncCall params ids) 
             = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . getType) params)
 
 
-typeCheckExprs :: KeliSymTab -> [KeliExpr] -> ([KeliExpr], [KeliError])
+resolveType :: KeliSymTab -> KeliExpr -> Either KeliError KeliType
+resolveType table expr =
+    case expr of
+        (KeliId (_,id)) 
+            -> case H.lookup id table of
+                Just (KeliSymType t) -> Right t
+                Nothing              -> Left (KErrorUsingUndefinedType)
+        -- In the future need to handle function call, e.g. `a.list`
+        _ 
+            -> Left (KErrorUsingUndefinedType)
+
+typeCheckExprs :: KeliSymTab -> [KeliExpr] -> Either KeliError [KeliExpr]
 typeCheckExprs table exprs = 
-        foldl (\(exprs1, errs1) (expr2, errs2) -> (expr2:exprs1, errs1 ++ errs2)) ([],[]) 
-        (map (typeCheckExpr table) exprs)
+    foldM 
+    (\acc next -> do
+        typeChecked <- typeCheckExpr table next 
+        return (typeChecked:acc))
+    [] 
+    exprs
+
+resolveTypes :: KeliSymTab -> [KeliExpr] -> Either KeliError [KeliType]
+resolveTypes table exprs =
+    foldM 
+    (\acc next -> do
+        resolvedType <- resolveType table next 
+        return (resolvedType:acc))
+    [] 
+    exprs
 
     
+isType :: KeliSymTab -> KeliExpr -> Bool
+isType table expr = 
+    case expr of
+        (KeliId (_,id)) 
+            -> case H.lookup id table of
+                Just (KeliSymType _) -> True
+                Nothing              -> False
+        -- In the future need to handle function call, e.g. `a.list`
+        _ 
+            -> False

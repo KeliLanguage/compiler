@@ -41,9 +41,9 @@ data KeliType
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [KeliTag]
     | KeliTypeAlias StringToken KeliType
-    deriving (Show)
+    deriving (Show, Eq)
 
-data KeliTag = KeliTag StringToken (Maybe KeliType) deriving (Show)
+data KeliTag = KeliTag StringToken (Maybe KeliType) deriving (Show, Eq)
 
 data KeliExpr 
     = KeliNumber NumberToken 
@@ -81,7 +81,8 @@ data KeliExpr
         _expr :: KeliExpr,
         _type :: KeliType
     }
-    deriving (Show)
+    | KeliTypeExpr KeliType
+    deriving (Show, Eq)
 
 class Identifiable a where
     getIdentifier :: a -> String
@@ -98,6 +99,8 @@ instance Identifiable KeliFunc where
 instance Identifiable KeliConst where
     getIdentifier c = snd (constDeclId c)
 
+instance Identifiable KeliType where
+    getIdentifier = toString
 
 class Stringifiable a where
     toString :: a -> String

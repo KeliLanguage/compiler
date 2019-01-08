@@ -11,6 +11,15 @@ data KeliSym
     | KeliSymConst KeliConst
     | KeliSymSingleton StringToken
     | KeliSymType KeliType
+    deriving(Show)
+
+instance Identifiable KeliSym where
+    getIdentifier sym = case sym of 
+        (KeliSymFunc f)           -> getIdentifier f
+        (KeliSymConst c)          -> getIdentifier c
+        (KeliSymSingleton (_,id)) -> id
+        (KeliSymType t)           -> getIdentifier t
+    
 
 type KeliSymTab = H.HashMap String KeliSym
 
@@ -39,10 +48,12 @@ buildSymTab decls = foldl
                             "int"   -> KeliSymType KeliTypeInt
                             "str"   -> KeliSymType KeliTypeString
                             "float" -> KeliSymType KeliTypeFloat
-                            other -> error("Unkown primitive type: " ++ other)
+                            other   -> error("Unkown primitive type: " ++ other)
                     else 
                         KeliSymConst c
+
                 _        -> KeliSymConst c
+
             KeliFuncDecl  f -> KeliSymFunc f
 
         idfulDecls = filter (\x -> case x of KeliIdlessDecl _ -> False; _ -> True) decls

@@ -2,6 +2,9 @@ _primitive = _primitive;
 int        = _primitive;
 str        = _primitive;
 
+undefined = undefined;
 record     = record;
-interface = interface;
+interface  = interface;
 _ = _;
+
+

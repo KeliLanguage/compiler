@@ -27,9 +27,10 @@ xs:(a.list).filter f:(a.to boolean) | a.list =
     xs.
         nil? nil
         cons? 
-            (f.apply(xs.current).
-                true?  (xs.current.cons(xs.next.filter f))
-                false? (nil.cons(xs.next.filter f)));
+            (xs.next.filter f.into(remaining |
+            f.apply(xs.current).
+                true?  (xs.current.cons remaining)
+                false? (nil.cons remaining)));
 
 
 {a:type b:type}
