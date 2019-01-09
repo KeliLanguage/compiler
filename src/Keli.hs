@@ -5,7 +5,7 @@ import Parser
 import Compiler
 import Analyzer
 import SymbolTable
-import qualified Data.HashMap.Strict as H
+import qualified Data.Map as H
 import Debug.Trace
 import Debug.Pretty.Simple (pTraceShowId)
 import Text.Pretty.Simple (pPrint)
@@ -28,4 +28,4 @@ keli'' contents
     >>= analyze     
     >>= transpile'  
     where 
-        transpile' symtab = return (intercalate ";\n" (map transpile (H.elems symtab)))
+        transpile' symtab = return (intercalate ";" (map transpile (H.elems symtab)))

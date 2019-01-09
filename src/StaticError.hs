@@ -12,4 +12,5 @@ data KeliError
     | KErrorUsingUndefinedType 
     | KErrorUnmatchingFuncReturnType
     | KErrorWrongTypeInSetter
+    | KErrorIncorrectUsageOfTag
     deriving(Show)

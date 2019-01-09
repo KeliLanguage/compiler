@@ -39,11 +39,21 @@ data KeliType
     | KeliTypeInt
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
-    | KeliTypeTagUnion [KeliTag]
+    | KeliTypeTagUnion [StringToken] -- list of tags
     | KeliTypeAlias StringToken KeliType
+    | KeliTypeSingleton StringToken
     deriving (Show, Eq)
 
-data KeliTag = KeliTag StringToken (Maybe KeliType) deriving (Show, Eq)
+data KeliTag
+    = KeliTagCarryless 
+        StringToken -- tag
+        KeliType    -- belonging type
+
+    | KeliTagCarryful
+        StringToken -- tag
+        KeliType    -- carry type
+        KeliType    -- beloging type
+            deriving (Show, Eq)
 
 data KeliExpr 
     = KeliNumber NumberToken 
@@ -82,6 +92,13 @@ data KeliExpr
         _type :: KeliType
     }
     | KeliTypeExpr KeliType
+
+    | KeliCarrylessTagExpr 
+        StringToken -- tag
+
+    | KeliCarryfulTagExpr
+        StringToken -- tag
+        KeliExpr    -- carry
     deriving (Show, Eq)
 
 class Identifiable a where

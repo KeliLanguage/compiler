@@ -1,6 +1,6 @@
 module SymbolTable where
 
-import qualified Data.HashMap.Strict as H
+import qualified Data.Map as H
 import StaticError
 
 import Ast
@@ -11,17 +11,22 @@ data KeliSym
     | KeliSymConst KeliConst
     | KeliSymSingleton StringToken
     | KeliSymType KeliType
+    | KeliSymTag KeliTag
     deriving(Show)
 
 instance Identifiable KeliSym where
     getIdentifier sym = case sym of 
-        (KeliSymFunc f)           -> getIdentifier f
-        (KeliSymConst c)          -> getIdentifier c
-        (KeliSymSingleton id)     -> id
-        (KeliSymType t)           -> getIdentifier t
+        (KeliSymFunc f)            -> getIdentifier f
+        (KeliSymConst c)           -> getIdentifier c
+        (KeliSymSingleton id)      -> id
+        (KeliSymType t)            -> getIdentifier t
+        (KeliSymTag t)             -> 
+            case t of
+            KeliTagCarryless x _   -> x
+            KeliTagCarryful  x _ _ -> x
     
 
-type KeliSymTab = H.HashMap String KeliSym
+type KeliSymTab = H.Map String KeliSym
 
 buildSymTab :: [KeliDecl] -> Either KeliError KeliSymTab 
 buildSymTab decls = foldl

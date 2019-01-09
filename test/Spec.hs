@@ -32,6 +32,10 @@ main = hspec $ do
             keli' "animal=record.name \"dog\" age 5;"
             keli' "animal=(record.name \"dog\").name;"
             keli' "animal=(record.name \"dog\").name \"cat\";"
+        
+        it "tag" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "boolean=_.tag true;x=true;")
 
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
