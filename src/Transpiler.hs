@@ -41,7 +41,7 @@ instance Transpilable KeliExpr where
         KeliId     (_,value)                    -> value
         KeliLambda params body                  -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
         KeliRecord kvs                          -> transpileKeyValuePairs (kvs)
-        KeliRecordGetter expr prop              -> transpile expr ++ "." ++ prop
+        KeliRecordGetter expr prop              -> transpile expr ++ "." ++ snd prop
         KeliRecordSetter subject prop newValue  -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
         KeliTagChecker subject branches         -> transpileKeyValuePairs branches ++ "[" ++ transpile subject ++ ".$tag]"
         KeliTagConstructor (_,tag) (Just carry) -> "({$tag:("++ tag ++"),carry:("++ transpile carry ++")})"

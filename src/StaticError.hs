@@ -11,4 +11,5 @@ data KeliError
     | KErrorIncorrectUsageOfRecord StringToken
     | KErrorUsingUndefinedType 
     | KErrorUnmatchingFuncReturnType
+    | KErrorWrongTypeInSetter
     deriving(Show)

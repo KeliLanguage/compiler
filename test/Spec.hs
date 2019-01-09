@@ -28,8 +28,10 @@ getBaseCode = readFile "./kelilib/base.keli"
 main :: IO ()
 main = hspec $ do
     describe "keli exec" $ do
-        it "case 1" $ do
+        it "record" $ do
             keli' "animal=record.name \"dog\" age 5;"
+            keli' "animal=(record.name \"dog\").name;"
+            keli' "animal=(record.name \"dog\").name \"cat\";"
 
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do

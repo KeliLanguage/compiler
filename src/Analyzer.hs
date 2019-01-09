@@ -49,6 +49,7 @@ analyzeSymbol symbol symtab = case symbol of
         funcDeclReturnType=returnType,
         funcDeclBody=body
     }) -> do 
+            -- 1. populate symbol table with function parameters
             symtab' <- 
                 foldM 
                 ((\acc (KeliFuncDeclParam id expectedType) -> 
@@ -58,18 +59,15 @@ analyzeSymbol symbol symtab = case symbol of
                         else Right(
                             H.insert 
                                 id' 
-                                (KeliSymConst 
-                                    (KeliConst 
-                                        id 
-                                        (KeliTypeCheckedExpr 
-                                            (KeliId id) 
-                                            expectedType)
-                                        Nothing)) 
-                                acc))
-                        ::KeliSymTab -> KeliFuncDeclParam -> Either KeliError KeliSymTab)
+                                (KeliSymConst (KeliConst id (KeliTypeCheckedExpr (KeliId id) expectedType) Nothing)) 
+                                acc))::KeliSymTab -> KeliFuncDeclParam -> Either KeliError KeliSymTab)
                 symtab
                 params
+            
+            -- 2. type check the function body
             typeCheckedBody <- typeCheckExpr symtab' body
+
+            -- 3. ensure body type adheres to return type
             if getType typeCheckedBody == returnType then
                 Right (KeliSymFunc (func {funcDeclBody = typeCheckedBody}))
             else
@@ -94,19 +92,20 @@ typeCheckExpr symtab e = case e of
                 _ 
                     -> Left (KErrorUsingUndefinedId token))
 
-    (KeliFuncCall params ids)
+    (expr@(KeliFuncCall params ids))
         -> 
             case head params of
+                -- 1. Check if the user wants to create a record (type/value)
                 KeliId token@(_,"record") 
                     ->  if tail params == [] then 
                             Left (KErrorIncorrectUsageOfRecord token)
-                        else if isType symtab (params !! 1) then -- assume user want to declare a record type
+                        else if isType symtab (params !! 1) then 
+                            -- assume user want to declare a record type
                             let types = tail params in do
                                 resolvedTypes <- resolveTypes symtab types
                                 return 
                                     (KeliTypeExpr
                                         (KeliTypeRecord (zip ids resolvedTypes)))
-
 
                         else -- assume user want to create an anonymous record
                             let values = tail params in do
@@ -115,19 +114,52 @@ typeCheckExpr symtab e = case e of
                                     (KeliTypeCheckedExpr 
                                         (KeliRecord (zip ids typeCheckedExprs))
                                         (KeliTypeRecord (zip ids (map getType typeCheckedExprs))))
-
                 _ 
                     -> do
                         typeCheckedParams <- typeCheckExprs symtab params
-                        let funcCall = KeliFuncCall typeCheckedParams ids in
-                            case H.lookup (getFuncId funcCall) symtab of
-                                Just (KeliSymFunc f) 
-                                    -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
+                        -- 2. Check if user are calling record getter/setter function
+                        let subject = typeCheckedParams !! 0 in
+                            case getType subject of
+                                KeliTypeRecord kvs 
+                                    ->  let funcId = intercalate "$" (map snd ids) in
+                                        case find (\(token@(_,key),_) -> key == funcId) kvs of
+                                            Just (token, expectedType) 
+                                                -> 
+                                                    -- 2.1 Check if is getter or setter
+                                                    if tail typeCheckedParams == [] 
+                                                    then 
+                                                        -- 2.1.1 is getter
+                                                        Right (KeliTypeCheckedExpr (KeliRecordGetter subject token) expectedType) 
+                                                    else 
+                                                        -- 2.1.2 is setter
+                                                        -- 2.1.2.1 check is setter value has the correct type
+                                                        let [newValue] = tail typeCheckedParams in
+                                                        if getType newValue == expectedType 
+                                                        then 
+                                                            Right (KeliTypeCheckedExpr (KeliRecordSetter subject token newValue) expectedType) 
+                                                        else
+                                                            Left KErrorWrongTypeInSetter
+
+                                            Nothing 
+                                                -> 
+                                                    -- 3. If not, treat is as a normal function call
+                                                    typeCheckFuncCall typeCheckedParams ids
                                 _ 
-                                    -> Left KErrorUsingUndefinedFunc
+                                    -> 
+                                        -- 3. If not, treat is as a normal function call
+                                        typeCheckFuncCall typeCheckedParams ids
     where 
         getFuncId (KeliFuncCall params ids) 
             = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . getType) params)
+        
+        typeCheckFuncCall :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
+        typeCheckFuncCall params ids = 
+            let funcCall = KeliFuncCall params ids in
+                case H.lookup (getFuncId funcCall) symtab of
+                    Just (KeliSymFunc f) 
+                        -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
+                    _ 
+                        -> Left KErrorUsingUndefinedFunc
 
 
 resolveType :: KeliSymTab -> KeliExpr -> Either KeliError KeliType

@@ -18,7 +18,7 @@ keli filename = do
 
 keli' contents = do
     case (keli'' contents) of
-        Right code -> callCommand ("node -e " ++ show code)
+        Right code -> callCommand ("node -e " ++ pTraceShowId(show code))
         Left err -> pPrint err
     
 

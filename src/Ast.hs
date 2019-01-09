@@ -62,7 +62,7 @@ data KeliExpr
     }
     | KeliRecordGetter {
         recordGetterSubject      :: KeliExpr,
-        recordGetterPropertyName :: String
+        recordGetterPropertyName :: StringToken
     }
     | KeliRecordSetter {
         recordSetterSubject      :: KeliExpr,

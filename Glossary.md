@@ -12,3 +12,4 @@
 |ir|intermediate representation|
 |param|parameter|
 |symtab|symbol table|
+|kvs|key-value pairs|
