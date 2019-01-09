@@ -25,6 +25,8 @@ dependencies:
 - parsec
 - unordered-containers
 - hspec
+- pretty-simple
+- process
 
 library:
   source-dirs: src

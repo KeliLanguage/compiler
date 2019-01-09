@@ -1,4 +1,4 @@
-# compiler-demo
+# Keli Compiler
 
 ## Namings
 Refer Glossary.md

@@ -4,6 +4,7 @@ module Parser where
 import Ast
 import Lexer
 
+import StaticError
 import System.IO
 import Control.Monad
 import Text.ParserCombinators.Parsec
@@ -173,5 +174,8 @@ preprocess str = str
     -- let packed = T.pack str in
     -- T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
-parseKeli :: String -> Either ParseError [KeliDecl] 
-parseKeli input = parse keliParser "" (preprocess input)
+parseKeli :: String -> Either KeliError [KeliDecl] 
+parseKeli input = 
+    case parse keliParser "" (preprocess input) of
+        Right decls -> Right decls
+        Left err -> Left (KErrorParseError err)

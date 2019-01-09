@@ -7,6 +7,7 @@ import Analyzer
 import Data.Either
 import SymbolTable
 import StaticError
+import Keli
 
 testParseKeli x = 
     (case (parseKeli x) of
@@ -22,11 +23,14 @@ testAnalyze x =
                 Left err -> Left err 
         Left err -> trace (show err) $ undefined
 
-        
 getBaseCode = readFile "./kelilib/base.keli"
 
 main :: IO ()
 main = hspec $ do
+    describe "keli exec" $ do
+        it "case 1" $ do
+            keli' "animal=record.name \"dog\" age 5;"
+
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
             (case testAnalyze "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
@@ -35,6 +39,7 @@ main = hspec $ do
         it "keli record" $ do
             baseCode <- getBaseCode
             isRight (testAnalyze (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
+            isRight (testAnalyze (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
         
         it "keli func" $ do
             baseCode <- getBaseCode

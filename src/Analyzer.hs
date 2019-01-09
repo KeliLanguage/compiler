@@ -9,6 +9,7 @@ import Text.Parsec.Pos
 import StaticError
 import Debug.Trace
 import Control.Monad
+import Debug.Pretty.Simple (pTraceShowId)
 
 analyze :: KeliSymTab -> Either KeliError KeliSymTab
 analyze symtab = 
@@ -112,7 +113,7 @@ typeCheckExpr symtab e = case e of
                                 typeCheckedExprs <- typeCheckExprs symtab values
                                 return 
                                     (KeliTypeCheckedExpr 
-                                        (KeliRecord (zip ids typeCheckedExprs)) 
+                                        (KeliRecord (zip ids typeCheckedExprs))
                                         (KeliTypeRecord (zip ids (map getType typeCheckedExprs))))
 
                 _ 
@@ -145,7 +146,7 @@ typeCheckExprs symtab exprs =
     foldM 
     (\acc next -> do
         typeChecked <- typeCheckExpr symtab next 
-        return (typeChecked:acc))
+        return (acc ++ [typeChecked]))
     [] 
     exprs
 
@@ -154,7 +155,7 @@ resolveTypes symtab exprs =
     foldM 
     (\acc next -> do
         resolvedType <- resolveType symtab next 
-        return (resolvedType:acc))
+        return (acc ++ [resolvedType]))
     [] 
     exprs
 
