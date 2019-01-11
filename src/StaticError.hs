@@ -14,4 +14,8 @@ data KeliError
     | KErrorUsingUndefinedId StringToken
     | KErrorUsingUndefinedType 
     | KErrorWrongTypeInSetter
+    | KErrorExcessiveTags [StringToken]
+    | KErrorMissingTags [String]
+    | KErrorNotAllBranchHaveTheSameType [StringToken]
+    | KErrorDuplicatedTags [StringToken]
     deriving(Show)

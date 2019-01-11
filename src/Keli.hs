@@ -2,7 +2,6 @@ module Keli where
 
 import Transpiler
 import Parser
-import Compiler
 import Analyzer
 import SymbolTable
 import Debug.Trace

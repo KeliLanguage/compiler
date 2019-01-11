@@ -40,6 +40,27 @@ main = hspec $ do
         it "tag union" $ do
             baseCode <- getBaseCode
             keli' (baseCode ++ "boolean=_.tag true.or(_.tag false);a=true;b=false;")
+        
+        it "case checker" $ do
+            baseCode <- getBaseCode
+
+            -- complete tags
+            keli' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 1;")
+
+            -- else tags
+            keli' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 else? 1;")
+
+            -- missing tag `no`
+            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2;")) `shouldBe` True
+
+            -- excessive tag
+            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 3 ok? 5;")) `shouldBe` True
+
+            -- not all branches have same type
+            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? \"hi\";")) `shouldBe` True
+
+            -- duplicated tags
+            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 2 no? 3;")) `shouldBe` True
 
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do

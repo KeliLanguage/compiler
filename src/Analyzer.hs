@@ -1,25 +1,26 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Analyzer where
 
+
 import Ast
-import Prelude hiding (lookup)
-import SymbolTable
-import Data.Map.Ordered ((|>), assocs, member, lookup)
-import Data.List hiding (lookup)
-import Text.Parsec.Pos
-import StaticError
-import Debug.Trace
 import Control.Monad
+import Data.List hiding (lookup)
+import Data.Map.Ordered ((|>), assocs, member, lookup) 
+import Data.Set (Set,fromList,difference,toList)
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import Prelude hiding (lookup,id)
+import StaticError
+import SymbolTable
+import Data.Maybe (catMaybes, fromJust)
 
 analyze :: KeliSymTab -> Either KeliError [KeliSym]
 analyze symtab = do
-    let symbols       = map snd (assocs symtab)
-    let constSymbols  = filter (\x -> case x of KeliSymConst _ -> True; _->False) symbols 
-    symtab'          <- analyzeSymbols constSymbols symtab
-    let funcSymbols   = filter (\x -> case x of KeliSymFunc _ -> True; _->False) symbols 
-    finalSymtab      <- analyzeSymbols funcSymbols symtab'
-    let symbols       = map snd (assocs finalSymtab)
+    let symbols         = map snd (assocs symtab)
+    let constSymbols    = filter (\x -> case x of KeliSymConst _ -> True; _->False) symbols 
+    symtab'            <- analyzeSymbols constSymbols symtab
+    let funcSymbols     = filter (\x -> case x of KeliSymFunc _ -> True; _->False) symbols 
+    finalSymtab        <- analyzeSymbols funcSymbols symtab'
+    let analyzedSymbols = map snd (assocs finalSymtab)
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
     let sortedSymbols = sortOn (
@@ -29,7 +30,7 @@ analyze symtab = do
                 KeliSymFunc _      -> 2
                 KeliSymConst _     -> 3
                 KeliSymType _      -> 4
-            ) symbols
+            ) analyzedSymbols
     return sortedSymbols 
 
 
@@ -122,6 +123,8 @@ analyzeSymbol symbol symtab = case symbol of
                 Right (KeliSymFunc (func {funcDeclBody = typeCheckedBody}),[])
             else
                 Left KErrorUnmatchingFuncReturnType
+    
+    _ -> undefined
 
     
 typeCheckExpr :: KeliSymTab -> KeliExpr  -> Either KeliError KeliExpr
@@ -141,10 +144,10 @@ typeCheckExpr symtab e = case e of
             Just (KeliSymConst (KeliConst _ (KeliTypeCheckedExpr _ exprType) _))
                 -> Right (KeliTypeCheckedExpr expr exprType)
         
-            Just (KeliSymSingleton token)
-                -> Right (KeliTypeCheckedExpr expr (KeliTypeSingleton token))
+            Just (KeliSymSingleton token')
+                -> Right (KeliTypeCheckedExpr expr (KeliTypeSingleton token'))
 
-            Just (KeliSymTag (KeliTagCarryless tag type'))
+            Just (KeliSymTag (KeliTagCarryless _ type'))
                 -> Right (KeliTypeCheckedExpr expr type')
 
             Just (KeliSymTag (KeliTagCarryful _ _ _))
@@ -155,9 +158,10 @@ typeCheckExpr symtab e = case e of
     -- NOTES:
     -- * Why isn't func call params type checked at the very beginning?
     --      Because we need to cater for the magic `_.tag XXX` and `record.XXX YYY` function
-    (expr@(KeliFuncCall params ids))
+    --      That's why you will see a lot of duplicated code for typeCheckExprs
+    KeliFuncCall params funcIds
         -> 
-        case head ids of 
+        case head funcIds of 
         -- 0. Check if user wants to create a union
         (_,"or")
             -> do
@@ -171,15 +175,15 @@ typeCheckExpr symtab e = case e of
                     else
                         let extractTags x = case x of
                                 KeliCarrylessTagExpr tag   -> Right [KeliTagCarryless tag KeliTypeUndefined]
-                                KeliCarryfulTagExpr tag _  -> undefined
+                                KeliCarryfulTagExpr _ _    -> undefined
                                 KeliTagUnionExpr tags      -> Right tags 
                                 _                          -> undefined
                         in case mapM extractTags typeCheckedParams of
                             Right tags -> Right (KeliTagUnionExpr (intercalate [] tags))
                             Left err   -> Left err
-                         ) 
+                        ) 
                 else
-                    typeCheckFuncCall typeCheckedParams ids
+                    typeCheckFuncCall typeCheckedParams funcIds
         _ 
             ->
             case head params of
@@ -189,7 +193,7 @@ typeCheckExpr symtab e = case e of
                 -- 1. Check if user wants to create a tag
                 "_"
                     ->
-                    case ids !! 0 of 
+                    case funcIds !! 0 of 
                     (_,"tag")
                         ->
                         if length params < 2 then
@@ -199,15 +203,15 @@ typeCheckExpr symtab e = case e of
                                 (KeliId tag)
                                     ->
                                     -- 1.1 Check if user wants to create carryless/carryful tag
-                                    if length ids < 2
+                                    if length funcIds < 2
                                     then -- carryless tag
                                         Right (KeliCarrylessTagExpr tag)
-                                    else if snd (ids !! 1) == "carry"
+                                    else if snd (funcIds !! 1) == "carry"
                                     then -- carryful tag
                                         undefined
                                     else do 
                                         typeCheckedParams <- typeCheckExprs symtab params
-                                        typeCheckFuncCall params ids
+                                        typeCheckFuncCall typeCheckedParams funcIds
                                 
                                 _
                                     ->
@@ -215,7 +219,7 @@ typeCheckExpr symtab e = case e of
                     _ 
                         -> do
                         typeCheckedParams <- typeCheckExprs symtab params
-                        typeCheckFuncCall params ids
+                        typeCheckFuncCall typeCheckedParams funcIds
 
                 -- 2. Check if the user wants to create a record (type/value)
                 "record"
@@ -226,17 +230,21 @@ typeCheckExpr symtab e = case e of
                         -- assume user want to declare a record type
                         let types = tail params in do
                             resolvedTypes <- resolveTypes symtab types
-                            return 
-                                (KeliTypeExpr
-                                    (KeliTypeRecord (zip ids resolvedTypes)))
+                            return (KeliTypeExpr (KeliTypeRecord (zip funcIds resolvedTypes)))
 
                     else -- assume user want to create an anonymous record
                         let values = tail params in do
                             typeCheckedExprs <- typeCheckExprs symtab values
                             return 
                                 (KeliTypeCheckedExpr 
-                                    (KeliRecord (zip ids typeCheckedExprs))
-                                    (KeliTypeRecord (zip ids (map getType typeCheckedExprs))))
+                                    (KeliRecord (zip funcIds typeCheckedExprs))
+                                    (KeliTypeRecord (zip funcIds (map getType typeCheckedExprs))))
+                
+                _ 
+                    -> do 
+                    typeCheckedParams <- typeCheckExprs symtab params
+                    typeCheckFuncCall typeCheckedParams funcIds
+
             _ 
                 -> do
                 typeCheckedParams <- typeCheckExprs symtab params
@@ -245,8 +253,8 @@ typeCheckExpr symtab e = case e of
                     case getType subject of
                         KeliTypeRecord kvs 
                             ->  
-                            let funcId = intercalate "$" (map snd ids) in
-                            case find (\(token@(_,key),_) -> key == funcId) kvs of
+                            let funcId = intercalate "$" (map snd funcIds) in
+                            case find (\((_,key),_) -> key == funcId) kvs of
                                 Just (token, expectedType) 
                                     -> 
                                     -- 3.1 Check if is getter or setter
@@ -266,24 +274,85 @@ typeCheckExpr symtab e = case e of
 
                                 Nothing 
                                     -> 
-                                    -- If not, treat is as a normal function call
-                                    typeCheckFuncCall typeCheckedParams ids
+                                    typeCheckFuncCall typeCheckedParams funcIds
+
                         _ 
                             -> 
-                                -- If not, treat is as a normal function call
-                                typeCheckFuncCall typeCheckedParams ids
+                            typeCheckFuncCall typeCheckedParams funcIds
+
+    _ 
+        -> 
+        undefined
+
     where 
-        getFuncId (KeliFuncCall params ids) 
-            = intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . getType) params)
+        getFuncId (KeliFuncCall params funcIds) = intercalate "$" (map snd funcIds) ++ intercalate "$" (map (toString . getType) params)
+        getFuncId _ = undefined
         
+        -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
         typeCheckFuncCall :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
-        typeCheckFuncCall params ids = 
-            let funcCall = KeliFuncCall params ids in
+        typeCheckFuncCall params funcIds = 
+            -- check if user are calling tag matchers
+            case getType (head params) of
+                KeliTypeTagUnion tags
+                    -> 
+                    let funcIds' = map (init . snd) funcIds in
+                    let tags'    = map snd tags in
+                    let intersection = intersect funcIds' tags' in
+                    let branches = tail params in
+                    let firstBranch = head branches in
+                    let subject = head params in
+
+                    if length intersection == 0 then
+                        -- treat as regular function call
+                        typeCheckFuncCall' params funcIds
+
+                    -- check for duplicated tags
+                    else if length (nub funcIds') /= length funcIds' then
+                        Left (KErrorDuplicatedTags funcIds)
+                    
+                    
+                    -- check if all branch have the same type
+                    else if any (\x -> getType x /= getType firstBranch) branches then
+                        Left (KErrorNotAllBranchHaveTheSameType funcIds)
+
+                    else if length intersection == length tags then (
+                        -- check for excessive tags
+                        if length funcIds > length tags then
+                            let excessiveCases = 
+                                    catMaybes (map 
+                                        (\x -> find (\y -> snd y == x) funcIds) 
+                                        (toList (difference (fromList funcIds') (fromList tags'))))
+                            in Left (KErrorExcessiveTags excessiveCases)
+                        else 
+                            -- complete tag matches
+                            Right (KeliTagMatcher subject (zip funcIds branches) Nothing)
+                    )
+                    else if length intersection < length tags then (
+                        if "else" `elem` funcIds' then
+                            let tagBranches = zip funcIds branches in
+                            let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
+                            let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
+
+                            Right (KeliTagMatcher subject otherBranches (Just (snd elseBranch)))
+                        else -- missing tags
+                            Left (KErrorMissingTags (pTraceShowId (tags' \\ funcIds')))
+                    )
+                    else
+                        -- treat as regular function call
+                        typeCheckFuncCall' params funcIds
+                _ 
+                    ->
+                    -- treat as regular function call
+                    typeCheckFuncCall' params funcIds
+            
+        typeCheckFuncCall' :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
+        typeCheckFuncCall' params funcIds = 
+            let funcCall = KeliFuncCall params funcIds in
                 case lookup (getFuncId funcCall) symtab of
                     Just (KeliSymFunc f) 
                         -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
                     _ 
-                        -> Left (KErrorUsingUndefinedFunc ids)
+                        -> Left (KErrorUsingUndefinedFunc funcIds)
 
 
 resolveType :: KeliSymTab -> KeliExpr -> Either KeliError KeliType
@@ -293,6 +362,7 @@ resolveType symtab expr =
             -> case lookup id symtab of
                 Just (KeliSymType t) -> Right t
                 Nothing              -> Left (KErrorUsingUndefinedType)
+                _                    -> undefined
         -- In the future need to handle function call, e.g. `a.list`
         _ 
             -> Left (KErrorUsingUndefinedType)
@@ -323,6 +393,7 @@ isType symtab expr =
             -> case lookup id symtab of
                 Just (KeliSymType _) -> True
                 Nothing              -> False
+                _                    -> undefined
         -- In the future need to handle function call, e.g. `a.list`
         _ 
             -> False

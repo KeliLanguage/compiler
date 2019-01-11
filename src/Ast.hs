@@ -80,9 +80,10 @@ data KeliExpr
         recordSetterPropertyName :: StringToken,
         recordSetterNewValue     :: KeliExpr
     }
-    | KeliTagChecker {
-        tagCheckerSubject  :: KeliExpr,
-        tagCheckerBranches :: [(StringToken, KeliExpr)] -- [(Tag, KeliExpr)]
+    | KeliTagMatcher {
+        tagMatcherSubject    :: KeliExpr,
+        tagMatcherBranches   :: [(StringToken, KeliExpr)], -- [(Tag, KeliExpr)]
+        tagMatcherElseBranch :: Maybe KeliExpr
     } 
     | KeliTagConstructor {
         tagConstructorId    :: StringToken,
