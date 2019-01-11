@@ -335,7 +335,7 @@ typeCheckExpr' symtab e = case e of
                     
                     -- check if all branch have the same type
                     else if any (\x -> not (typeEquals (getType x) (getType firstBranch) symtab)) branches then
-                        Left (KErrorNotAllBranchHaveTheSameType funcIds)
+                        Left (KErrorNotAllBranchHaveTheSameType (zip funcIds branches))
 
                     else if length intersection == length tags then (
                         -- check for excessive tags

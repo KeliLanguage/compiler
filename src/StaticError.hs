@@ -15,7 +15,7 @@ data KeliError
     | KErrorWrongTypeInSetter
     | KErrorExcessiveTags [StringToken]
     | KErrorMissingTags [String]
-    | KErrorNotAllBranchHaveTheSameType [StringToken]
+    | KErrorNotAllBranchHaveTheSameType [(StringToken,KeliExpr)]
     | KErrorDuplicatedTags [StringToken]
     | KErrorNotAType KeliExpr
     | KErrorUsingUndefinedType KeliExpr
