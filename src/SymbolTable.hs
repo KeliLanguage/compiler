@@ -1,10 +1,9 @@
 module SymbolTable where
 
-import qualified Data.Map as H
 import StaticError
-
+import Data.Map.Ordered (OMap, (|>), assocs, member, empty)
 import Ast
-import Data.List
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 data KeliSym
     = KeliSymFunc KeliFunc 
@@ -26,7 +25,7 @@ instance Identifiable KeliSym where
             KeliTagCarryful  x _ _ -> x
     
 
-type KeliSymTab = H.Map String KeliSym
+type KeliSymTab = OMap String KeliSym
 
 buildSymTab :: [KeliDecl] -> Either KeliError KeliSymTab 
 buildSymTab decls = foldl
@@ -36,9 +35,9 @@ buildSymTab decls = foldl
                 Right table ->
                     let (token,value) = next in 
                     let key = snd token in
-                    if H.member key table 
+                    if member key table 
                         then Left (KErrorDuplicatedId token)
-                        else Right (H.insert key (toKeliSym value) table)
+                        else Right (table |> (key ,toKeliSym value))
         )::Either KeliError KeliSymTab -> (StringToken, KeliDecl) -> Either KeliError KeliSymTab)   -- reducer
         (Right emptyKeliSymTab) -- initial value
         ((map toKeyValuePair idfulDecls) :: [(StringToken, KeliDecl)]) -- foldee
@@ -68,4 +67,4 @@ buildSymTab decls = foldl
         
 
 emptyKeliSymTab :: KeliSymTab
-emptyKeliSymTab = H.empty
+emptyKeliSymTab = empty

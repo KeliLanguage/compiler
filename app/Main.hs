@@ -1,6 +1,6 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-} -- for exhasutive pattern checking
 module Main where
 
-import Lib
 import Keli
 
 main :: IO ()

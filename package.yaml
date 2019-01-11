@@ -24,6 +24,7 @@ dependencies:
 - text
 - parsec
 - unordered-containers
+- ordered-containers
 - containers
 - hspec
 - pretty-simple

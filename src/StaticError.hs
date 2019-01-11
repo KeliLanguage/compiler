@@ -6,11 +6,12 @@ import Text.ParserCombinators.Parsec
 data KeliError 
     = KErrorParseError ParseError
     | KErrorDuplicatedId StringToken
-    | KErrorUsingUndefinedId StringToken
-    | KErrorUsingUndefinedFunc
     | KErrorIncorrectUsageOfRecord StringToken
-    | KErrorUsingUndefinedType 
-    | KErrorUnmatchingFuncReturnType
-    | KErrorWrongTypeInSetter
     | KErrorIncorrectUsageOfTag
+    | KErrorIncorrectUsageOfTaggedUnion
+    | KErrorUnmatchingFuncReturnType
+    | KErrorUsingUndefinedFunc [StringToken]
+    | KErrorUsingUndefinedId StringToken
+    | KErrorUsingUndefinedType 
+    | KErrorWrongTypeInSetter
     deriving(Show)

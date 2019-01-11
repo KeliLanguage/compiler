@@ -34,11 +34,7 @@ keliDecl'
 
 keliConstDecl :: Parser KeliDecl
 keliConstDecl 
-    =  optionMaybe (
-            getPosition >>= \pos
-        ->  identifier  >>= \id 
-        -> return (pos, id)
-    )                             >>= \token
+    =  optionMaybe (keliFuncId)   >>= \token
     -> reservedOp "="             >>= \_
     -> keliExpr                   >>= \expr
     -> case token of 
@@ -105,7 +101,7 @@ keliAtomicExpr :: Parser KeliExpr
 keliAtomicExpr 
     =  parens keliExpr
    <|> (getPosition >>= \pos -> number     >>= \n   -> return (KeliNumber (pos, n)))
-   <|> (getPosition >>= \pos -> identifier >>= \id  -> return (KeliId (pos, id)))
+   <|> (getPosition >>= \pos -> keliFuncId >>= \id  -> return (KeliId id))
    <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (KeliString (pos, str)))
 
 keliFuncDecl :: Parser KeliDecl
@@ -162,11 +158,10 @@ keliFuncId =
 
 keliFuncDeclParam :: Parser KeliFuncDeclParam
 keliFuncDeclParam 
-    =  getPosition    >>= \pos
-    -> identifier     >>= \id
+    =  keliFuncId     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (KeliFuncDeclParam (pos, id) (KeliTypeUnchecked typeExpr))
+    -> return (KeliFuncDeclParam id (KeliTypeUnchecked typeExpr))
 
 preprocess :: String -> String
 preprocess str = str

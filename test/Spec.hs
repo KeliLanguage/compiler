@@ -37,6 +37,10 @@ main = hspec $ do
             baseCode <- getBaseCode
             keli' (baseCode ++ "boolean=_.tag true;x=true;")
 
+        it "tag union" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "boolean=_.tag true.or(_.tag false);a=true;b=false;")
+
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
             (case testAnalyze "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True

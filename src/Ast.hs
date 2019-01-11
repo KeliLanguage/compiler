@@ -42,6 +42,7 @@ data KeliType
     | KeliTypeTagUnion [StringToken] -- list of tags
     | KeliTypeAlias StringToken KeliType
     | KeliTypeSingleton StringToken
+    | KeliTypeUndefined
     deriving (Show, Eq)
 
 data KeliTag
@@ -99,6 +100,9 @@ data KeliExpr
     | KeliCarryfulTagExpr
         StringToken -- tag
         KeliExpr    -- carry
+
+    | KeliTagUnionExpr [KeliTag]
+
     deriving (Show, Eq)
 
 class Identifiable a where

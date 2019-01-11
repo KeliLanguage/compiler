@@ -5,12 +5,12 @@ import Parser
 import Compiler
 import Analyzer
 import SymbolTable
-import qualified Data.Map as H
 import Debug.Trace
 import Debug.Pretty.Simple (pTraceShowId)
 import Text.Pretty.Simple (pPrint)
 import Data.List
 import System.Process
+import Data.Map.Ordered ((|>), assocs, member, lookup)
 
 keli filename = do
     contents <- readFile filename
@@ -26,6 +26,4 @@ keli'' contents
     =   parseKeli contents
     >>= buildSymTab 
     >>= analyze     
-    >>= transpile'  
-    where 
-        transpile' symtab = return (intercalate ";" (map transpile (H.elems symtab)))
+    >>= \symbols -> return (intercalate ";" (map transpile symbols))
