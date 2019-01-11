@@ -2,6 +2,7 @@ module Ast where
 
 import Text.Parsec.Pos
 import Data.List
+import Data.Char
 
 type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
@@ -95,14 +96,14 @@ data KeliExpr
     }
     | KeliTypeExpr KeliType
 
-    | KeliCarrylessTagExpr 
+    | KeliCarrylessTagDeclExpr 
         StringToken -- tag
 
-    | KeliCarryfulTagExpr
+    | KeliCarryfulTagDeclExpr
         StringToken -- tag
-        KeliExpr    -- carry
+        KeliType    -- carry
 
-    | KeliTagUnionExpr [KeliTag]
+    | KeliTagUnionDeclExpr [KeliTag]
 
     deriving (Show, Eq)
 
@@ -119,8 +120,14 @@ instance Identifiable KeliFunc where
         = (
             fst (head ids)
             ,
-            intercalate "$" (map snd ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
+            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
         )
+
+-- Basically, this function will convert all symbols to its corresponding ASCII code
+-- e.g. toValidJavaScriptId "$" = "_36"
+toValidJavaScriptId :: String -> String
+toValidJavaScriptId s = "_" ++ intercalate [] (map (\x -> if isSymbol x then show (ord x) else [x]) s)
+
 
 instance Identifiable KeliConst where
     getIdentifier c = constDeclId c
@@ -142,18 +149,3 @@ instance Stringifiable KeliType where
         KeliTypeTagUnion tags -> undefined
         KeliTypeAlias (_,id) -> id
         KeliTypeUnverified expr -> "unknown"
-
-
-class HaveType a where
-    getType :: a -> KeliType
-
-
-instance HaveType KeliExpr where
-    getType (KeliTypeCheckedExpr _ exprType) = getType exprType
-    getType e = KeliTypeUnverified e
-    getType _ = undefined
-
-
-instance HaveType KeliType where
-    getType (KeliTypeUnverified expr) = getType expr
-    getType t = t

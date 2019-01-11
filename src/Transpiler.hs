@@ -22,7 +22,7 @@ instance Transpilable KeliSym where
         KeliSymTag (KeliTagCarryless (_,id) _) 
             -> "const " ++ idPrefix ++ id ++ "=({__kind:\"" ++ id ++ "\"})"
         KeliSymTag (KeliTagCarryful (_,id) _ _) 
-            -> undefined
+            -> "const " ++ idPrefix ++ id ++ "=(_carry)=>({__kind:\"" ++ id ++ "\",_carry})"
 
 
 instance Transpilable KeliDecl where

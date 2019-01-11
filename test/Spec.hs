@@ -28,6 +28,10 @@ getBaseCode = readFile "./kelilib/base.keli"
 main :: IO ()
 main = hspec $ do
     describe "keli exec" $ do
+        it "keli func" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "x:int.+y:int|int=undefined;")
+
         it "record" $ do
             keli' "animal=record.name \"dog\" age 5;"
             keli' "animal=(record.name \"dog\").name;"
@@ -76,10 +80,6 @@ main = hspec $ do
             isRight (testAnalyze (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
             isRight (testAnalyze (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
         
-        it "keli func" $ do
-            baseCode <- getBaseCode
-            -- TODO: Complete the test
-            putStrLn (show (testAnalyze (baseCode ++ "x:int.+y:int|int=undefined;")))
 
     describe "keli parser" $ do
         it "identifiers" $ do
