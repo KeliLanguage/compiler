@@ -34,13 +34,13 @@ data KeliFuncDeclParam
     deriving (Show)
 
 data KeliType  
-    = KeliTypeUnchecked KeliExpr
+    = KeliTypeUnverified KeliExpr
     | KeliTypeFloat
     | KeliTypeInt
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [StringToken] -- list of tags
-    | KeliTypeAlias StringToken KeliType
+    | KeliTypeAlias StringToken 
     | KeliTypeSingleton StringToken
     | KeliTypeUndefined
     deriving (Show, Eq)
@@ -140,13 +140,20 @@ instance Stringifiable KeliType where
         KeliTypeString -> "str"
         KeliTypeRecord kvs -> undefined
         KeliTypeTagUnion tags -> undefined
-        KeliTypeAlias (_,id) _ -> id
-        KeliTypeUnchecked expr -> "unknown"
+        KeliTypeAlias (_,id) -> id
+        KeliTypeUnverified expr -> "unknown"
 
 
 class HaveType a where
     getType :: a -> KeliType
 
+
 instance HaveType KeliExpr where
-    getType (KeliTypeCheckedExpr _ exprType) = exprType
-    getType e = KeliTypeUnchecked e
+    getType (KeliTypeCheckedExpr _ exprType) = getType exprType
+    getType e = KeliTypeUnverified e
+    getType _ = undefined
+
+
+instance HaveType KeliType where
+    getType (KeliTypeUnverified expr) = getType expr
+    getType t = t

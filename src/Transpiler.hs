@@ -1,6 +1,7 @@
 module Transpiler 
 where
 
+import Prelude hiding (id)
 import Ast
 import SymbolTable
 import Data.List
@@ -9,6 +10,7 @@ import Debug.Trace
 class Transpilable a where
     transpile :: a -> String
 
+idPrefix :: String
 idPrefix = "_"
 
 instance Transpilable KeliSym where
@@ -59,6 +61,7 @@ instance Transpilable KeliExpr where
                     Just expr -> " || " ++ transpile expr
                     Nothing   -> "") ++ ")"
 
+        _ -> undefined
 
     
 

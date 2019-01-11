@@ -9,13 +9,14 @@ data KeliError
     | KErrorIncorrectUsageOfRecord StringToken
     | KErrorIncorrectUsageOfTag
     | KErrorIncorrectUsageOfTaggedUnion
-    | KErrorUnmatchingFuncReturnType
+    | KErrorUnmatchingFuncReturnType KeliType KeliType
     | KErrorUsingUndefinedFunc [StringToken]
     | KErrorUsingUndefinedId StringToken
-    | KErrorUsingUndefinedType 
     | KErrorWrongTypeInSetter
     | KErrorExcessiveTags [StringToken]
     | KErrorMissingTags [String]
     | KErrorNotAllBranchHaveTheSameType [StringToken]
     | KErrorDuplicatedTags [StringToken]
+    | KErrorNotAType KeliExpr
+    | KErrorUsingUndefinedType KeliExpr
     deriving(Show)

@@ -33,9 +33,13 @@ main = hspec $ do
             keli' "animal=(record.name \"dog\").name;"
             keli' "animal=(record.name \"dog\").name \"cat\";"
         
-        it "tag" $ do
+        it "carryless tag" $ do
             baseCode <- getBaseCode
             keli' (baseCode ++ "boolean=_.tag true;x=true;")
+
+        it "carryful tag" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "intlist=_.tag nothing.or(_.tag cons carry int);")
 
         it "tag union" $ do
             baseCode <- getBaseCode
