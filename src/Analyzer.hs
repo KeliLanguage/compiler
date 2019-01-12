@@ -11,6 +11,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 import StaticError
 import SymbolTable
+import Util
 import Data.Maybe (catMaybes, fromJust)
 
 analyze :: KeliSymTab -> Either KeliError [KeliSym]
@@ -151,10 +152,11 @@ analyzeSymbol symbol symtab = case symbol of
 typeCheckExpr :: KeliSymTab -> KeliExpr  -> Either KeliError KeliExpr
 typeCheckExpr symtab e = 
     case typeCheckExpr' symtab e of 
-        expr@(Right KeliTypeCheckedExpr{}) -> expr
+        expr@(Right KeliTypeCheckedExpr{})      -> expr
         expr@(Right KeliCarrylessTagDeclExpr{}) -> expr
-        expr@(Right KeliCarryfulTagDeclExpr{}) -> expr
-        expr@(Right KeliTagUnionDeclExpr{}) -> expr
+        expr@(Right KeliCarryfulTagDeclExpr{})  -> expr
+        expr@(Right KeliTagUnionDeclExpr{})     -> expr
+        expr@(Right KeliTypeExpr{})             -> expr
         expr@(Right _) -> error ("return type of typeCheckExpr' should be KeliTypeCheckedExpr but received " ++ show expr)
         Left err -> Left err
 
@@ -186,6 +188,9 @@ typeCheckExpr' symtab e = case e of
                 -- How to check if user forgot to put .carry ?
                 --  Don't need to explicitly check it, the type system will handle it
                 -> Right (KeliTypeCheckedExpr expr (KeliTypeCarryfulTagConstructor tag carryType belongingType))
+            
+            Just (KeliSymType (KeliTypeRecord propTypePairs))
+                -> Right (KeliTypeCheckedExpr (KeliRecordConstructor propTypePairs) (KeliTypeRecordConstructor propTypePairs))
 
             Nothing 
                 -> Left (KErrorUsingUndefinedId token)
@@ -330,7 +335,42 @@ typeCheckExpr' symtab e = case e of
         typeCheckFuncCall params funcIds = 
             let typeOfFirstParam = getType symtab (head params) in
             case  typeOfFirstParam of
-                -- check if user is invoking carryful tag constructor
+                -- (A) check if user is invoking record constructor
+                KeliTypeRecordConstructor propTypePairs -> 
+                    let expectedProps = map fst propTypePairs in
+                    let actualProps = funcIds in
+                    let values     = tail params in
+                    case match actualProps expectedProps of
+                        GotDuplicates ->
+                            Left KErrorDuplicatedProperties
+
+                        ZeroIntersection ->
+                            -- treat as regular function call
+                            typeCheckFuncCall' params funcIds
+                        
+                        GotExcessive excessiveProps ->
+                            Left (KErrorExcessiveProperties excessiveProps)
+                        
+                        Missing missingProps ->
+                            Left (KErrorMissingProperties missingProps)
+                        
+                        PerfectMatch -> 
+                            let expectedPropTypePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) propTypePairs in
+                            let actualPropValuePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) (zip actualProps values) in
+                            case find (\(expected, actual) -> 
+                                    let expectedType = getType symtab (snd expected) in
+                                    let actualType = getType symtab (snd actual) in
+                                    expectedType /= actualType
+                                ) (zip expectedPropTypePairs actualPropValuePairs) of
+                                Just (expected, actual) -> 
+                                    Left (KErrorPropretyTypeMismatch (fst expected) (snd expected) (snd actual))
+                                Nothing -> 
+                                    Right (KeliTypeCheckedExpr (KeliRecord actualPropValuePairs) (KeliTypeRecord propTypePairs))
+
+                                
+                        
+
+                -- (B) check if user is invoking carryful tag constructor
                 KeliTypeCarryfulTagConstructor tag carryType belongingType
                     -> 
                     if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then
@@ -346,54 +386,41 @@ typeCheckExpr' symtab e = case e of
                         typeCheckFuncCall' params funcIds
                     
                 
-                -- check if user is calling tag matchers
+                -- (C) check if user is calling tag matchers
                 KeliTypeTagUnion tags
                     -> 
-                    let funcIds' = map (init . snd) funcIds in
-                    let tags'    = map snd tags in
-                    let intersection = intersect funcIds' tags' in
                     let branches = tail params in
                     let firstBranch = head branches in
                     let subject = head params in
+                    let tagsWithQuestionMark = map (\(pos,id) -> (pos,id ++ "?")) tags in
+                    case match funcIds tagsWithQuestionMark of
+                        GotDuplicates -> 
+                            Left (KErrorDuplicatedTags funcIds)
 
-                    if length intersection == 0 then
-                        -- treat as regular function call
-                        typeCheckFuncCall' params funcIds
+                        ZeroIntersection -> 
+                            -- treat as regular function call
+                            typeCheckFuncCall' params funcIds
+                        
+                        GotExcessive excessiveCases ->
+                            Left (KErrorExcessiveTags excessiveCases)
+                        
+                        Missing cases ->
+                            if "else" `elem` (map snd funcIds) then
+                                let tagBranches = zip funcIds branches in
+                                let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
+                                let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
 
-                    -- check for duplicated tags
-                    else if length (nub funcIds') /= length funcIds' then
-                        Left (KErrorDuplicatedTags funcIds)
-                    
-                    
-                    -- check if all branch have the same type
-                    else if any (\x -> getType symtab x /= getType symtab firstBranch) branches then
-                        Left (KErrorNotAllBranchHaveTheSameType (zip funcIds branches))
+                                Right (KeliTypeCheckedExpr (KeliTagMatcher subject otherBranches (Just (snd elseBranch))) (getType symtab (head branches)))
+                            else -- missing tags
+                                Left (KErrorMissingTags cases)
 
-                    else if length intersection == length tags then (
-                        -- check for excessive tags
-                        if length funcIds > length tags then
-                            let excessiveCases = 
-                                    catMaybes (map 
-                                        (\x -> find (\y -> snd y == x) funcIds) 
-                                        (toList (difference (fromList funcIds') (fromList tags'))))
-                            in Left (KErrorExcessiveTags excessiveCases)
-                        else 
-                            -- complete tag matches
-                            Right (KeliTypeCheckedExpr (KeliTagMatcher subject (zip funcIds branches) Nothing) (getType symtab (head branches)))
-                    )
-                    else if length intersection < length tags then (
-                        if "else" `elem` funcIds' then
-                            let tagBranches = zip funcIds branches in
-                            let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
-                            let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
-
-                            Right (KeliTypeCheckedExpr (KeliTagMatcher subject otherBranches (Just (snd elseBranch))) (getType symtab (head branches)))
-                        else -- missing tags
-                            Left (KErrorMissingTags (tags' \\ funcIds'))
-                    )
-                    else
-                        -- treat as regular function call
-                        typeCheckFuncCall' params funcIds
+                        PerfectMatch ->
+                            -- check if all branch have the same type
+                            if any (\x -> getType symtab x /= getType symtab firstBranch) branches then
+                                Left (KErrorNotAllBranchHaveTheSameType (zip funcIds branches))
+                            else
+                                -- complete tag matches
+                                Right (KeliTypeCheckedExpr (KeliTagMatcher subject (zip funcIds branches) Nothing) (getType symtab (head branches)))
                 _ 
                     ->
                     -- treat as regular function call

@@ -33,9 +33,11 @@ main = hspec $ do
             keli' (baseCode ++ "x:int.+y:int|int=undefined;z=1 .+ 3;")
 
         it "record" $ do
+            baseCode <- getBaseCode
             keli' "animal=record.name \"dog\" age 5;"
             keli' "animal=(record.name \"dog\").name;"
             keli' "animal=(record.name \"dog\").name \"cat\";"
+            keli' (baseCode ++ "fruit=record.taste int; x=fruit.taste 3;")
         
         it "carryless tag" $ do
             baseCode <- getBaseCode

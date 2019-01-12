@@ -50,6 +50,8 @@ data KeliType
         StringToken  -- tag
         KeliType     -- carry type
         KeliType     -- belonging type
+
+    | KeliTypeRecordConstructor [(StringToken, KeliType)]
         
     deriving (Show, Eq)
 
@@ -111,6 +113,8 @@ data KeliExpr
         KeliType    -- carry
 
     | KeliTagUnionDeclExpr [KeliTag]
+
+    | KeliRecordConstructor [(StringToken, KeliType)]
 
     deriving (Show, Eq)
 
