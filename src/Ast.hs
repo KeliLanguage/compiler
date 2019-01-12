@@ -1,8 +1,10 @@
 module Ast where 
 
+import Prelude hiding (id)
 import Text.Parsec.Pos
 import Data.List
 import Data.Char
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
@@ -151,6 +153,6 @@ instance Stringifiable KeliType where
         KeliTypeInt    -> "int"
         KeliTypeString -> "str"
         KeliTypeRecord kvs -> undefined
-        KeliTypeTagUnion tags -> undefined
+        KeliTypeTagUnion tags -> undefined 
         KeliTypeAlias (_,id) -> id
-        KeliTypeUnverified expr -> "unknown"
+        KeliTypeUnverified expr -> "unknown" -- error (show expr)

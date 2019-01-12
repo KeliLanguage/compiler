@@ -30,7 +30,7 @@ main = hspec $ do
     describe "keli exec" $ do
         it "keli func" $ do
             baseCode <- getBaseCode
-            keli' (baseCode ++ "x:int.+y:int|int=undefined;")
+            keli' (baseCode ++ "x:int.+y:int|int=undefined;z=1 .+ 3;")
 
         it "record" $ do
             keli' "animal=record.name \"dog\" age 5;"

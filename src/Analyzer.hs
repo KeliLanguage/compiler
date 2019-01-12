@@ -16,11 +16,9 @@ import Data.Maybe (catMaybes, fromJust)
 analyze :: KeliSymTab -> Either KeliError [KeliSym]
 analyze symtab = do
     let symbols         = map snd (assocs symtab)
-    let constSymbols    = filter (\x -> case x of KeliSymConst _ -> True; _->False) symbols 
-    symtab'            <- analyzeSymbols constSymbols symtab
-    let funcSymbols     = filter (\x -> case x of KeliSymFunc _ -> True; _->False) symbols 
-    finalSymtab        <- analyzeSymbols funcSymbols symtab'
+    finalSymtab        <- analyzeSymbols symbols 
     let analyzedSymbols = map snd (assocs finalSymtab)
+
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
     let sortedSymbols = sortOn (
@@ -34,14 +32,18 @@ analyze symtab = do
     return sortedSymbols 
 
 
-analyzeSymbols :: [KeliSym] -> KeliSymTab -> Either KeliError KeliSymTab
-analyzeSymbols symbols symtab0 = 
+analyzeSymbols :: [KeliSym] ->  Either KeliError KeliSymTab
+analyzeSymbols symbols = 
     foldM
     ((\symtab1 nextSym1 -> do
         (analyzedSymbol, extraSymbols) <- analyzeSymbol nextSym1 symtab1
 
         -- insert the const symbol into symtab
-        let id@(_,key) = getIdentifier nextSym1
+        let id@(_,key) = 
+                case analyzedSymbol of 
+                    KeliSymFunc f -> getIdentifier f
+                    _ -> getIdentifier nextSym1
+
         let symtab2 = symtab1 |> (key, analyzedSymbol)
 
         -- insert extra symbols into symtab (i.e., tags)
@@ -59,12 +61,12 @@ analyzeSymbols symbols symtab0 =
                         else
                             Right (symtab4 |> (key', annotatedSymbol))
                     ))
-                symtab2
+                (symtab2)
                 extraSymbols
 
         symtab3
     )::KeliSymTab -> KeliSym -> Either KeliError KeliSymTab)
-    symtab0
+    emptyKeliSymTab
     symbols
 
 analyzeSymbol :: KeliSym -> KeliSymTab -> Either KeliError (KeliSym,[KeliSym])
@@ -144,7 +146,7 @@ analyzeSymbol symbol symtab = case symbol of
                     KeliTypeSingleton (_,"undefined") -> result
                     _ -> Left (KErrorUnmatchingFuncReturnType (getType symtab typeCheckedBody) verifiedReturnType')
     
-    _ -> undefined
+    _ -> Right (symbol, [])
 
 typeCheckExpr :: KeliSymTab -> KeliExpr  -> Either KeliError KeliExpr
 typeCheckExpr symtab e = 
@@ -323,9 +325,6 @@ typeCheckExpr' symtab e = case e of
         undefined
 
     where 
-        getFuncId (KeliFuncCall params funcIds) = intercalate "$" (map snd funcIds) ++ intercalate "$" (map (toString . getType symtab) params)
-        getFuncId _ = undefined
-        
         -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
         typeCheckFuncCall :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
         typeCheckFuncCall params funcIds = 
@@ -390,7 +389,7 @@ typeCheckExpr' symtab e = case e of
 
                             Right (KeliTypeCheckedExpr (KeliTagMatcher subject otherBranches (Just (snd elseBranch))) (getType symtab (head branches)))
                         else -- missing tags
-                            Left (KErrorMissingTags (pTraceShowId (tags' \\ funcIds')))
+                            Left (KErrorMissingTags (tags' \\ funcIds'))
                     )
                     else
                         -- treat as regular function call
@@ -403,11 +402,13 @@ typeCheckExpr' symtab e = case e of
         typeCheckFuncCall' :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
         typeCheckFuncCall' params funcIds = 
             let funcCall = KeliFuncCall params funcIds in
-                case lookup (getFuncId funcCall) symtab of
-                    Just (KeliSymFunc f) 
-                        -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
-                    _ 
-                        -> Left (KErrorUsingUndefinedFunc funcIds)
+            let funcId = getFuncIdFromFuncCall funcCall in
+            case lookup funcId symtab of
+                Just (KeliSymFunc f) 
+                    -> Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType f))
+                _ 
+                    -> Left (KErrorUsingUndefinedFunc funcIds)
+
 
 
 verifyType :: KeliSymTab -> KeliExpr -> Either KeliError KeliType
@@ -458,3 +459,15 @@ extractExprOfUnverifiedType x =
     case x of 
         KeliTypeUnverified t -> t
         _ -> undefined
+
+getFuncIdFromFuncCall :: KeliExpr -> String
+getFuncIdFromFuncCall (KeliFuncCall params funcIds) = 
+    intercalate "$" (map (toValidJavaScriptId . snd) funcIds) ++ intercalate "$" (map (toString . getTypeWithoutResolvingAlias) params)
+getFuncIdFromFuncCall _ = undefined
+
+
+getTypeWithoutResolvingAlias :: KeliExpr -> KeliType
+getTypeWithoutResolvingAlias e = case e of
+    KeliTypeCheckedExpr _ t -> t
+    _ -> undefined
+    

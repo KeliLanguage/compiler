@@ -6,6 +6,8 @@ import Ast
 import SymbolTable
 import Data.List
 import Debug.Trace
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import Analyzer
 
 class Transpilable a where
     transpile :: a -> String
@@ -33,8 +35,9 @@ instance Transpilable KeliDecl where
 
 instance Transpilable KeliFunc where
     transpile f@(KeliFunc _ params _ _ body) 
-        = let params' = intercalate "," (map (snd . funcDeclParamId) params) in
+        = let params' = intercalate "," (map ((idPrefix ++ ) . snd . funcDeclParamId) params) in
         "function " ++ snd (getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
+
 
 
 instance Transpilable KeliConst where
@@ -61,6 +64,7 @@ instance Transpilable KeliExpr where
                     Just expr -> " || " ++ transpile expr
                     Nothing   -> "") ++ ")"
 
+        f@(KeliFuncCall params _) -> getFuncIdFromFuncCall f ++ "(" ++ intercalate "," (map transpile params) ++")"
         _ -> undefined
 
     
