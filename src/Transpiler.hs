@@ -20,9 +20,9 @@ instance Transpilable KeliSym where
         KeliSymSingleton (_,id)   -> "const " ++ idPrefix ++ id ++ "=null"
         KeliSymType             _ -> ""
         KeliSymTag (KeliTagCarryless (_,id) _) 
-            -> "const " ++ idPrefix ++ id ++ "=({__kind:\"" ++ id ++ "\"})"
+            -> "const " ++ idPrefix ++ id ++ "=({__tag:\"" ++ id ++ "\"})"
         KeliSymTag (KeliTagCarryful (_,id) _ _) 
-            -> "const " ++ idPrefix ++ id ++ "=(_carry)=>({__kind:\"" ++ id ++ "\",_carry})"
+            -> "const " ++ idPrefix ++ id ++ "=(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
 
 
 instance Transpilable KeliDecl where
@@ -51,8 +51,8 @@ instance Transpilable KeliExpr where
         KeliRecord kvs                          -> transpileKeyValuePairs (kvs)
         KeliRecordGetter expr prop              -> transpile expr ++ "." ++ snd prop
         KeliRecordSetter subject prop newValue  -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
-        KeliTagConstructor (_,tag) (Just carry) -> "({__tag:("++ tag ++"),carry:("++ transpile carry ++")})"
-        KeliTagConstructor (_,tag) Nothing      -> "({__tag:("++ tag ++")})"
+        KeliTagConstructor (_,tag) (Just carry) -> idPrefix ++ tag ++ "("++ transpile carry ++")"
+        KeliTagConstructor (_,tag) Nothing      -> idPrefix ++ tag
         KeliTypeCheckedExpr e _                 -> transpile e
         KeliTagMatcher subject branches elseBranch        
             -> 

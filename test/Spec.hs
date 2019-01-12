@@ -43,7 +43,10 @@ main = hspec $ do
 
         it "carryful tag" $ do
             baseCode <- getBaseCode
-            keli' (baseCode ++ "intlist=_.tag nothing.or(_.tag cons carry int);")
+            keli' (baseCode ++ "intlist=_.tag nothing.or(_.tag cons carry int);x=cons.carry 2;")
+            
+            -- incorrect carry type
+            isLeft (keli'' (baseCode ++ "color=_.tag red.or(_.tag green carry int);x=green.carry red;")) `shouldBe` True
 
         it "tag union" $ do
             baseCode <- getBaseCode

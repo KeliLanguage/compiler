@@ -19,4 +19,7 @@ data KeliError
     | KErrorDuplicatedTags [StringToken]
     | KErrorNotAType KeliExpr
     | KErrorUsingUndefinedType KeliExpr
+    | KErrorIncorrectCarryType
+        KeliType -- expected type
+        KeliExpr -- actual expr
     deriving(Show)

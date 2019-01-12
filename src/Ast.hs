@@ -44,6 +44,11 @@ data KeliType
     | KeliTypeAlias StringToken 
     | KeliTypeSingleton StringToken
     | KeliTypeUndefined
+    | KeliTypeCarryfulTagConstructor 
+        StringToken  -- tag
+        KeliType     -- carry type
+        KeliType     -- belonging type
+        
     deriving (Show, Eq)
 
 data KeliTag

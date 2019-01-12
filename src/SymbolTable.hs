@@ -1,6 +1,6 @@
 module SymbolTable where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup,id)
 import StaticError
 import Data.Map.Ordered (OMap, (|>), assocs, member, empty, lookup)
 import Ast
@@ -62,6 +62,8 @@ buildSymTab decls = foldl
 
             KeliFuncDecl  f -> KeliSymFunc f
 
+            _ -> undefined
+
         idfulDecls = filter (\x -> case x of KeliIdlessDecl _ -> False; _ -> True) decls
 
         toKeyValuePair :: KeliDecl -> (StringToken, KeliDecl)
@@ -77,11 +79,10 @@ class HaveType a where
 
 instance HaveType KeliExpr where
     getType symtab (KeliTypeCheckedExpr _ exprType) = getType symtab exprType
-    getType symtab e = KeliTypeUnverified e
-    getType symtab _ = undefined
+    getType _ e = KeliTypeUnverified e
 
 
 instance HaveType KeliType where
     getType symtab (KeliTypeUnverified expr) = getType symtab expr
     getType symtab (KeliTypeAlias (_,id)) = case fromJust (lookup id symtab) of KeliSymType t -> t; _ -> undefined;
-    getType symtab t = t
+    getType _ t = t

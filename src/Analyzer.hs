@@ -170,20 +170,27 @@ typeCheckExpr' symtab e = case e of
 
     (expr@(KeliId token@(_,id)))
         -> 
-        (case lookup id symtab of 
+        case lookup id symtab of 
             Just (KeliSymConst (KeliConst _ (KeliTypeCheckedExpr _ exprType) _))
                 -> Right (KeliTypeCheckedExpr expr exprType)
         
             Just (KeliSymSingleton token')
                 -> Right (KeliTypeCheckedExpr expr (KeliTypeSingleton token'))
 
-            Just (KeliSymTag (KeliTagCarryless _ type'))
-                -> Right (KeliTypeCheckedExpr expr type')
+            Just (KeliSymTag (KeliTagCarryless tag belongingType))
+                -> Right (KeliTypeCheckedExpr (KeliTagConstructor tag Nothing) belongingType)
 
-            Just (KeliSymTag (KeliTagCarryful _ _ _))
+            Just (KeliSymTag (KeliTagCarryful tag carryType belongingType))
+                -- How to check if user forgot to put .carry ?
+                --  Don't need to explicitly check it, the type system will handle it
+                -> Right (KeliTypeCheckedExpr expr (KeliTypeCarryfulTagConstructor tag carryType belongingType))
+
+            Nothing 
+                -> Left (KErrorUsingUndefinedId token)
+            
+            _
                 -> undefined
-            _ 
-                -> Left (KErrorUsingUndefinedId token))
+
 
     -- NOTES:
     -- * Why isn't func call params type checked at the very beginning?
@@ -263,7 +270,7 @@ typeCheckExpr' symtab e = case e of
                             resolvedTypes <- verifyTypes symtab types
                             return (KeliTypeExpr (KeliTypeRecord (zip funcIds resolvedTypes)))
 
-                    else -- assume user want to create an anonymous record
+                    else -- assume user want to create an record value
                         let values = tail params in do
                             typeCheckedExprs <- typeCheckExprs symtab values
                             return 
@@ -322,9 +329,25 @@ typeCheckExpr' symtab e = case e of
         -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
         typeCheckFuncCall :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
         typeCheckFuncCall params funcIds = 
-            -- check if user are calling tag matchers
             let typeOfFirstParam = getType symtab (head params) in
             case  typeOfFirstParam of
+                -- check if user is invoking carryful tag constructor
+                KeliTypeCarryfulTagConstructor tag carryType belongingType
+                    -> 
+                    if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then
+                        let carryExpr     = params !! 1 in
+                        let carryExprType = getType symtab carryExpr in
+                        let carryType'    = getType symtab carryType in
+                        if carryExprType == carryType' then
+                            Right (KeliTypeCheckedExpr (KeliTagConstructor tag (Just carryExpr)) belongingType)
+                        else
+                            Left (KErrorIncorrectCarryType carryType' carryExpr)
+                    else
+                        -- treat as regular function call
+                        typeCheckFuncCall' params funcIds
+                    
+                
+                -- check if user is calling tag matchers
                 KeliTypeTagUnion tags
                     -> 
                     let funcIds' = map (init . snd) funcIds in
