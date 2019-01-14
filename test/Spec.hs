@@ -5,7 +5,6 @@ import Ast
 import Debug.Trace
 import Analyzer
 import Data.Either
-import SymbolTable
 import StaticError
 import Keli
 
@@ -14,23 +13,26 @@ testParseKeli x =
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
-testAnalyze x = 
-    let decls  = parseKeli x in
-    case decls of 
-        Right decls -> 
-            case buildSymTab decls of
-                Right symtab -> Right (analyze symtab)
-                Left err -> Left err 
-        Left err -> trace (show err) $ undefined
-
 getBaseCode = readFile "./kelilib/base.keli"
 
 main :: IO ()
 main = hspec $ do
     describe "keli exec" $ do
+        it "multiple dispatch" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "x:str.bom|str=undefined;x:int.bom|int=undefined;a=1 .bom;b=\"1\".bom;")
+
+        it "generic keli func" $ do
+            baseCode <- getBaseCode
+            keli' (baseCode ++ "\n{a:any}x:a.id | a = x;this:int. ! |int=undefined;z=99;zz=z.id.id. !;")
+
         it "keli func" $ do
             baseCode <- getBaseCode
             keli' (baseCode ++ "x:int.+y:int|int=undefined;z=1 .+ 3;")
+            keli' (baseCode ++ "this:str.replace old:str with new:str|str=undefined;z=\"hi\".replace\"i\" with \"h\";")
+
+            -- duplicated func
+            isLeft (keli'' (baseCode ++ "i:int.-j:int|int=undefined;i:int.-j:int|int=undefined;")) `shouldBe` True
 
         it "record" $ do
             baseCode <- getBaseCode
@@ -61,7 +63,7 @@ main = hspec $ do
             keli' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 1;")
 
             -- else tags
-            keli' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 else? 1;")
+            keli' (baseCode ++ "yesOrNo=_.tag ok.or(_.tag nope);a=ok;b=a.ok? 2 else? 1;")
 
             -- missing tag `no`
             isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2;")) `shouldBe` True
@@ -77,13 +79,13 @@ main = hspec $ do
 
     describe "keli analyzer" $ do
         it "check for duplicated const id" $ do
-            (case testAnalyze "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
-            isRight (testAnalyze "x=5;y=5;") `shouldBe` True
+            (case keli'' "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
+            isRight (keli'' "x=5;y=5;") `shouldBe` True
 
         it "keli record" $ do
             baseCode <- getBaseCode
-            isRight (testAnalyze (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
-            isRight (testAnalyze (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
+            isRight (keli'' (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
+            isRight (keli'' (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
         
 
     describe "keli parser" $ do

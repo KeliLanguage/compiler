@@ -56,9 +56,9 @@ keliFuncCall
        let firstChain     = head pairs in
        let remainingChain = tail pairs in
         return (foldl 
-            (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next))) -- reducer
-            (KeliFuncCall (param1:(snd firstChain)) (fst firstChain))               -- initial value
-            (map (\x -> KeliFuncCall (snd x) (fst x)) remainingChain) -- foldee
+            (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next) Nothing)) -- reducer
+            (KeliFuncCall (param1:(snd firstChain)) (fst firstChain) Nothing)               -- initial value
+            (map (\x -> KeliFuncCall (snd x) (fst x) Nothing) remainingChain) -- foldee
         )
 
 keliLambda :: Parser KeliExpr
@@ -139,7 +139,7 @@ unpackMaybe Nothing  = []
 
 
 braces  = between (symbol "{") (symbol "}")
-keliGenericParams :: Parser (Maybe [KeliFuncDeclParam])
+keliGenericParams :: Parser (Maybe [KeliFuncDeclConstraint])
 keliGenericParams 
     =  optionMaybe $ braces $ many1 (keliFuncDeclParam >>= \param ->  return param)
 
@@ -156,12 +156,12 @@ keliFuncId =
     ->  choice [identifier, operator] >>= \id
     ->  return (pos, id)
 
-keliFuncDeclParam :: Parser KeliFuncDeclParam
+keliFuncDeclParam ::Parser (StringToken, KeliType)
 keliFuncDeclParam 
     =  keliFuncId     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (KeliFuncDeclParam id (KeliTypeUnverified typeExpr))
+    -> return (id, KeliTypeUnverified typeExpr)
 
 preprocess :: String -> String
 preprocess str = str

@@ -21,20 +21,17 @@ data KeliConst = KeliConst {
     constDeclType  :: Maybe KeliType
 } deriving (Show)
 
+type KeliFuncDeclParam = (StringToken, KeliType)
+type KeliFuncDeclConstraint = (StringToken, KeliType)
+
 data KeliFunc = KeliFunc {
-    funcDeclGenericParams :: [KeliFuncDeclParam],
+    funcDeclGenericParams :: [KeliFuncDeclConstraint],
     funcDeclParams        :: [KeliFuncDeclParam],
     funcDeclIds           :: [StringToken],
     funcDeclReturnType    :: KeliType,
     funcDeclBody          :: KeliExpr
-} deriving (Show)
+} deriving (Show, Eq)
 
-data KeliFuncDeclParam 
-    = KeliFuncDeclParam {
-        funcDeclParamId   :: StringToken,
-        funcDeclParamType :: KeliType
-    }
-    deriving (Show)
 
 data KeliType  
     = KeliTypeUnverified KeliExpr
@@ -52,8 +49,14 @@ data KeliType
         KeliType     -- belonging type
 
     | KeliTypeRecordConstructor [(StringToken, KeliType)]
-        
+    | KeliTypeConstraint KeliConstraint 
     deriving (Show, Eq)
+
+data KeliConstraint
+    = KeliConstraintAny
+    | KeliConstraintUnverified KeliExpr
+    deriving (Show, Eq)
+
 
 data KeliTag
     = KeliTagCarryless 
@@ -72,7 +75,8 @@ data KeliExpr
     | KeliId     StringToken
     | KeliFuncCall {
         funcCallParams :: [KeliExpr],
-        funcCallIds    :: [StringToken]
+        funcCallIds    :: [StringToken],
+        funcCallRef    :: Maybe KeliFunc
     }
     | KeliLambda {
         lambdaParams :: [StringToken],
@@ -118,6 +122,7 @@ data KeliExpr
 
     deriving (Show, Eq)
 
+
 class Identifiable a where
     getIdentifier :: a -> StringToken
 
@@ -126,12 +131,27 @@ instance Identifiable KeliDecl where
         KeliConstDecl c -> getIdentifier c
         KeliFuncDecl  f -> getIdentifier f
 
+-- Each function identifier shall follows the following format:
+--
+--      <front part>$$<back part>
+--      id1$id2$id3$$paramType1$paramType2$paramType3
+--
+--  where <front part> is function names and <back part> is param types
+-- 
+-- Example:
+--      this:str.replace old:str with new:str | str = undefined
+-- Shall have id of
+--      replace$old$$str$str$str 
+--
+-- This format is necessary, so that when we do function lookup,
+--  we can still construct back the function details from its id when needed
+--  especially when looking up generic functions
 instance Identifiable KeliFunc where
     getIdentifier (KeliFunc{funcDeclIds=ids, funcDeclParams=params})
         = (
             fst (head ids)
             ,
-            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ intercalate "$" (map (toString . funcDeclParamType) params) 
+            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (toString . snd) params) 
         )
 
 -- Basically, this function will convert all symbols to its corresponding ASCII code
@@ -148,6 +168,14 @@ instance Identifiable KeliConst where
 instance Identifiable KeliType where
     getIdentifier x = (newPos "" (-1) (-1), toString x)
 
+
+-- What is toString for?
+-- It is for generating the identifier for each particular functions
+-- For example, the following function:
+--     this:str.reverse = undefined
+-- Will have an id of something like _reverse_str
+-- So that the function lookup process can be fast (during analyzing function call)
+
 class Stringifiable a where
     toString :: a -> String
 
@@ -160,3 +188,9 @@ instance Stringifiable KeliType where
         KeliTypeTagUnion tags -> undefined 
         KeliTypeAlias (_,id) -> id
         KeliTypeUnverified expr -> "unknown" -- error (show expr)
+        KeliTypeConstraint c -> toString c
+        _ -> undefined
+
+-- For constraint type, we just return an empty string
+instance Stringifiable KeliConstraint where
+    toString _ = ""

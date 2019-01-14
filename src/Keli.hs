@@ -3,9 +3,8 @@ module Keli where
 import Transpiler
 import Parser
 import Analyzer
-import SymbolTable
 import Debug.Trace
-import Debug.Pretty.Simple (pTraceShowId)
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Text.Pretty.Simple (pPrint)
 import Data.List
 import System.Process
@@ -17,12 +16,13 @@ keli filename = do
 
 keli' contents = do
     case (keli'' contents) of
-        Right code -> callCommand ("node -e " ++ pTraceShowId(show code))
-        Left err -> pPrint err
+        Right code -> do 
+            -- pPrint code
+            callCommand ("node -e " ++ (show code))
+        Left err -> error (pTraceShow err $ "")
     
 
 keli'' contents
     =   parseKeli contents
-    >>= buildSymTab 
-    >>= analyze     
+    >>= analyze 
     >>= \symbols -> return (intercalate ";" (map transpile symbols))

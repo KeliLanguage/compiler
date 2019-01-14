@@ -2,10 +2,11 @@ module StaticError where
 
 import Ast
 import Text.ParserCombinators.Parsec
+import Symbol
 
 data KeliError 
     = KErrorParseError ParseError
-    | KErrorDuplicatedId StringToken
+    | KErrorDuplicatedId [StringToken]
     | KErrorDuplicatedProperties
     | KErrorDuplicatedTags [StringToken]
     | KErrorExcessiveTags [StringToken]
@@ -18,7 +19,6 @@ data KeliError
     | KErrorIncorrectUsageOfTaggedUnion
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
-    | KErrorNotAType KeliExpr
     | KErrorNotAllBranchHaveTheSameType [(StringToken,KeliExpr)]
     | KErrorUnmatchingFuncReturnType KeliType KeliType
     | KErrorUsingUndefinedFunc [StringToken]
@@ -29,4 +29,8 @@ data KeliError
         StringToken -- property name
         KeliType    -- expected type
         KeliExpr    -- actual expr (type-checked)
+    | KErrorNotATypeConstraint KeliSymbol
+    | KErrorNotAType KeliSymbol
+    | KErrorDuplicatedFunc KeliFunc
+
     deriving(Show)

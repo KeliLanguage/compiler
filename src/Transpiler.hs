@@ -2,12 +2,13 @@ module Transpiler
 where
 
 import Prelude hiding (id)
-import Ast
-import SymbolTable
 import Data.List
 import Debug.Trace
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+
 import Analyzer
+import Ast
+import Symbol
 
 class Transpilable a where
     transpile :: a -> String
@@ -15,9 +16,9 @@ class Transpilable a where
 idPrefix :: String
 idPrefix = "_"
 
-instance Transpilable KeliSym where
+instance Transpilable KeliSymbol where
     transpile x = case x of
-        KeliSymFunc f             -> transpile f
+        KeliSymFunc fs            -> intercalate ";" (map transpile fs)
         KeliSymConst c            -> transpile c
         KeliSymSingleton (_,id)   -> "const " ++ idPrefix ++ id ++ "=null"
         KeliSymType             _ -> ""
@@ -33,9 +34,10 @@ instance Transpilable KeliDecl where
         KeliIdlessDecl e -> transpile e
         KeliFuncDecl f   -> transpile f
 
+
 instance Transpilable KeliFunc where
     transpile f@(KeliFunc _ params _ _ body) 
-        = let params' = intercalate "," (map ((idPrefix ++ ) . snd . funcDeclParamId) params) in
+        = let params' = intercalate "," (map ((idPrefix ++ ) . snd . fst) params) in
         "function " ++ snd (getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 
@@ -64,7 +66,7 @@ instance Transpilable KeliExpr where
                     Just expr -> " || " ++ transpile expr
                     Nothing   -> "") ++ ")"
 
-        f@(KeliFuncCall params _) -> getFuncIdFromFuncCall f ++ "(" ++ intercalate "," (map transpile params) ++")"
+        KeliFuncCall params _ (Just ref) -> snd (getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
         _ -> undefined
 
     
@@ -72,3 +74,6 @@ instance Transpilable KeliExpr where
 transpileKeyValuePairs :: [(StringToken, KeliExpr)] -> String
 transpileKeyValuePairs kvs 
     = "({" ++ (foldl (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" ++ transpile expr ++ ",") "" kvs) ++ "})"
+
+
+

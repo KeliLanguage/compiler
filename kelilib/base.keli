@@ -1,7 +1,11 @@
-_primitive = _primitive;
+_primitive_type = _primitive_type;
 
-int        = _primitive;
-str        = _primitive;
+int        = _primitive_type;
+str        = _primitive_type;
+
+_primitive_constraint = _primitive_constraint;
+
+any = _primitive_constraint;
 
 undefined = undefined;
 record     = record;
