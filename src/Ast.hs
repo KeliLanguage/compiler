@@ -13,13 +13,13 @@ data KeliDecl
     = KeliConstDecl KeliConst
     | KeliFuncDecl KeliFunc
     | KeliIdlessDecl KeliExpr
-    deriving (Show)
+    deriving (Show, Eq)
 
 data KeliConst = KeliConst { 
     constDeclId    :: StringToken, -- because we can ignore the identifier
     constDeclValue :: KeliExpr,
     constDeclType  :: Maybe KeliType
-} deriving (Show)
+} deriving (Show, Eq)
 
 type KeliFuncDeclParam = (StringToken, KeliType)
 type KeliFuncDeclConstraint = (StringToken, KeliType)
@@ -40,7 +40,7 @@ data KeliType
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [StringToken] -- list of tags
-    | KeliTypeAlias StringToken 
+    | KeliTypeAlias StringToken KeliType
     | KeliTypeSingleton StringToken
     | KeliTypeUndefined
     | KeliTypeCarryfulTagConstructor 
@@ -50,6 +50,7 @@ data KeliType
 
     | KeliTypeRecordConstructor [(StringToken, KeliType)]
     | KeliTypeConstraint KeliConstraint 
+    | KeliTypeParam StringToken
     deriving (Show, Eq)
 
 data KeliConstraint
@@ -120,7 +121,7 @@ data KeliExpr
 
     | KeliRecordConstructor [(StringToken, KeliType)]
 
-    deriving (Show, Eq)
+    deriving (Show,Eq)
 
 
 class Identifiable a where
@@ -151,7 +152,7 @@ instance Identifiable KeliFunc where
         = (
             fst (head ids)
             ,
-            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (toString . snd) params) 
+            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (stringifyType . snd) params) 
         )
 
 -- Basically, this function will convert all symbols to its corresponding ASCII code
@@ -166,7 +167,7 @@ instance Identifiable KeliConst where
 
 
 instance Identifiable KeliType where
-    getIdentifier x = (newPos "" (-1) (-1), toString x)
+    getIdentifier x = (newPos "" (-1) (-1), stringifyType x)
 
 
 -- What is toString for?
@@ -179,14 +180,14 @@ instance Identifiable KeliType where
 class Stringifiable a where
     toString :: a -> String
 
-instance Stringifiable KeliType where
-    toString t = case t of
+stringifyType :: KeliType -> String
+stringifyType t = case t of
         KeliTypeFloat  -> "float"
         KeliTypeInt    -> "int"
         KeliTypeString -> "str"
-        KeliTypeRecord kvs -> undefined
+        KeliTypeRecord kvs -> error (show kvs)
         KeliTypeTagUnion tags -> undefined 
-        KeliTypeAlias (_,id) -> id
+        KeliTypeAlias (_,id) _ -> id
         KeliTypeUnverified expr -> "unknown" -- error (show expr)
         KeliTypeConstraint c -> toString c
         _ -> undefined
@@ -194,3 +195,13 @@ instance Stringifiable KeliType where
 -- For constraint type, we just return an empty string
 instance Stringifiable KeliConstraint where
     toString _ = ""
+
+
+typeEquals :: KeliType -> KeliType -> Bool
+x `typeEquals` y = unpackType x == unpackType y
+    
+unpackType :: KeliType -> KeliType
+unpackType t =
+    case t of
+        KeliTypeAlias _ type' -> type'
+        _ -> t

@@ -19,7 +19,7 @@ keli' contents = do
         Right code -> do 
             -- pPrint code
             callCommand ("node -e " ++ (show code))
-        Left err -> error (pTraceShow err $ "")
+        Left err -> error ("Error lol:" ++ (pTraceShow err $ ""))
     
 
 keli'' contents

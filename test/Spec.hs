@@ -34,11 +34,17 @@ main = hspec $ do
             -- duplicated func
             isLeft (keli'' (baseCode ++ "i:int.-j:int|int=undefined;i:int.-j:int|int=undefined;")) `shouldBe` True
 
-        it "record" $ do
-            baseCode <- getBaseCode
+        it "record creation" $ do
             keli' "animal=record.name \"dog\" age 5;"
+
+        it "record getter" $ do
             keli' "animal=(record.name \"dog\").name;"
+
+        it "record setter" $ do
             keli' "animal=(record.name \"dog\").name \"cat\";"
+
+        it "record type declaration" $ do
+            baseCode <- getBaseCode
             keli' (baseCode ++ "fruit=record.taste int; x=fruit.taste 3;")
         
         it "carryless tag" $ do
@@ -82,9 +88,8 @@ main = hspec $ do
             (case keli'' "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
             isRight (keli'' "x=5;y=5;") `shouldBe` True
 
-        it "keli record" $ do
+        it "keli record 2" $ do
             baseCode <- getBaseCode
-            isRight (keli'' (baseCode ++ "animal=record.name str age int;")) `shouldBe` True
             isRight (keli'' (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
         
 
