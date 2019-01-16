@@ -161,8 +161,14 @@ analyzeDecl decl symtab = case decl of
             symtab' <- 
                 populateSymbolTable 
                 symtab 
-                verifiedGenericParams 
-                (\id _ -> KeliSymType (KeliTypeParam id))
+                verifiedGenericParams
+                (\id paramType ->
+                    case paramType of 
+                        KeliTypeConstraint constraint -> 
+                            KeliSymType (KeliTypeParam id constraint)
+
+                        _ -> undefined)
+
 
             -- 1.1 Verify annotated types of each func param
             verifiedFuncParams <- verifyParamType symtab' funcParams verifyType
@@ -271,7 +277,7 @@ typeCheckExpr' symtab e = case e of
                             KeliTagUnionDeclExpr tags         -> Right tags 
                             _                                 -> undefined
                     in case mapM extractTags typeCheckedParams of
-                        Right tags -> Right (KeliTagUnionDeclExpr (intercalate [] tags))
+                        Right tags -> Right (KeliTagUnionDeclExpr (concat tags))
                         Left err   -> Left err
                     ) 
             else
@@ -465,31 +471,80 @@ typeCheckExpr' symtab e = case e of
                     typeCheckFuncCall' params funcIds
             
         typeCheckFuncCall' :: [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
-        typeCheckFuncCall' params funcIds = 
+        typeCheckFuncCall' funcCallParams funcIds = 
             let funcId = intercalate "$" (map snd funcIds) in
-            let actualParamTypes = map (getType) params in
+            let actualParamTypes = map (getType) funcCallParams in
             case lookup funcId symtab of
                 Just (KeliSymFunc functions) -> do
                     case (find 
                         (\f -> 
-                            if length params /= length (funcDeclParams f) then
+                            if length funcCallParams /= length (funcDeclParams f) then
                                 False
                             else
                                 let expectedParamTypes = map (\(_,paramType) -> paramType) (funcDeclParams f) in
                                 all 
-                                    (\(actualType, expectedType) -> actualType `conformsTo` expectedType)
-                                    (zip actualParamTypes expectedParamTypes)) 
+                                    (\(actualType, expectedType) -> actualType `haveShapeOf` expectedType) 
+                                    (zip actualParamTypes expectedParamTypes))
 
                         -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
                         (sortOn (\f -> length (funcDeclGenericParams f)) functions)) of
 
                         Just matchingFunc -> do
-                            let genericParams = funcDeclGenericParams matchingFunc 
+                            let genericParams = funcDeclGenericParams matchingFunc
                             -- 1. Create empty binding table
-                            let bindingTable = (fromList (map (\((_,id),_) -> (id, Nothing)) genericParams)):: OMap String (Maybe KeliType) 
-                            let funcCall = KeliFuncCall params funcIds (Just matchingFunc) 
-                            specializedFunc <- substituteGeneric params matchingFunc 
-                            Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType specializedFunc))
+                            let initialBindingTable = (fromList (map (\((_,id),_) -> (id, Nothing)) genericParams)) :: GenericBindingTable
+
+                            -- 1.1 Populate binding table
+                            let expectedParamTypes = map snd (funcDeclParams matchingFunc)
+
+                            populatedBindingTable <- 
+                                    ((foldM 
+                                        ((\bindingTable2 (expectedType, actualType) -> 
+                                            let genericParamLocations = whereAreGenericParams expectedType in
+                                            case findCorrespondingType genericParamLocations actualType of
+                                                Right (CorrespondingTypeNotFound) -> 
+                                                    Right bindingTable2
+
+                                                Right (CorrespondingTypeFound bindings) -> 
+                                                    Right $
+                                                        (foldl'
+                                                        ((\bindingTable3 ((_,id), bindingType) -> 
+                                                            case lookup id bindingTable3 of
+                                                                Just Nothing -> 
+                                                                    (bindingTable3 |> (id, Just bindingType)) 
+
+                                                                Just (Just _) -> 
+                                                                    -- if already binded, don't insert the new type binding
+                                                                    bindingTable3
+
+                                                                Nothing -> 
+                                                                    error "shouldn't be possible") :: GenericBindingTable -> (StringToken, KeliType) -> GenericBindingTable)
+
+                                                        (bindingTable2 :: GenericBindingTable)
+                                                        bindings)
+
+                                                Left err -> Left err
+                                            ) :: GenericBindingTable -> (KeliType, KeliType) -> Either KeliError GenericBindingTable)
+                                        initialBindingTable
+                                        (zip expectedParamTypes actualParamTypes)))
+
+                            
+                            -- 2. Subsitute type param bindings
+                            let specializedFunc = substituteGeneric populatedBindingTable matchingFunc 
+
+                            -- 3. Check if each func call param type match with param types of specializedFunc
+                            let typeMismatchError = 
+                                    find
+                                    (\(expectedType, actualExpr) -> not (getType actualExpr `typeEquals` expectedType))
+                                    (zip (map snd (funcDeclParams specializedFunc)) funcCallParams)
+                            
+                            case typeMismatchError of
+                                Just (expectedType, actualExpr) -> 
+                                    Left (KErrorFuncCallTypeMismatch expectedType actualExpr)
+
+                                Nothing ->
+                                    let funcCall = KeliFuncCall funcCallParams funcIds (Just matchingFunc) in
+                                    Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType specializedFunc))
 
                         Nothing ->
                             error funcId
@@ -497,22 +552,32 @@ typeCheckExpr' symtab e = case e of
                 _ -> 
                     Left (KErrorUsingUndefinedFunc funcIds)
         
-        substituteGeneric :: [KeliExpr] -> KeliFunc -> Either KeliError KeliFunc
-        substituteGeneric actualFuncParams matchingFunc = 
-            let expectedFuncParams = funcDeclParams matchingFunc in
-            if length expectedFuncParams == 0 then
-                Right matchingFunc
-            else
-                -- NOTE: we assume that actualFuncParams should already have same length with expectedFuncParams
-                let genericSubstitutionTable = 
-                        foldl
-                        (\acc next -> undefined)
-                        (empty :: OMap String KeliType)
-                        expectedFuncParams in
 
-                let substitutedFuncParams = undefined in
-                
-                Right (matchingFunc {funcDeclParams = substitutedFuncParams})
+substituteGeneric :: GenericBindingTable -> KeliFunc -> KeliFunc
+substituteGeneric bindingTable matchingFunc = 
+    let expectedFuncParams = funcDeclParams matchingFunc in
+    let substitutedFuncParams = 
+            map (\(paramId, paramType) -> (paramId, substituteGeneric' bindingTable paramType)) expectedFuncParams in
+
+    let substitutedReturnType = substituteGeneric' bindingTable (funcDeclReturnType matchingFunc) in
+
+    (matchingFunc {
+        funcDeclParams = substitutedFuncParams, 
+        funcDeclReturnType = substitutedReturnType})
+    
+substituteGeneric' :: GenericBindingTable -> KeliType -> KeliType
+substituteGeneric' bindingTable type' =
+    case type' of
+        KeliTypeParam (_,id) _ -> 
+            case lookup id bindingTable of 
+                Just (Just bindingType) -> bindingType
+                _ -> error "possibly due to binding table is not populated properly"
+        
+        KeliTypeCompound _ _ -> 
+            undefined
+
+        _ -> 
+            type'
 
 
 type TypeVerifier = KeliSymTab -> KeliExpr -> Either KeliError KeliType
@@ -598,13 +663,75 @@ instance HaveType KeliExpr where
     getType e = KeliTypeUnverified e
 
 
-conformsTo :: KeliType -> KeliType -> Bool
-type1 `conformsTo` type2 = 
-    case type2 of
-        KeliTypeConstraint constraint ->
-            case constraint of
-                KeliConstraintAny 
-                    -> True
-                _
-                    -> undefined
-        _ -> type1 `typeEquals` type2
+-- Example
+--  a.list `haveShapeOf` b.list = True
+--  a.list.list `haveShapeOf` b.list.list = True
+--  a.list `haveShapeOf` a.tree = False
+--  int `haveShapeOf` int = True
+--  int `haveShapeOf` a = True
+haveShapeOf :: KeliType -> KeliType -> Bool
+type1 `haveShapeOf` type2 = 
+    case type1 of
+        KeliTypeCompound _ _ -> 
+            undefined
+        
+        _ -> 
+            case type2 of
+                KeliTypeParam _ _ -> 
+                    True
+                
+                _ ->
+                    type1 `typeEquals` type2
+
+hardConformsTo :: KeliType -> KeliConstraint -> Bool
+type' `hardConformsTo` constraint =
+    case constraint of
+        KeliConstraintAny -> 
+            True
+        _ -> 
+            undefined
+
+data GenericParamLocation 
+    = GenericParamNotFound
+    | GenericParamFoundAsSimpleType
+        StringToken-- generic param name
+        KeliConstraint
+
+    | GenericParamFoundAsCompoundType
+        [(
+            Int, -- generic param index,
+            GenericParamLocation
+        )]
+    deriving (Show)
+
+whereAreGenericParams :: KeliType -> GenericParamLocation
+whereAreGenericParams t = case t of
+    -- compound type 
+    KeliTypeCompound _ _ -> undefined
+
+    -- simple type
+    KeliTypeParam id constraint -> GenericParamFoundAsSimpleType id constraint
+
+    _ -> GenericParamNotFound
+
+data CorrespondingType
+    = CorrespondingTypeNotFound
+    | CorrespondingTypeFound [(StringToken, KeliType)]
+    deriving(Show)
+
+findCorrespondingType :: GenericParamLocation -> KeliType -> Either KeliError CorrespondingType
+findCorrespondingType location actualType =
+    case location of
+        GenericParamNotFound -> 
+            Right CorrespondingTypeNotFound
+
+        GenericParamFoundAsSimpleType genericParamId constraint -> 
+            if actualType `hardConformsTo` constraint then
+                Right (CorrespondingTypeFound [(genericParamId, actualType)])
+
+            else
+                Left (KErrorTypeNotConformingConstraint actualType constraint)
+
+        GenericParamFoundAsCompoundType _ -> undefined
+
+type GenericBindingTable = OMap String (Maybe KeliType) 

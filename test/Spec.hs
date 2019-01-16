@@ -24,7 +24,7 @@ main = hspec $ do
 
         it "generic keli func" $ do
             baseCode <- getBaseCode
-            keli' (baseCode ++ "\n{a:any}x:a.id | a = x;this:int. ! |int=undefined;z=99;zz=z.id.id. !;")
+            keli' (baseCode ++ "\n{a:any}x:a.id | a = x;this:int. ! |int=undefined;z=99;zz=z.id. !;")
 
         it "keli func" $ do
             baseCode <- getBaseCode

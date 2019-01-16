@@ -50,7 +50,10 @@ data KeliType
 
     | KeliTypeRecordConstructor [(StringToken, KeliType)]
     | KeliTypeConstraint KeliConstraint 
-    | KeliTypeParam StringToken
+    | KeliTypeParam StringToken KeliConstraint
+    | KeliTypeCompound 
+        StringToken -- name
+        [KeliType] -- type params
     deriving (Show, Eq)
 
 data KeliConstraint
@@ -158,7 +161,7 @@ instance Identifiable KeliFunc where
 -- Basically, this function will convert all symbols to its corresponding ASCII code
 -- e.g. toValidJavaScriptId "$" = "_36"
 toValidJavaScriptId :: String -> String
-toValidJavaScriptId s = "_" ++ intercalate [] (map (\x -> if isSymbol x then show (ord x) else [x]) s)
+toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
 
 
 instance Identifiable KeliConst where
@@ -190,11 +193,14 @@ stringifyType t = case t of
         KeliTypeAlias (_,id) _ -> id
         KeliTypeUnverified expr -> "unknown" -- error (show expr)
         KeliTypeConstraint c -> toString c
-        _ -> undefined
+        KeliTypeParam _ _ -> ""
+        _ -> error (show t)
 
 -- For constraint type, we just return an empty string
 instance Stringifiable KeliConstraint where
-    toString _ = ""
+    toString c = case c of
+        KeliConstraintAny -> "any"
+        _ -> undefined
 
 
 typeEquals :: KeliType -> KeliType -> Bool

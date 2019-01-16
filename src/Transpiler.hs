@@ -73,7 +73,7 @@ instance Transpilable KeliExpr where
 
 transpileKeyValuePairs :: [(StringToken, KeliExpr)] -> String
 transpileKeyValuePairs kvs 
-    = "({" ++ (foldl (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" ++ transpile expr ++ ",") "" kvs) ++ "})"
+    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" ++ transpile expr ++ ",") "" kvs) ++ "})"
 
 
 

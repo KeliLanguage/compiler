@@ -55,7 +55,7 @@ keliFuncCall
     -> let pairs          = (flattenFuncCallChain chain) in
        let firstChain     = head pairs in
        let remainingChain = tail pairs in
-        return (foldl 
+        return (foldl' 
             (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next) Nothing)) -- reducer
             (KeliFuncCall (param1:(snd firstChain)) (fst firstChain) Nothing)               -- initial value
             (map (\x -> KeliFuncCall (snd x) (fst x) Nothing) remainingChain) -- foldee

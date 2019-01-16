@@ -32,5 +32,9 @@ data KeliError
     | KErrorNotATypeConstraint KeliSymbol
     | KErrorNotAType KeliSymbol
     | KErrorDuplicatedFunc KeliFunc
+    | KErrorTypeNotConformingConstraint KeliType KeliConstraint
+    | KErrorFuncCallTypeMismatch
+        KeliType -- expected type
+        KeliExpr -- actual expr (type-checked)
 
     deriving(Show)

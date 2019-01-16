@@ -1,41 +1,43 @@
 ="list declartion";
-a:type.list | type 
+a:any.list | any 
     =   (_.tag nil)
     .or (_.tag cons carry (record.current a next (a.list)));
 
-{a:type} 
+{a:any} 
 x:a.cons xs:(a.list) | a.list = cons.carry(record.current x next xs);
 
-{a:type}
+{a:any}
 xs:(a.list).++ ys:(a.list) | a.list =
     xs.
         nil?  ys
         cons? (xs.current.cons(xs.next.++ys));
 
-{a:type}
+{a:any}
 xs:(a.list).sum | int = 
     xs.foldl(x y | x.+y) startingwith 0;
 
-{a:type b:type}
+{a:any b:any}
 xs:(a.list).map f:(a.to b) | b.list = 
     xs.
         nil?  nil
         cons? (f.apply(xs.current).cons(xs.next.map f));
 
-{a:type}
+{a:any}
 xs:(a.list).filter f:(a.to boolean) | a.list =
     xs.
         nil? nil
-        cons? 
-            (xs.next.filter f.into(remaining |
+        cons? (
+            xs.next.filter f.into(remaining |
             f.apply(xs.current).
                 true?  (xs.current.cons remaining)
-                false? (nil.cons remaining)));
+                false? (nil.cons remaining))
+        );
 
 
-{a:type b:type}
+{a:any b:any}
 xs:(a.list).foldl f:(b.pair a.to b) startingWith value:b | b =
     xs.
         nil?  value
         cons? (xs.next.foldl f startingWith(f.apply(xs.current)));
+
     
