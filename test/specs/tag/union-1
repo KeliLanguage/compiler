@@ -1,0 +1,3 @@
+boolean=_.tag true.or(_.tag false);
+a=true;
+b=false;

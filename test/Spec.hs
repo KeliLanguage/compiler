@@ -7,92 +7,48 @@ import Analyzer
 import Data.Either
 import StaticError
 import Keli
+import System.Directory
+import Control.Monad
 
 testParseKeli x = 
     (case (parseKeli x) of
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
-getBaseCode = readFile "./kelilib/base.keli"
+runTest = do
+    testSubjects <- listDirectory "./test/specs"
+    testCases <- 
+        forM 
+            testSubjects 
+            (\subject -> do
+                let dirname = "./test/specs/" ++ subject
+                filenames <- listDirectory dirname
+                files <- 
+                    forM 
+                        filenames
+                        (\name -> do
+                            contents <- readFile $ dirname ++ "/" ++ name
+                            return (name, contents))
+                return (subject, files))
 
-main :: IO ()
-main = hspec $ do
-    describe "keli exec" $ do
-        it "multiple dispatch" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "x:str.bom|str=undefined;x:int.bom|int=undefined;a=1 .bom;b=\"1\".bom;")
+    hspec $ do
+        forM_ testCases
+            (\(subject, files) ->
+                describe subject $ do
+                    forM_ files
+                        (\(filename, contents) ->
+                            it filename $ do
+                                if head filename == '@' then
+                                    keli' contents `shouldThrow` anyException
+                                else
+                                    keli' contents))
+    
+    otherTest
 
-        it "generic keli func" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "\n{a:any}x:a.id | a = x;this:int. ! |int=undefined;z=99;zz=z.id. !;")
+main = runTest
 
-        it "keli func" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "x:int.+y:int|int=undefined;z=1 .+ 3;")
-            keli' (baseCode ++ "this:str.replace old:str with new:str|str=undefined;z=\"hi\".replace\"i\" with \"h\";")
-
-            -- duplicated func
-            isLeft (keli'' (baseCode ++ "i:int.-j:int|int=undefined;i:int.-j:int|int=undefined;")) `shouldBe` True
-
-        it "record creation" $ do
-            keli' "animal=record.name \"dog\" age 5;"
-
-        it "record getter" $ do
-            keli' "animal=(record.name \"dog\").name;"
-
-        it "record setter" $ do
-            keli' "animal=(record.name \"dog\").name \"cat\";"
-
-        it "record type declaration" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "fruit=record.taste int; x=fruit.taste 3;")
-        
-        it "carryless tag" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "boolean=_.tag true;x=true;")
-
-        it "carryful tag" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "intlist=_.tag nothing.or(_.tag cons carry int);x=cons.carry 2;")
-            
-            -- incorrect carry type
-            isLeft (keli'' (baseCode ++ "color=_.tag red.or(_.tag green carry int);x=green.carry red;")) `shouldBe` True
-
-        it "tag union" $ do
-            baseCode <- getBaseCode
-            keli' (baseCode ++ "boolean=_.tag true.or(_.tag false);a=true;b=false;")
-        
-        it "case checker" $ do
-            baseCode <- getBaseCode
-
-            -- complete tags
-            keli' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 1;")
-
-            -- else tags
-            keli' (baseCode ++ "yesOrNo=_.tag ok.or(_.tag nope);a=ok;b=a.ok? 2 else? 1;")
-
-            -- missing tag `no`
-            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2;")) `shouldBe` True
-
-            -- excessive tag
-            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 3 ok? 5;")) `shouldBe` True
-
-            -- not all branches have same type
-            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? \"hi\";")) `shouldBe` True
-
-            -- duplicated tags
-            isLeft (keli'' (baseCode ++ "yesOrNo=_.tag yes.or(_.tag no);a=yes;b=a.yes? 2 no? 2 no? 3;")) `shouldBe` True
-
-    describe "keli analyzer" $ do
-        it "check for duplicated const id" $ do
-            (case keli'' "x=5;x=5;" of Left (KErrorDuplicatedId _) -> True;_->False) `shouldBe` True
-            isRight (keli'' "x=5;y=5;") `shouldBe` True
-
-        it "keli record 2" $ do
-            baseCode <- getBaseCode
-            isRight (keli'' (baseCode ++ "dog=record.name \"dog\" age 9;")) `shouldBe` True
-        
-
+otherTest :: IO ()
+otherTest = hspec $ do
     describe "keli parser" $ do
         it "identifiers" $ do
             testParseKeli "_=0;"

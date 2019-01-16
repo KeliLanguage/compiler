@@ -1,0 +1,2 @@
+color=_.tag red.or(_.tag green carry int);
+x=green.carry red;

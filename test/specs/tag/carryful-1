@@ -1,0 +1,2 @@
+intlist=_.tag nothing.or(_.tag cons carry int);
+x=cons.carry 2;

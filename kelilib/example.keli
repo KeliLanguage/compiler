@@ -1,0 +1,20 @@
+a:type.maybe | type = (_.tag nope).or(_.tag ok carry a);
+
+a.type.atau right:type | type = (_.tag left carry a).or(_.tag right carry b);
+
+x:int .divide y:int | int = undefined;
+
+mathError = (_.tag zeroDivisionError);
+
+x:int.safeDivide y:int | mathError.atau int = 
+    x.== 0.
+        true?  (left.carry(zeroDivisionError))
+        false? (right.carry(x./y));
+
+
+x = userinput;
+ans = 10./x;
+
+this:int.even? | bool = this.%2.==0
+
+x = ans.left? (left.carry.zeroDivisionError? undefined) right? (ans.carry.*10);

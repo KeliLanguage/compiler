@@ -1,0 +1,3 @@
+yesOrNo=_.tag yes.or(_.tag no);
+a=yes;
+b=a.yes? 2 no? 1;

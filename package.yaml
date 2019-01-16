@@ -29,6 +29,7 @@ dependencies:
 - hspec
 - pretty-simple
 - process
+- directory
 
 library:
   source-dirs: src

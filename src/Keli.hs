@@ -9,14 +9,19 @@ import Data.List
 import System.Process
 import StaticError
 
+getBaseCode :: IO String 
+getBaseCode = readFile "./kelilib/base.keli"
+
 keli :: String -> IO()
 keli filename = do
     contents <- readFile filename
-    keli' contents 
+    keli' contents
 
 keli' :: String -> IO()
 keli' contents = do
-    case (keli'' contents) of
+    baseCode <- getBaseCode
+    -- baseCode is loaded automaticall by default
+    case (keli'' $ baseCode ++ contents) of 
         Right code -> do 
             -- pPrint code
             callCommand ("node -e " ++ (show code))

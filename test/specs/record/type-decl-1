@@ -1,0 +1,2 @@
+fruit=record.taste int; 
+x=fruit.taste 3;

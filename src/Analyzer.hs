@@ -475,7 +475,7 @@ typeCheckExpr' symtab e = case e of
             let funcId = intercalate "$" (map snd funcIds) in
             let actualParamTypes = map (getType) funcCallParams in
             case lookup funcId symtab of
-                Just (KeliSymFunc functions) -> do
+                Just (KeliSymFunc candidateFuncs) -> do
                     case (find 
                         (\f -> 
                             if length funcCallParams /= length (funcDeclParams f) then
@@ -487,7 +487,7 @@ typeCheckExpr' symtab e = case e of
                                     (zip actualParamTypes expectedParamTypes))
 
                         -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
-                        (sortOn (\f -> length (funcDeclGenericParams f)) functions)) of
+                        (sortOn (\f -> length (funcDeclGenericParams f)) candidateFuncs)) of
 
                         Just matchingFunc -> do
                             let genericParams = funcDeclGenericParams matchingFunc
@@ -547,10 +547,10 @@ typeCheckExpr' symtab e = case e of
                                     Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType specializedFunc))
 
                         Nothing ->
-                            error funcId
+                            Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
 
                 _ -> 
-                    Left (KErrorUsingUndefinedFunc funcIds)
+                    Left (KErrorUsingUndefinedFunc funcIds [])
         
 
 substituteGeneric :: GenericBindingTable -> KeliFunc -> KeliFunc

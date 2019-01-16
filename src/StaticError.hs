@@ -21,7 +21,10 @@ data KeliError
     | KErrorMissingProperties [String]
     | KErrorNotAllBranchHaveTheSameType [(StringToken,KeliExpr)]
     | KErrorUnmatchingFuncReturnType KeliType KeliType
-    | KErrorUsingUndefinedFunc [StringToken]
+    | KErrorUsingUndefinedFunc 
+        [StringToken] -- function ids
+        [KeliFunc] -- list of possible functions with the same ids
+
     | KErrorUsingUndefinedId StringToken
     | KErrorUsingUndefinedType KeliExpr
     | KErrorWrongTypeInSetter
