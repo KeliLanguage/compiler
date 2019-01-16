@@ -30,6 +30,7 @@ dependencies:
 - pretty-simple
 - process
 - directory
+- strings
 
 library:
   source-dirs: src

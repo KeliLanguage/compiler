@@ -9,6 +9,7 @@ import StaticError
 import Keli
 import System.Directory
 import Control.Monad
+import Data.Strings
 
 testParseKeli x = 
     (case (parseKeli x) of
@@ -30,7 +31,25 @@ runTest = do
                             contents <- readFile $ dirname ++ "/" ++ name
                             return (name, contents))
                 return (subject, files))
+    
+    -- find for test cases prefixed with ONLY:
+    let specificTestCases = 
+            filter 
+                (\(subject, files) -> length files > 0)
+                (map 
+                    (\(subject, files) -> (subject, filter (\(filename,contents) -> filename `strStartsWith` "ONLY:") files))
+                    testCases)
+    
+    if length specificTestCases > 0 then
+        runTest' specificTestCases
+    else
+        runTest' testCases
 
+    
+    otherTest
+    
+runTest' :: [(String, [(String,String)])] -> IO ()
+runTest' testCases = 
     hspec $ do
         forM_ testCases
             (\(subject, files) ->
@@ -42,8 +61,6 @@ runTest = do
                                     keli' contents `shouldThrow` anyException
                                 else
                                     keli' contents))
-    
-    otherTest
 
 main = runTest
 
