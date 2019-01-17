@@ -46,7 +46,7 @@ runTest = do
         runTest' testCases
 
     
-    otherTest
+    -- otherTest
     
 runTest' :: [(String, [(String,String)])] -> IO ()
 runTest' testCases = 
@@ -57,7 +57,7 @@ runTest' testCases =
                     forM_ files
                         (\(filename, contents) ->
                             it filename $ do
-                                if head filename == '@' then
+                                if '@' `elem` filename then
                                     keli' contents `shouldThrow` anyException
                                 else
                                     keli' contents))

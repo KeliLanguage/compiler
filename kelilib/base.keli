@@ -1,7 +1,8 @@
 _primitive_type = _primitive_type;
 
-int        = _primitive_type;
-str        = _primitive_type;
+int  = _primitive_type;
+str  = _primitive_type;
+type = _primitive_type;
 
 _primitive_constraint = _primitive_constraint;
 

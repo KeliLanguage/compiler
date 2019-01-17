@@ -1,0 +1,5 @@
+a:any .list | type = (_.tag nil).or(_.tag cons carry (record.current a next (a.list)));
+
+x = nil;
+
+y = cons.carry(record.current 1 next nil);

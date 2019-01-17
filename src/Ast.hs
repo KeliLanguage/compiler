@@ -40,7 +40,11 @@ data KeliType
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [StringToken] -- list of tags
-    | KeliTypeAlias StringToken KeliType
+    | KeliTypeTemporaryAliasForRecursiveType 
+        [StringToken] -- name of recursive type
+        Int -- number of type parameters that can be applied to this type (zero means non-generic, more than 0 means generic)
+
+    | KeliTypeAlias [StringToken] KeliType
     | KeliTypeSingleton StringToken
     | KeliTypeUndefined
     | KeliTypeCarryfulTagConstructor 
@@ -51,6 +55,7 @@ data KeliType
     | KeliTypeRecordConstructor [(StringToken, KeliType)]
     | KeliTypeConstraint KeliConstraint 
     | KeliTypeParam StringToken KeliConstraint
+    | KeliTypeType -- type of type
     | KeliTypeCompound 
         StringToken -- name
         [KeliType] -- type params
@@ -190,10 +195,11 @@ stringifyType t = case t of
         KeliTypeString -> "str"
         KeliTypeRecord kvs -> error (show kvs)
         KeliTypeTagUnion tags -> undefined 
-        KeliTypeAlias (_,id) _ -> id
+        KeliTypeAlias ids _ -> concat (map snd ids)
         KeliTypeUnverified expr -> "unknown" -- error (show expr)
         KeliTypeConstraint c -> toString c
         KeliTypeParam _ _ -> ""
+        KeliTypeType -> "type"
         _ -> error (show t)
 
 -- For constraint type, we just return an empty string

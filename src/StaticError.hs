@@ -33,11 +33,18 @@ data KeliError
         KeliType    -- expected type
         KeliExpr    -- actual expr (type-checked)
     | KErrorNotATypeConstraint KeliSymbol
-    | KErrorNotAType KeliSymbol
+    | KErrorNotAType KeliExpr
+    | KErrorNotAFunction KeliSymbol
     | KErrorDuplicatedFunc KeliFunc
     | KErrorTypeNotConformingConstraint KeliType KeliConstraint
     | KErrorFuncCallTypeMismatch
         KeliType -- expected type
         KeliExpr -- actual expr (type-checked)
+    | KErrorInvalidTypeConstructorParam KeliFuncDeclParam
+    | KErrorInvalidParamLengthForGenericType 
+        [KeliExpr] -- applied params
+        Int -- expected param length
+    | KErrorBodyOfGenericTypeIsNotTypeDeclaration
+        KeliExpr -- actual body
 
     deriving(Show)

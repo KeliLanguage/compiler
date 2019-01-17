@@ -23,7 +23,7 @@ keli' contents = do
     -- baseCode is loaded automaticall by default
     case (keli'' $ baseCode ++ contents) of 
         Right code -> do 
-            -- pPrint code
+            pPrint code
             callCommand ("node -e " ++ (show code))
         Left err -> error ("Error lol:" ++ (pTraceShow err $ ""))
     
