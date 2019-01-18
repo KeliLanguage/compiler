@@ -10,6 +10,7 @@ import Keli
 import System.Directory
 import Control.Monad
 import Data.Strings
+import Data.String.Utils
 
 testParseKeli x = 
     (case (parseKeli x) of
@@ -56,11 +57,13 @@ runTest' testCases =
                 describe subject $ do
                     forM_ files
                         (\(filename, contents) ->
+                            let [code, expectedOutput] = split "====" contents in
                             it filename $ do
                                 if '@' `elem` filename then
-                                    keli' contents `shouldThrow` anyException
-                                else
-                                    keli' contents))
+                                    keli' code `shouldThrow` anyException
+                                else do
+                                    output <- keli' code
+                                    strip output `shouldBe` strip expectedOutput))
 
 main = runTest
 

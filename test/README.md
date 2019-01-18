@@ -8,6 +8,24 @@ Filename that does not starts with `@` are test cases that test for valid Keli's
 
 Filename that starts with `@` are test cases that test for invalid Keli's code.
 
+To test valid codes, you have to format the file in the following format:
+
+```
+<keli code>
+====
+<expected output>
+```
+
+To show output in Keli, simply use anonymous constant, for example:
+
+```
+= "hello world"
+```
+
+Will log "hello world".
+
+
+
 
 # How to run specific test case?
 
