@@ -1,1 +1,5 @@
-animal=record.name "dog" age 5;
+=record.name "dog" age 5;
+
+====
+{ name: 'dog', age: 5 }
+

@@ -46,3 +46,8 @@ MAJOR.YY.MM.DD
 --          means, insert (key,value) into x
 -- For more please refer http://hackage.haskell.org/package/ordered-containers-0.1.1/docs/Data-Map-Ordered.html
 ```
+
+## References
+
+### Algorithm W implemented in Haskell
+http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.65.7733&rep=rep1&type=pdf

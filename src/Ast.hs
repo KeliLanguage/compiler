@@ -13,6 +13,7 @@ data KeliDecl
     = KeliConstDecl KeliConst
     | KeliFuncDecl KeliFunc
     | KeliIdlessDecl KeliExpr
+    | KeliTypeAliasDecl [StringToken] KeliType
     deriving (Show, Eq)
 
 data KeliConst = KeliConst { 
@@ -39,7 +40,7 @@ data KeliType
     | KeliTypeInt
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
-    | KeliTypeTagUnion [StringToken] -- list of tags
+    | KeliTypeTagUnion [KeliTag] -- list of tags
     | KeliTypeTemporaryAliasForRecursiveType 
         [StringToken] -- name of recursive type
         Int -- number of type parameters that can be applied to this type (zero means non-generic, more than 0 means generic)
@@ -116,17 +117,6 @@ data KeliExpr
         _expr :: KeliExpr,
         _type :: KeliType
     }
-    | KeliTypeExpr KeliType
-
-    | KeliCarrylessTagDeclExpr 
-        StringToken -- tag
-
-    | KeliCarryfulTagDeclExpr
-        StringToken -- tag
-        KeliType    -- carry
-
-    | KeliTagUnionDeclExpr [KeliTag]
-
     | KeliRecordConstructor [(StringToken, KeliType)]
 
     deriving (Show,Eq)

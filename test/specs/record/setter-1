@@ -1,1 +1,5 @@
-animal=(record.name "dog").name "cat";
+=(record.name "dog").name "cat";
+
+====
+
+{ name: 'cat' }

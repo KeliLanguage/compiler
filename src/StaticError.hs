@@ -11,12 +11,12 @@ data KeliError
     | KErrorDuplicatedTags [StringToken]
     | KErrorExcessiveTags [StringToken]
     | KErrorExcessiveProperties [StringToken]
-    | KErrorIncorrectCarryType
+    | KErrorIncorrectCarryType 
         KeliType -- expected type
         KeliExpr -- actual expr
     | KErrorIncorrectUsageOfRecord StringToken
-    | KErrorIncorrectUsageOfTag
-    | KErrorIncorrectUsageOfTaggedUnion
+    | KErrorIncorrectUsageOfTag KeliExpr
+    | KErrorIncorrectUsageOfTaggedUnion KeliExpr
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
     | KErrorNotAllBranchHaveTheSameType [(StringToken,KeliExpr)]
@@ -33,7 +33,8 @@ data KeliError
         KeliType    -- expected type
         KeliExpr    -- actual expr (type-checked)
     | KErrorNotATypeConstraint KeliSymbol
-    | KErrorNotAType KeliExpr
+    | KErrorExprIsNotAType KeliExpr
+    | KErrorTagIsNotAType KeliTag
     | KErrorNotAFunction KeliSymbol
     | KErrorDuplicatedFunc KeliFunc
     | KErrorTypeNotConformingConstraint KeliType KeliConstraint
@@ -46,5 +47,9 @@ data KeliError
         Int -- expected param length
     | KErrorBodyOfGenericTypeIsNotTypeDeclaration
         KeliExpr -- actual body
+    | KErrorCannotDeclareTypeAsAnonymousConstant KeliType
+    | KErrorCannotDeclareTagAsAnonymousConstant KeliTag
+    | KErrorTypeIsNotAnExpr KeliType
+    | KErrorTagIsNotAnExpr KeliTag
 
     deriving(Show)

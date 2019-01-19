@@ -31,6 +31,7 @@ dependencies:
 - process
 - directory
 - strings
+- MissingH
 
 library:
   source-dirs: src

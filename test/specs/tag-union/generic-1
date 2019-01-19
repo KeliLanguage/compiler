@@ -3,3 +3,9 @@ a:any .list | type = (_.tag nil).or(_.tag cons carry (record.current a next (a.l
 x = nil;
 
 y = cons.carry(record.current 1 next nil);
+
+z = cons.carry(record.current 1 next (cons.carry(record.current 2 next nil)))
+
+
+xs.foldr(x | y | x.+ y)
+

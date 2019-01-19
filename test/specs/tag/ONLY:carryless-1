@@ -1,0 +1,7 @@
+bool=_.tag true;
+x=true;
+=x;
+
+====
+
+t

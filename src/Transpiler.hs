@@ -18,14 +18,26 @@ idPrefix = "_"
 
 instance Transpilable KeliSymbol where
     transpile x = case x of
-        KeliSymFunc fs            -> intercalate ";" (map transpile fs)
-        KeliSymConst c            -> transpile c
-        KeliSymSingleton (_,id)   -> "const " ++ idPrefix ++ id ++ "=null"
-        KeliSymType             _ -> ""
-        KeliSymTag (KeliTagCarryless (_,id) _) 
-            -> "const " ++ idPrefix ++ id ++ "=({__tag:\"" ++ id ++ "\"})"
-        KeliSymTag (KeliTagCarryful (_,id) _ _) 
-            -> "const " ++ idPrefix ++ id ++ "=(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
+        KeliSymFunc fs ->
+            intercalate ";" (map transpile fs)
+
+        KeliSymConst c ->
+            transpile c
+
+        KeliSymSingleton (_,id) ->
+            "const " ++ idPrefix ++ id ++ "=null"
+
+        KeliSymType _ -> 
+            ""
+
+        KeliSymTag (KeliTagCarryless (_,id) _) -> 
+            "const " ++ idPrefix ++ id ++ "=({__tag:\"" ++ id ++ "\"})"
+
+        KeliSymTag (KeliTagCarryful (_,id) _ _) -> 
+            "const " ++ idPrefix ++ id ++ "=(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
+
+        KeliSymInlineExprs exprs -> 
+            intercalate ";" (map (\x -> "console.log(" ++ transpile x ++ ")") exprs)
 
 
 instance Transpilable KeliDecl where

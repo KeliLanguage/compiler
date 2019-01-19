@@ -10,6 +10,7 @@ import Keli
 import System.Directory
 import Control.Monad
 import Data.Strings
+import Data.List
 import Data.String.Utils
 
 testParseKeli x = 
@@ -57,13 +58,26 @@ runTest' testCases =
                 describe subject $ do
                     forM_ files
                         (\(filename, contents) ->
-                            let [code, expectedOutput] = split "====" contents in
-                            it filename $ do
-                                if '@' `elem` filename then
-                                    keli' code `shouldThrow` anyException
-                                else do
-                                    output <- keli' code
-                                    strip output `shouldBe` strip expectedOutput))
+                            if "====" `isInfixOf` contents then
+                                let [code, expectedOutput] = split "====" contents in
+                                it filename $ do
+                                    if '@' `elem` filename then do
+                                        result <- keli' code 
+                                        case result of 
+                                            Right output ->
+                                                error "No error is throw"
+                                            Left err ->
+                                                -- error (show err) -- Uncomment this line to show parse error
+                                                split " " (show err) !! 0 `shouldBe` strip expectedOutput
+                                    else do
+                                        result <- keli' code
+                                        case result of
+                                            Right output ->
+                                                strip output `shouldBe` strip expectedOutput
+                                            Left err -> 
+                                                error (show err)
+                            else
+                                error $ "\n\n\tERROR at " ++ filename ++ " : Each test file needs to contain ====\n\n"))
 
 main = runTest
 
