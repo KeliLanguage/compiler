@@ -1,6 +1,6 @@
-i:int.-j:int|int=undefined;
-i:int.-j:int|int=undefined;
+i:int .plus j:int|int=123;
+i:int .plus j:int|int=123;
 
 ====
 
-ok
+KErrorDuplicatedFunc

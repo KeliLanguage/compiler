@@ -65,7 +65,7 @@ instance Transpilable KeliExpr where
         KeliString (_,value)                        -> show value
         KeliId     (_,value)                        -> idPrefix ++ value
         KeliLambda params body                      -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
-        KeliRecord kvs                              -> transpileKeyValuePairs (kvs)
+        KeliRecord kvs _                            -> transpileKeyValuePairs (kvs)
         KeliRecordGetter expr prop                  -> transpile expr ++ "." ++ snd prop
         KeliRecordSetter subject prop newValue _ _  -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
         KeliTagConstructor (_,tag) (Just carry)     -> idPrefix ++ tag ++ "("++ transpile carry ++")"

@@ -1,6 +1,6 @@
 {a:any}
 x:a.id | a = x;
-this:int. ! |int=undefined;
+this:int. ! |int=999;
 z=99;
 zz=z.id. !;
 

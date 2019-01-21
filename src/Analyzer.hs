@@ -64,13 +64,62 @@ preprocessDecl symtab decl =
                             
                             Left err -> Left err
 
-        KeliFuncDecl f@(KeliFunc genParams params ids returnType body) ->
-            case preprocessExpr symtab AnalyzingExpr body of
+        KeliFuncDecl f@(KeliFunc genParams funcParams ids returnType body) -> do
+            let preprocessParams symtab' params = 
+                    mapM 
+                        (\(paramName, paramType) -> do 
+                            preprocessedParamType <- preprocessType symtab' paramType
+                            Right (paramName, preprocessedParamType)) 
+                        params
+        
+            let populateSymtab symtab' params isGenericParam =
+                    foldM 
+                    (\tempSymtab (paramName, paramType) -> 
+                        if member (snd paramName) tempSymtab then
+                            Left (KErrorDuplicatedId [paramName])
+                        else (
+                            if isGenericParam then
+                                Right 
+                                    (tempSymtab |> (snd paramName, KeliSymType paramType))
+                            else 
+                                Right 
+                                    (tempSymtab |> (snd paramName, KeliSymConst (KeliConst paramName (KeliId paramName) Nothing)))))
+                    symtab'
+                    params
+
+
+            -- 1.1 preprocess generic params
+            preprocessGenParams <- preprocessParams symtab genParams
+
+            -- 1.2 populate symtab with generic params
+            symtab2 <- populateSymtab symtab genParams True
+
+            -- 2.1 preprocess func params
+            preprocessedParams  <- preprocessParams symtab2 funcParams
+
+            -- 2.2 populate symtab with func params
+            symtab3 <- populateSymtab symtab2 funcParams False
+                        
+
+            -- 3. preprocess return type
+            preprocessedReturnType <- preprocessType symtab3 returnType
+
+            case preprocessExpr symtab3 AnalyzingExpr body of
                 Right (First expr) ->
-                    Right (KeliFuncDecl (f {funcDeclBody = expr}))
+                    Right (KeliFuncDecl (f {
+                        funcDeclGenericParams = preprocessGenParams,
+                        funcDeclParams = preprocessedParams,
+                        funcDeclBody = expr,
+                        funcDeclReturnType = preprocessedReturnType
+                    }))
                 
                 Right (Second type') ->
-                    Right (KeliTypeAliasDecl ids type')
+                    case type' of
+                        KeliTypeAlias [(_,"undefined")] _ ->
+                            Right (KeliFuncDecl f)
+
+                        _ ->
+                            Right (KeliTypeAliasDecl ids type')
                 
                 Right (Third tag) ->
                     undefined
@@ -89,6 +138,14 @@ preprocessDecl symtab decl =
                 Third tag ->
                     Left (KErrorCannotDeclareTagAsAnonymousConstant tag)
 
+preprocessType :: KeliSymTab -> KeliType -> Either KeliError KeliType
+preprocessType symtab type' =
+    case type' of
+        KeliTypeUnverified expr -> 
+            preprocessExpr symtab AnalyzingType expr >>= extractType 
+             
+        _ -> 
+            Right type'
 
 data OneOf3 a b c = First a | Second b | Third c deriving (Show)
 
@@ -204,7 +261,7 @@ preprocessExpr symtab assumption expr =
                                     -- assume user want to create a record value
                                     First _ -> do
                                         exprs <- mapM extractExpr values
-                                        Right (First (KeliRecord (zip funcIds exprs)))
+                                        Right (First (KeliRecord (zip funcIds exprs) Nothing))
                                     
                                     -- assume user want to declare a record type
                                     Second _ -> do
@@ -244,18 +301,7 @@ preprocessExpr symtab assumption expr =
                             
                             PerfectMatch ->  do
                                 values  <- mapM (preprocessExpr symtab AnalyzingExpr) (tail params') >>= mapM extractExpr 
-                                Right (First (KeliRecord (zip actualProps values)))
-                                -- let expectedPropTypePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) propTypePairs in
-                                -- let actualPropValuePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) (zip actualProps values) in
-                                -- case find (\(expected, actual) -> 
-                                --         let expectedType = snd expected in
-                                --         let actualType = getType (snd actual) in
-                                --         not (expectedType `typeEquals` actualType)
-                                --     ) (zip expectedPropTypePairs actualPropValuePairs) of
-                                --     Just (expected, actual) -> 
-                                --         Left (KErrorPropretyTypeMismatch (fst expected) (snd expected) (snd actual))
-                                --     Nothing -> 
-                                --         Right (KeliTypeCheckedExpr (KeliRecord actualPropValuePairs) (KeliTypeRecord propTypePairs))
+                                Right (First (KeliRecord (zip actualProps values) (Just propTypePairs)))
 
                                     
                     -- (B) check if user is invoking carryful tag constructor
@@ -330,10 +376,7 @@ preprocessExpr symtab assumption expr =
                                         Right (First (KeliTypeCheckedExpr (KeliRecordGetter subject token) expectedType))
                                     else do -- is setter
                                         newValue <- preprocessExpr symtab AnalyzingExpr ((tail params') !! 0) >>= extractExpr
-                                        -- if (pTraceShowId $ getType newValue) `typeEquals` pTraceShowId expectedType then 
                                         Right (First (KeliRecordSetter subject token newValue expectedType recordType))
-                                        -- else
-                                        --     Left KErrorWrongTypeInSetter
 
                                 Nothing -> 
                                     treatAsNormalFuncCall
@@ -480,7 +523,7 @@ analyzeDecl decl symtab = case decl of
                         ) params
                     )
 
-            let populateSymbolTable = (\_symtab params constructor -> 
+            let populateSymbolTable = (\tempSymtab params constructor -> 
                     foldM ((\acc (id, expectedType) -> 
                     let id' = snd id in
                     if member id' acc then 
@@ -490,14 +533,14 @@ analyzeDecl decl symtab = case decl of
                             let keyValue = (id', constructor id expectedType)
                             in acc |> keyValue
                                 ))::KeliSymTab -> KeliFuncDeclParam -> Either KeliError KeliSymTab)
-                    _symtab
+                    tempSymtab
                     params)
 
             -- 0.1 Verify annotated constraint of each generic param
             verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeConstraint
 
             -- 0.2 populate symbol table with generic type parameters
-            symtab' <- 
+            symtab2 <- 
                 populateSymbolTable 
                 symtab 
                 verifiedGenericParams
@@ -508,14 +551,13 @@ analyzeDecl decl symtab = case decl of
 
                         _ -> undefined)
 
-
             -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <- verifyParamType symtab' funcParams verifyType
+            verifiedFuncParams <- verifyParamType symtab2 funcParams verifyType
 
             -- 1.2 populate symbol table with function parameters
-            symtab'' <- 
+            symtab3 <- 
                 populateSymbolTable 
-                symtab' 
+                symtab2 
                 verifiedFuncParams
                 (\id expectedType -> 
                     case expectedType of
@@ -525,7 +567,7 @@ analyzeDecl decl symtab = case decl of
                             KeliSymConst (KeliConst id (KeliTypeCheckedExpr (KeliId id) expectedType) Nothing))
             
             -- 2. verify return type
-            verifiedReturnType <- verifyType symtab'' returnType
+            verifiedReturnType <- verifyType symtab3 returnType
 
 
             -- 3. check if user is declaring generic type (a.k.a type constructor)
@@ -550,7 +592,7 @@ analyzeDecl decl symtab = case decl of
                         --         Left err
             else do
                 -- 3. type check the function body
-                typeCheckedBody <- typeCheckExpr symtab'' funcBody
+                typeCheckedBody <- typeCheckExpr symtab3 funcBody
                 let bodyType = getType typeCheckedBody
                 let result = Right [KeliSymFunc [func {
                                         funcDeclGenericParams = verifiedGenericParams,
@@ -646,7 +688,7 @@ typeCheckExpr' symtab e = case e of
 
             Just (KeliSymType t@(KeliTypeParam{})) ->
                 error "shouldn't reach here, preprocessDecl should already converted those things"
-
+            
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
             
@@ -654,25 +696,32 @@ typeCheckExpr' symtab e = case e of
                 undefined
 
 
-    -- NOTES:
-    -- * Why isn't func call params type checked at the very beginning?
-    --      Because we need to cater for the magic `_.tag XXX` and `record.XXX YYY` function
-    --      That's why you will see a lot of duplicated code for typeCheckExprs
     KeliFuncCall params funcIds ref -> do
         typeCheckedParams <- typeCheckExprs symtab params
+        typeCheckFuncCall symtab typeCheckedParams funcIds
 
-        -- Check if user are calling record getter/setter function
-        undefined
-        -- let subject = typeCheckedParams !! 0 in
-        --     case unpackType (getType subject) of
+    KeliRecord kvs (Just propTypePairs) -> do
+        let actualProps = map fst kvs 
+        values <- typeCheckExprs symtab (map snd kvs)
+        let expectedPropTypePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) propTypePairs 
+        let actualPropValuePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) (zip actualProps values) 
+        case find (\(expected, actual) -> 
+                let expectedType = snd expected in
+                let actualType = getType (snd actual) in
+                not (expectedType `typeEquals` actualType)
+            ) (zip expectedPropTypePairs actualPropValuePairs) of
+            Just (expected, actual) -> 
+                Left (KErrorPropretyTypeMismatch (fst expected) (snd expected) (snd actual))
+            Nothing -> 
+                Right (KeliTypeCheckedExpr (KeliRecord actualPropValuePairs (Just propTypePairs)) (KeliTypeRecord propTypePairs))
 
-    KeliRecord kvs -> do
+    KeliRecord kvs Nothing -> do
         let keys = map fst kvs 
         let values = map snd kvs 
         typeCheckedExprs <- typeCheckExprs symtab values
-        return 
+        Right 
             (KeliTypeCheckedExpr 
-                (KeliRecord (zip keys typeCheckedExprs))
+                (KeliRecord (zip keys values) Nothing) 
                 (KeliTypeRecord (zip keys (map getType typeCheckedExprs))))
     
     KeliTagConstructor id carry -> 
@@ -720,28 +769,26 @@ typeCheckExpr' symtab e = case e of
         undefined
 
     where 
+
 -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
 typeCheckFuncCall :: KeliSymTab -> [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
-typeCheckFuncCall symtab params funcIds = typeCheckFuncCall' symtab params funcIds
-            
-typeCheckFuncCall' :: KeliSymTab -> [KeliExpr] -> [StringToken] -> Either KeliError KeliExpr
-typeCheckFuncCall' symtab funcCallParams funcIds = 
+typeCheckFuncCall symtab funcCallParams funcIds = 
     let funcId = intercalate "$" (map snd funcIds) in
     let actualParamTypes = map (getType) funcCallParams in
     case lookup funcId symtab of
         Just (KeliSymFunc candidateFuncs) -> do
             case (find 
-                (\f -> 
-                    if length funcCallParams /= length (funcDeclParams f) then
-                        False
-                    else
-                        let expectedParamTypes = map (\(_,paramType) -> paramType) (funcDeclParams f) in
-                        all 
-                            (\(actualType, expectedType) -> actualType `haveShapeOf` expectedType) 
-                            (zip actualParamTypes expectedParamTypes))
+                    (\f ->
+                        if length funcCallParams /= length (funcDeclParams f) then
+                            False
+                        else
+                            let expectedParamTypes = map (\(_,paramType) -> paramType) (funcDeclParams f) in
+                            all 
+                                (\(actualType, expectedType) -> actualType `haveShapeOf` expectedType) 
+                                (zip actualParamTypes expectedParamTypes))
 
-                -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
-                (sortOn (\f -> length (funcDeclGenericParams f)) candidateFuncs)) of
+                    -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
+                    (sortOn (\f -> length (funcDeclGenericParams f)) candidateFuncs)) of
 
                 Just matchingFunc -> do
                     let genericParams = funcDeclGenericParams matchingFunc
@@ -800,8 +847,10 @@ typeCheckFuncCall' symtab funcCallParams funcIds =
                             let funcCall = KeliFuncCall funcCallParams funcIds (Just matchingFunc) in
                             Right (KeliTypeCheckedExpr funcCall (funcDeclReturnType specializedFunc))
 
-                Nothing ->
-                    Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
+                other ->
+                    error (show other)
+                -- Nothing ->
+                --     Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
         
         Just other ->
             Left (KErrorNotAFunction other)
@@ -854,15 +903,17 @@ verifyType symtab type' =
             Right t
 
 verifyTypeConstraint :: TypeVerifier
-verifyTypeConstraint symtab expr = undefined
-    -- case expr of 
-    --     (KeliId token@(_,id)) ->
-    --         case lookup id symtab of
-    --             Just (KeliSymType constraint@(KeliTypeConstraint{})) -> Right constraint
-    --             Just other -> Left (KErrorNotATypeConstraint other)
-    --             Nothing    -> Left (KErrorUsingUndefinedId token)
+verifyTypeConstraint symtab type' = 
+    case type' of 
+        KeliTypeAlias name aliasingType ->
+            let key = intercalate "$" (map snd name) in
+            case lookup key symtab of
+                Just (KeliSymType (KeliTypeAlias _ constraint@(KeliTypeConstraint{}))) -> Right constraint
+                Just other -> Left (KErrorNotATypeConstraint other)
+                Nothing    -> Left (KErrorUsingUndefinedType name)
         
-    --     _ -> undefined
+        _ -> 
+            undefined
 
 typeCheckExprs :: KeliSymTab -> [KeliExpr] -> Either KeliError [KeliExpr]
 typeCheckExprs symtab exprs = mapM (typeCheckExpr symtab) exprs

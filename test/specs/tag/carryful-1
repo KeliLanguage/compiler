@@ -1,4 +1,4 @@
-x intlist= _.tag nothing .or (_.tag cons carry int);
+intlist= _.tag nothing .or (_.tag cons carry int);
 =cons.carry 2;
 
 ====

@@ -26,7 +26,7 @@ data KeliError
         [KeliFunc] -- list of possible functions with the same ids
 
     | KErrorUsingUndefinedId StringToken
-    | KErrorUsingUndefinedType KeliExpr
+    | KErrorUsingUndefinedType [StringToken]
     | KErrorWrongTypeInSetter
     | KErrorPropretyTypeMismatch
         StringToken -- property name

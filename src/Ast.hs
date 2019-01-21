@@ -93,7 +93,10 @@ data KeliExpr
         lambdaBody   :: KeliExpr
     }
     | KeliRecord {
-        recordKeyValues :: [(StringToken, KeliExpr)]
+        recordKeyValues             :: [(StringToken, KeliExpr)],
+        recordExpectedPropTypePairs :: Maybe [(StringToken, KeliType)] 
+            -- if Just, means it is created using record constructor
+            -- if Nothing, means this is an anonymous record
     }
     | KeliRecordGetter {
         recordGetterSubject      :: KeliExpr,

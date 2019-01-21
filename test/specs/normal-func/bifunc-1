@@ -1,5 +1,7 @@
-x:int.+y:int|int=undefined;
-z=1 .+ 3;
+x:int.+y:int|int=123;
+=1 .+ 3;
+
 
 ====
-ok
+
+123

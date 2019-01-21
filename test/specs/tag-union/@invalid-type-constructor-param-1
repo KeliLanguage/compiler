@@ -2,4 +2,4 @@ a:int .hey | type = undefined;
 
 ====
 
-l
+KErrorInvalidTypeConstructorParam

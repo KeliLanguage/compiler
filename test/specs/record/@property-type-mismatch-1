@@ -1,0 +1,7 @@
+people=record.name str age int;
+
+x = people.name 123 age 9;
+
+====
+
+KErrorPropretyTypeMismatch

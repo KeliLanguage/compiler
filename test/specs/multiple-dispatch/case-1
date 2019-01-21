@@ -1,8 +1,9 @@
-x:str.bom|str=undefined;
-x:int.bom|int=undefined;
-a=1 .bom;
-b="1".bom;
+x:str.bom|str="yoyo";
+x:int.bom|int=999;
+=1 .bom;
+="1".bom;
 
 ====
 
-hi
+999
+yoyo

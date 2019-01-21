@@ -1,5 +1,8 @@
-this:str.replace old:str with new:str|str=undefined;
+this:str.replace old:str with new:str|str="hello";
+
 z="hi".replace "i" with "h";
+=z;
 
 ====
-hi
+
+hello
