@@ -1,2 +1,5 @@
 this:str.replace old:str with new:str|str=undefined;
 z="hi".replace "i" with "h";
+
+====
+hi

@@ -2,3 +2,7 @@ x:str.bom|str=undefined;
 x:int.bom|int=undefined;
 a=1 .bom;
 b="1".bom;
+
+====
+
+hi

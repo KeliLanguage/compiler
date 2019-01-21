@@ -65,7 +65,7 @@ runTest' testCases =
                                         result <- keli' code 
                                         case result of 
                                             Right output ->
-                                                error "No error is throw"
+                                                error "No error is thrown"
                                             Left err ->
                                                 -- error (show err) -- Uncomment this line to show parse error
                                                 split " " (show err) !! 0 `shouldBe` strip expectedOutput

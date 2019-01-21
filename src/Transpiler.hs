@@ -60,17 +60,17 @@ instance Transpilable KeliConst where
 
 instance Transpilable KeliExpr where
     transpile x = case x of 
-        KeliNumber (_,Left value)               -> show value
-        KeliNumber (_,Right value)              -> show value
-        KeliString (_,value)                    -> show value
-        KeliId     (_,value)                    -> idPrefix ++ value
-        KeliLambda params body                  -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
-        KeliRecord kvs                          -> transpileKeyValuePairs (kvs)
-        KeliRecordGetter expr prop              -> transpile expr ++ "." ++ snd prop
-        KeliRecordSetter subject prop newValue  -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
-        KeliTagConstructor (_,tag) (Just carry) -> idPrefix ++ tag ++ "("++ transpile carry ++")"
-        KeliTagConstructor (_,tag) Nothing      -> idPrefix ++ tag
-        KeliTypeCheckedExpr e _                 -> transpile e
+        KeliNumber (_,Left value)                   -> show value
+        KeliNumber (_,Right value)                  -> show value
+        KeliString (_,value)                        -> show value
+        KeliId     (_,value)                        -> idPrefix ++ value
+        KeliLambda params body                      -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
+        KeliRecord kvs                              -> transpileKeyValuePairs (kvs)
+        KeliRecordGetter expr prop                  -> transpile expr ++ "." ++ snd prop
+        KeliRecordSetter subject prop newValue _ _  -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
+        KeliTagConstructor (_,tag) (Just carry)     -> idPrefix ++ tag ++ "("++ transpile carry ++")"
+        KeliTagConstructor (_,tag) Nothing          -> idPrefix ++ tag
+        KeliTypeCheckedExpr e _                     -> transpile e
         KeliTagMatcher subject branches elseBranch        
             -> 
             "((" ++ transpileKeyValuePairs branches ++ "[" ++ transpile subject ++ ".__tag + '?'])" ++ 

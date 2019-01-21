@@ -1,2 +1,5 @@
 x:int.+y:int|int=undefined;
 z=1 .+ 3;
+
+====
+ok

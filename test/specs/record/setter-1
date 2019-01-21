@@ -1,5 +1,9 @@
-=(record.name "dog").name "cat";
+x=(record.name "dog" age 9).name "cat";
+=x;
+y=x.age 10;
+=y;
 
 ====
 
-{ name: 'cat' }
+{ name: 'cat', age: 9 }
+{ name: 'cat', age: 10 }

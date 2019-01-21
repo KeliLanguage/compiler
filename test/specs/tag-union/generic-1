@@ -6,6 +6,7 @@ y = cons.carry(record.current 1 next nil);
 
 z = cons.carry(record.current 1 next (cons.carry(record.current 2 next nil)))
 
+====
 
-xs.foldr(x | y | x.+ y)
+hi
 

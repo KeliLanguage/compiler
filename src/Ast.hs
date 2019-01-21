@@ -100,9 +100,11 @@ data KeliExpr
         recordGetterPropertyName :: StringToken
     }
     | KeliRecordSetter {
-        recordSetterSubject      :: KeliExpr,
-        recordSetterPropertyName :: StringToken,
-        recordSetterNewValue     :: KeliExpr
+        recordSetterSubject              :: KeliExpr,
+        recordSetterPropertyName         :: StringToken,
+        recordSetterNewValue             :: KeliExpr,
+        recordSetterExpectedPropertyType :: KeliType,
+        recordSetterReturnType           :: KeliType
     }
     | KeliTagMatcher {
         tagMatcherSubject    :: KeliExpr,

@@ -1,3 +1,10 @@
 boolean=_.tag true.or(_.tag false);
 a=true;
 b=false;
+=a;
+=b;
+
+====
+
+{ __tag: 'true' }
+{ __tag: 'false' }

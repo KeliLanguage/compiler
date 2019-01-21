@@ -19,7 +19,7 @@ data KeliError
     | KErrorIncorrectUsageOfTaggedUnion KeliExpr
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
-    | KErrorNotAllBranchHaveTheSameType [(StringToken,KeliExpr)]
+    | KErrorNotAllBranchHaveTheSameType [KeliExpr]
     | KErrorUnmatchingFuncReturnType KeliType KeliType
     | KErrorUsingUndefinedFunc 
         [StringToken] -- function ids
