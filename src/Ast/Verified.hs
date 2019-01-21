@@ -1,4 +1,4 @@
-module VerifiedAst where 
+module Ast.Verified where 
 
 import Prelude hiding (id)
 import Text.Parsec.Pos

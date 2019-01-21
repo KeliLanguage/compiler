@@ -7,7 +7,7 @@ import Debug.Trace
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import Analyzer
-import Ast
+import Ast.Raw
 import Symbol
 
 class Transpilable a where

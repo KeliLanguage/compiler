@@ -1,7 +1,7 @@
 import Test.Hspec
 import Control.Exception (evaluate)
 import Parser
-import Ast
+import Ast.Raw
 import Debug.Trace
 import Analyzer
 import Data.Either

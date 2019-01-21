@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parser where
 
-import Ast
+import Ast.Raw
 import Lexer
 
 import StaticError

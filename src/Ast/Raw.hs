@@ -1,4 +1,4 @@
-module Ast where 
+module Ast.Raw where 
 
 import Prelude hiding (id)
 import Text.Parsec.Pos

@@ -7,7 +7,8 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 import Data.Maybe (catMaybes, fromJust)
 
-import Ast
+import Ast.Raw
+import qualified Ast.Verified
 import StaticError
 import Symbol
 import Util

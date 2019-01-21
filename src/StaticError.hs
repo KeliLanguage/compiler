@@ -1,6 +1,6 @@
 module StaticError where 
 
-import Ast
+import Ast.Raw
 import Text.ParserCombinators.Parsec
 import Symbol
 

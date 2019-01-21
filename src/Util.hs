@@ -1,7 +1,7 @@
 module Util where
 
 import Data.List
-import Ast
+import Ast.Raw
 import Data.Maybe
 import Data.Set hiding (map, (\\))
 

@@ -3,7 +3,7 @@ module Symbol where
 import Text.Parsec.Pos
 import Data.Map.Ordered 
 
-import Ast
+import Ast.Raw
 
 data KeliSymbol
     = KeliSymFunc [KeliFunc]
