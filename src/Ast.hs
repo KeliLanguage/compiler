@@ -17,7 +17,7 @@ data KeliDecl
     deriving (Show, Eq)
 
 data KeliConst = KeliConst { 
-    constDeclId    :: StringToken, -- because we can ignore the identifier
+    constDeclId    :: StringToken, 
     constDeclValue :: KeliExpr,
     constDeclType  :: Maybe KeliType
 } deriving (Show, Eq)
@@ -41,10 +41,6 @@ data KeliType
     | KeliTypeString
     | KeliTypeRecord [(StringToken, KeliType)]
     | KeliTypeTagUnion [KeliTag] -- list of tags
-    | KeliTypeTemporaryAliasForRecursiveType 
-        [StringToken] -- name of recursive type
-        Int -- number of type parameters that can be applied to this type (zero means non-generic, more than 0 means generic)
-
     | KeliTypeAlias [StringToken] KeliType
     | KeliTypeSingleton StringToken
     | KeliTypeUndefined
