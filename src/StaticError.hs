@@ -1,55 +1,57 @@
 module StaticError where 
 
-import qualified Ast.Raw as Raw
+import qualified Ast.Verified as Verified
 import Text.ParserCombinators.Parsec
 import Symbol
 
 data KeliError 
     = KErrorParseError ParseError
-    | KErrorDuplicatedId [Raw.StringToken]
+    | KErrorDuplicatedId [Verified.StringToken]
     | KErrorDuplicatedProperties
-    | KErrorDuplicatedTags [Raw.StringToken]
-    | KErrorExcessiveTags [Raw.StringToken]
-    | KErrorExcessiveProperties [Raw.StringToken]
+    | KErrorDuplicatedTags [Verified.StringToken]
+    | KErrorExcessiveTags [Verified.StringToken]
+    | KErrorExcessiveProperties [Verified.StringToken]
     | KErrorIncorrectCarryType 
-        Raw.Type -- expected type
-        Raw.Expr -- actual expr
-    | KErrorIncorrectUsageOfRecord Raw.StringToken
-    | KErrorIncorrectUsageOfTag Raw.Expr
-    | KErrorIncorrectUsageOfTaggedUnion Raw.Expr
+        Verified.Type -- expected type
+        Verified.Expr -- actual expr
+    | KErrorIncorrectUsageOfRecord Verified.StringToken
+    | KErrorIncorrectUsageOfTag SourcePos
+    | KErrorIncorrectUsageOfTaggedUnion Verified.Expr
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
-    | KErrorNotAllBranchHaveTheSameType [Raw.Expr]
-    | KErrorUnmatchingFuncReturnType Raw.Type Raw.Type
+    | KErrorNotAllBranchHaveTheSameType [Verified.Expr]
+    | KErrorUnmatchingFuncReturnType Verified.Type Verified.Type
     | KErrorUsingUndefinedFunc 
-        [Raw.StringToken] -- function ids
-        [Raw.Func] -- list of possible functions with the same ids
+        [Verified.StringToken] -- function ids
+        [Verified.Func] -- list of possible functions with the same ids
 
-    | KErrorUsingUndefinedId Raw.StringToken
-    | KErrorUsingUndefinedType [Raw.StringToken]
+    | KErrorUsingUndefinedId Verified.StringToken
+    | KErrorUsingUndefinedType [Verified.StringToken]
     | KErrorWrongTypeInSetter
     | KErrorPropretyTypeMismatch
-        Raw.StringToken -- property name
-        Raw.Type    -- expected type
-        Raw.Expr    -- actual expr (type-checked)
+        Verified.StringToken -- property name
+        Verified.Type    -- expected type
+        Verified.Expr    -- actual expr (type-checked)
     | KErrorNotATypeConstraint KeliSymbol
-    | KErrorExprIsNotAType Raw.Expr
-    | KErrorTagIsNotAType Raw.Tag
+    | KErrorExprIsNotAType Verified.Expr
+    | KErrorTagIsNotAType Verified.Tag
     | KErrorNotAFunction KeliSymbol
-    | KErrorDuplicatedFunc Raw.Func
-    | KErrorTypeNotConformingConstraint Raw.Type Raw.Constraint
+    | KErrorDuplicatedFunc Verified.Func
+    | KErrorTypeNotConformingConstraint Verified.Type Verified.Constraint
     | KErrorFuncCallTypeMismatch
-        Raw.Type -- expected type
-        Raw.Expr -- actual expr (type-checked)
-    | KErrorInvalidTypeConstructorParam Raw.FuncDeclParam
+        Verified.Type -- expected type
+        Verified.Expr -- actual expr (type-checked)
+    | KErrorInvalidTypeConstructorParam Verified.FuncDeclParam
     | KErrorInvalidParamLengthForGenericType 
-        [Raw.Expr] -- applied params
+        [Verified.Expr] -- applied params
         Int -- expected param length
     | KErrorBodyOfGenericTypeIsNotTypeDeclaration
-        Raw.Expr -- actual body
-    | KErrorCannotDeclareTypeAsAnonymousConstant Raw.Type
-    | KErrorCannotDeclareTagAsAnonymousConstant Raw.Tag
-    | KErrorTypeIsNotAnExpr Raw.Type
-    | KErrorTagIsNotAnExpr Raw.Tag
+        Verified.Expr -- actual body
+    | KErrorCannotDeclareTypeAsAnonymousConstant Verified.Type
+    | KErrorCannotDeclareTagAsAnonymousConstant Verified.Tag
+    | KErrorTypeIsNotAnExpr Verified.Type
+    | KErrorTagIsNotAnExpr Verified.Tag
+    | KErrorExprIsNotATagOrUnion Verified.Expr
+    | KErrorTypeIsNotATagOrUnion Verified.Type
 
     deriving(Show)

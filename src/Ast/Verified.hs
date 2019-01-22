@@ -7,7 +7,6 @@ import Data.Char
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
-type NumberToken = (SourcePos, (Either Integer Double))
 
 data Decl 
     = ConstDecl Const
@@ -62,59 +61,64 @@ data Constraint
 
 
 data Tag
-    = TagCarryless 
+    = CarrylessTag 
         StringToken -- tag
         Type    -- belonging type
 
-    | TagCarryful
+    | CarryfulTag
         StringToken -- tag
         Type    -- carry type
         Type    -- beloging type
             deriving (Show, Eq)
 
-data Expr 
-    = Number NumberToken 
-    | String StringToken
+data Expr = 
+    Expr 
+        Expr' 
+        Type  -- type of this expr
+    deriving (Show, Eq)
+
+data Expr'
+    = IntExpr   (SourcePos, Integer) 
+    | DoubleExpr (SourcePos, Double)
+    | StringExpr StringToken
     | Id     StringToken
     | FuncCall {
         funcCallParams :: [Expr],
         funcCallIds    :: [StringToken],
-        funcCallRef    :: Maybe Func
+        funcCallRef    :: Func
     }
     | Lambda {
         lambdaParams :: [StringToken],
         lambdaBody   :: Expr
     }
     | Record {
-        recordKeyValues             :: [(StringToken, Expr)],
-        recordExpectedPropTypePairs :: Maybe [(StringToken, Type)] 
-            -- if Just, means it is created using record constructor
-            -- if Nothing, means this is an anonymous record
+        recordKeyValues             :: [(StringToken, Expr)]
     }
     | RecordGetter {
         recordGetterSubject      :: Expr,
         recordGetterPropertyName :: StringToken
     }
     | RecordSetter {
-        recordSetterSubject              :: Expr,
-        recordSetterPropertyName         :: StringToken,
-        recordSetterNewValue             :: Expr,
-        recordSetterExpectedPropertyType :: Type,
-        recordSetterReturnType           :: Type
+        recordSetterSubject      :: Expr,
+        recordSetterPropertyName :: StringToken,
+        recordSetterNewValue     :: Expr
     }
     | TagMatcher {
         tagMatcherSubject    :: Expr,
         tagMatcherBranches   :: [(StringToken, Expr)], -- [(Tag, Expr)]
         tagMatcherElseBranch :: Maybe Expr
     } 
-    | TagConstructor {
-        tagConstructorId    :: StringToken,
-        tagConstructorCarry :: Maybe Expr
-    } 
-    | Expr {
-        _expr :: Expr,
-        _type :: Type
-    }
+    | CarrylessTagConstructor 
+        StringToken -- tag name
+
+    | CarryfulTagConstructor 
+        StringToken -- tag name
+        Type        -- carry type
+    
+    | CarryfulTagExpr
+        StringToken -- tag name
+        Expr        -- carry expr
+
     | RecordConstructor [(StringToken, Type)]
 
     deriving (Show,Eq)

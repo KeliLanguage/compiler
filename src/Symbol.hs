@@ -4,27 +4,27 @@ import Text.Parsec.Pos
 import Data.Map.Ordered 
 
 import qualified Ast.Raw as Raw
+import qualified Ast.Verified as Verified
 
 data KeliSymbol
-    = KeliSymFunc [Raw.Func]
-    | KeliSymConst Raw.Const
-    | KeliSymSingleton Raw.StringToken
-    | KeliSymType Raw.Type
-    | KeliSymTag Raw.Tag
-    | KeliSymInlineExprs [Raw.Expr] -- for storing expr from Raw.IdlessConst
+    = KeliSymFunc [Verified.Func]
+    | KeliSymConst Raw.StringToken Verified.Expr
+    | KeliSymTag Verified.Tag
+    | KeliSymType Verified.Type
+    | KeliSymInlineExprs [Verified.Expr] -- for storing expr from Raw.IdlessConst
     deriving(Show)
 
-instance Raw.Identifiable KeliSymbol where
+instance Verified.Identifiable KeliSymbol where
     getIdentifier sym = case sym of 
         (KeliSymFunc f)            -> error "Shouldn't reach here"
-        (KeliSymConst c)           -> Raw.getIdentifier c
-        (KeliSymSingleton id)      -> id
-        (KeliSymType t)            -> Raw.getIdentifier t
+        (KeliSymType t)            -> Verified.getIdentifier t
         (KeliSymTag t)             -> 
             case t of
-            Raw.TagCarryless x _   -> x
-            Raw.TagCarryful  x _ _ -> x
+                Verified.CarrylessTag x _   -> x
+                Verified.CarryfulTag  x _ _ -> x
         (KeliSymInlineExprs _)     -> (newPos "" 0  0, "@inline_exprs")
+        (KeliSymConst id _)        -> id
+        other -> error (show other)
     
 
 type KeliSymTab = OMap String KeliSymbol
@@ -32,11 +32,4 @@ type KeliSymTab = OMap String KeliSymbol
 emptyKeliSymTab :: KeliSymTab
 emptyKeliSymTab = empty
 
-
-class HaveType a where
-    getType :: a -> Raw.Type
-
-instance HaveType Raw.Expr where
-    getType (Raw.TypeCheckedExpr _ exprType) = exprType
-    getType e = Raw.TypeUnverified e
 

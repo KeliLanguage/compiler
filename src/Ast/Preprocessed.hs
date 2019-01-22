@@ -1,4 +1,4 @@
-module Ast.Raw where 
+module Ast.Preprocessed where 
 
 import Prelude hiding (id)
 import Text.Parsec.Pos
@@ -32,17 +32,34 @@ data Func = Func {
 } deriving (Show, Eq)
 
 
+data Tag
+    = TagCarryless 
+        StringToken -- tag
+        Expr    -- belonging type
+
+    | TagCarryful
+        StringToken -- tag
+        Expr    -- carry type
+        Expr    -- beloging type
+            deriving (Show, Eq)
+
 data Expr 
     = NumberExpr NumberToken 
     | StringExpr StringToken
     | Id     StringToken
     | FuncCall {
         funcCallParams :: [Expr],
-        funcCallIds    :: [StringToken]
+        funcCallIds    :: [StringToken],
+        funcCallRef    :: Maybe Func
     }
     | Lambda {
         lambdaParams :: [StringToken],
         lambdaBody   :: Expr
     }
+    | Record {
+        recordKeyValues             :: [(StringToken, Expr)],
+        recordExpectedPropTypePairs :: Maybe [(StringToken, Expr)] 
+            -- if Just, means it is created using record constructor
+            -- if Nothing, means this is an anonymous record
+    }
     deriving (Show,Eq)
-

@@ -39,7 +39,7 @@ keliConstDecl
     -> reservedOp "="             >>= \_
     -> keliExpr                   >>= \expr
     -> case token of 
-        Just t  -> return (Raw.ConstDecl (Raw.Const t expr Nothing))
+        Just t  -> return (Raw.ConstDecl (Raw.Const t expr))
         Nothing -> return (Raw.IdlessDecl expr)
 
 keliExpr :: Parser Raw.Expr
@@ -57,9 +57,9 @@ keliFuncCall
        let firstChain     = head pairs in
        let remainingChain = tail pairs in
         return (foldl' 
-            (\acc next -> (Raw.FuncCall (acc : Raw.funcCallParams next) (Raw.funcCallIds next) Nothing)) -- reducer
-            (Raw.FuncCall (param1:(snd firstChain)) (fst firstChain) Nothing)               -- initial value
-            (map (\x -> Raw.FuncCall (snd x) (fst x) Nothing) remainingChain) -- foldee
+            (\acc next -> (Raw.FuncCall (acc : Raw.funcCallParams next) (Raw.funcCallIds next))) -- reducer
+            (Raw.FuncCall (param1:(snd firstChain)) (fst firstChain))               -- initial value
+            (map (\x -> Raw.FuncCall (snd x) (fst x)) remainingChain) -- foldee
         )
 
 keliLambda :: Parser Raw.Expr
@@ -101,9 +101,9 @@ keliPartialFuncCall
 keliAtomicExpr :: Parser Raw.Expr
 keliAtomicExpr 
     =  parens keliExpr
-   <|> (getPosition >>= \pos -> number     >>= \n   -> return (Raw.Number (pos, n)))
+   <|> (getPosition >>= \pos -> number     >>= \n   -> return (Raw.NumberExpr (pos, n)))
    <|> (getPosition >>= \pos -> keliFuncId >>= \id  -> return (Raw.Id id))
-   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (Raw.String (pos, str)))
+   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (Raw.StringExpr (pos, str)))
 
 keliFuncDecl :: Parser Raw.Decl
 keliFuncDecl 
@@ -120,7 +120,7 @@ keliMonoFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) [param] [token] (Raw.TypeUnverified typeExpr) expr))
+    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) [param] [token] typeExpr expr))
 
 keliPolyFuncDecl :: Parser Raw.Decl
 keliPolyFuncDecl   
@@ -132,7 +132,7 @@ keliPolyFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) (Raw.TypeUnverified typeExpr) expr))
+    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr))
 
 unpackMaybe :: Maybe [a] -> [a]
 unpackMaybe (Just x) = x
@@ -157,12 +157,12 @@ keliFuncId =
     ->  choice [identifier, operator] >>= \id
     ->  return (pos, id)
 
-keliFuncDeclParam ::Parser (Raw.StringToken, Raw.Type)
+keliFuncDeclParam ::Parser (Raw.StringToken, Raw.Expr)
 keliFuncDeclParam 
     =  keliFuncId     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (id, Raw.TypeUnverified typeExpr)
+    -> return (id, typeExpr)
 
 preprocess :: String -> String
 preprocess str = str
