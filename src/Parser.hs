@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parser where
 
-import Ast.Raw
+import qualified Ast.Raw as Raw
+
 import Lexer
 
 import StaticError
@@ -18,36 +19,36 @@ import Data.List
 import Data.Maybe
 import Debug.Trace
 
-keliParser :: Parser [KeliDecl]
+keliParser :: Parser [Raw.Decl]
 keliParser = whiteSpace >> keliDecl
 
-keliDecl :: Parser [KeliDecl]
+keliDecl :: Parser [Raw.Decl]
 keliDecl = do
     list <- (keliDecl' `endBy1` (symbol ";"))
     eof
     return list
 
-keliDecl' :: Parser KeliDecl
+keliDecl' :: Parser Raw.Decl
 keliDecl' 
     =  try keliFuncDecl
    <|> keliConstDecl
 
-keliConstDecl :: Parser KeliDecl
+keliConstDecl :: Parser Raw.Decl
 keliConstDecl 
     =  optionMaybe (keliFuncId)   >>= \token
     -> reservedOp "="             >>= \_
     -> keliExpr                   >>= \expr
     -> case token of 
-        Just t  -> return (KeliConstDecl (KeliConst t expr Nothing))
-        Nothing -> return (KeliIdlessDecl expr)
+        Just t  -> return (Raw.ConstDecl (Raw.Const t expr Nothing))
+        Nothing -> return (Raw.IdlessDecl expr)
 
-keliExpr :: Parser KeliExpr
+keliExpr :: Parser Raw.Expr
 keliExpr 
     =  try keliFuncCall
    <|> try keliLambda
    <|> keliAtomicExpr 
 
-keliFuncCall :: Parser KeliExpr
+keliFuncCall :: Parser Raw.Expr
 keliFuncCall 
     =  keliAtomicExpr     >>= \param1
     -> char '.' >> spaces >>= \_
@@ -56,26 +57,26 @@ keliFuncCall
        let firstChain     = head pairs in
        let remainingChain = tail pairs in
         return (foldl' 
-            (\acc next -> (KeliFuncCall (acc : funcCallParams next) (funcCallIds next) Nothing)) -- reducer
-            (KeliFuncCall (param1:(snd firstChain)) (fst firstChain) Nothing)               -- initial value
-            (map (\x -> KeliFuncCall (snd x) (fst x) Nothing) remainingChain) -- foldee
+            (\acc next -> (Raw.FuncCall (acc : Raw.funcCallParams next) (Raw.funcCallIds next) Nothing)) -- reducer
+            (Raw.FuncCall (param1:(snd firstChain)) (fst firstChain) Nothing)               -- initial value
+            (map (\x -> Raw.FuncCall (snd x) (fst x) Nothing) remainingChain) -- foldee
         )
 
-keliLambda :: Parser KeliExpr
+keliLambda :: Parser Raw.Expr
 keliLambda
     =  many1 keliFuncId >>= \params
     -> reservedOp "|"   >>= \_
     -> keliExpr         >>= \expr
-    -> return (KeliLambda params expr)
+    -> return (Raw.Lambda params expr)
 
 data KeliFuncCallChain
     = KeliFuncCallChain KeliFuncCallChain KeliFuncCallChain
     | KeliPartialFuncCall {
-        partialFuncCallIds    :: [StringToken],
-        partialFuncCallParams :: [KeliExpr]
+        partialFuncCallIds    :: [Raw.StringToken],
+        partialFuncCallParams :: [Raw.Expr]
     }
 
-flattenFuncCallChain :: KeliFuncCallChain -> [([StringToken], [KeliExpr])]
+flattenFuncCallChain :: KeliFuncCallChain -> [([Raw.StringToken], [Raw.Expr])]
 flattenFuncCallChain (KeliFuncCallChain x y) = (flattenFuncCallChain x ++ flattenFuncCallChain y)
 flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 
@@ -97,19 +98,19 @@ keliPartialFuncCall
             keliFuncId  >>= \token
         ->  return (KeliPartialFuncCall [token] []))
 
-keliAtomicExpr :: Parser KeliExpr
+keliAtomicExpr :: Parser Raw.Expr
 keliAtomicExpr 
     =  parens keliExpr
-   <|> (getPosition >>= \pos -> number     >>= \n   -> return (KeliNumber (pos, n)))
-   <|> (getPosition >>= \pos -> keliFuncId >>= \id  -> return (KeliId id))
-   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (KeliString (pos, str)))
+   <|> (getPosition >>= \pos -> number     >>= \n   -> return (Raw.Number (pos, n)))
+   <|> (getPosition >>= \pos -> keliFuncId >>= \id  -> return (Raw.Id id))
+   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (Raw.String (pos, str)))
 
-keliFuncDecl :: Parser KeliDecl
+keliFuncDecl :: Parser Raw.Decl
 keliFuncDecl 
     =  try keliPolyFuncDecl
    <|> keliMonoFuncDecl
 
-keliMonoFuncDecl :: Parser KeliDecl
+keliMonoFuncDecl :: Parser Raw.Decl
 keliMonoFuncDecl
     =  keliGenericParams  >>= \genparams
     -> keliFuncDeclParam  >>= \param
@@ -119,9 +120,9 @@ keliMonoFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl (KeliFunc(unpackMaybe genparams) [param] [token] (KeliTypeUnverified typeExpr) expr))
+    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) [param] [token] (Raw.TypeUnverified typeExpr) expr))
 
-keliPolyFuncDecl :: Parser KeliDecl
+keliPolyFuncDecl :: Parser Raw.Decl
 keliPolyFuncDecl   
     =  keliGenericParams  >>= \genparams
     -> keliFuncDeclParam  >>= \param1
@@ -131,7 +132,7 @@ keliPolyFuncDecl
     -> keliExpr           >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
-    -> return (KeliFuncDecl (KeliFunc(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) (KeliTypeUnverified typeExpr) expr))
+    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) (Raw.TypeUnverified typeExpr) expr))
 
 unpackMaybe :: Maybe [a] -> [a]
 unpackMaybe (Just x) = x
@@ -139,7 +140,7 @@ unpackMaybe Nothing  = []
 
 
 braces  = between (symbol "{") (symbol "}")
-keliGenericParams :: Parser (Maybe [KeliFuncDeclConstraint])
+keliGenericParams :: Parser (Maybe [Raw.FuncDeclConstraint])
 keliGenericParams 
     =  optionMaybe $ braces $ many1 (keliFuncDeclParam >>= \param ->  return param)
 
@@ -156,12 +157,12 @@ keliFuncId =
     ->  choice [identifier, operator] >>= \id
     ->  return (pos, id)
 
-keliFuncDeclParam ::Parser (StringToken, KeliType)
+keliFuncDeclParam ::Parser (Raw.StringToken, Raw.Type)
 keliFuncDeclParam 
     =  keliFuncId     >>= \id
     -> reservedOp ":" >>= \_
     -> keliAtomicExpr >>= \typeExpr
-    -> return (id, KeliTypeUnverified typeExpr)
+    -> return (id, Raw.TypeUnverified typeExpr)
 
 preprocess :: String -> String
 preprocess str = str
@@ -169,7 +170,7 @@ preprocess str = str
     -- let packed = T.pack str in
     -- T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
-parseKeli :: String -> Either KeliError [KeliDecl] 
+parseKeli :: String -> Either KeliError [Raw.Decl] 
 parseKeli input = 
     case parse keliParser "" (preprocess input) of
         Right decls -> Right decls

@@ -9,116 +9,116 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
 
-data KeliDecl 
-    = KeliConstDecl KeliConst
-    | KeliFuncDecl KeliFunc
-    | KeliIdlessDecl KeliExpr
-    | KeliTypeAliasDecl [StringToken] KeliType
+data Decl 
+    = ConstDecl Const
+    | FuncDecl Func
+    | IdlessDecl Expr
+    | TypeAliasDecl [StringToken] Type
     deriving (Show, Eq)
 
-data KeliConst = KeliConst { 
+data Const = Const { 
     constDeclId    :: StringToken, 
-    constDeclValue :: KeliExpr,
-    constDeclType  :: Maybe KeliType
+    constDeclValue :: Expr,
+    constDeclType  :: Maybe Type
 } deriving (Show, Eq)
 
-type KeliFuncDeclParam = (StringToken, KeliType)
-type KeliFuncDeclConstraint = (StringToken, KeliType)
+type FuncDeclParam = (StringToken, Type)
+type FuncDeclConstraint = (StringToken, Type)
 
-data KeliFunc = KeliFunc {
-    funcDeclGenericParams :: [KeliFuncDeclConstraint],
-    funcDeclParams        :: [KeliFuncDeclParam],
+data Func = Func {
+    funcDeclGenericParams :: [FuncDeclConstraint],
+    funcDeclParams        :: [FuncDeclParam],
     funcDeclIds           :: [StringToken],
-    funcDeclReturnType    :: KeliType,
-    funcDeclBody          :: KeliExpr
+    funcDeclReturnType    :: Type,
+    funcDeclBody          :: Expr
 } deriving (Show, Eq)
 
 
-data KeliType  
-    = KeliTypeUnverified KeliExpr
-    | KeliTypeFloat
-    | KeliTypeInt
-    | KeliTypeString
-    | KeliTypeRecord [(StringToken, KeliType)]
-    | KeliTypeTagUnion [KeliTag] -- list of tags
-    | KeliTypeAlias [StringToken] KeliType
-    | KeliTypeSingleton StringToken
-    | KeliTypeUndefined
-    | KeliTypeCarryfulTagConstructor 
+data Type  
+    = TypeUnverified Expr
+    | TypeFloat
+    | TypeInt
+    | TypeString
+    | TypeRecord [(StringToken, Type)]
+    | TypeTagUnion [Tag] -- list of tags
+    | TypeAlias [StringToken] Type
+    | TypeSingleton StringToken
+    | TypeUndefined
+    | TypeCarryfulTagConstructor 
         StringToken  -- tag
-        KeliType     -- carry type
-        KeliType     -- belonging type
+        Type     -- carry type
+        Type     -- belonging type
 
-    | KeliTypeRecordConstructor [(StringToken, KeliType)]
-    | KeliTypeConstraint KeliConstraint 
-    | KeliTypeParam StringToken KeliConstraint
-    | KeliTypeType -- type of type
-    | KeliTypeCompound 
+    | TypeRecordConstructor [(StringToken, Type)]
+    | TypeConstraint Constraint 
+    | TypeParam StringToken Constraint
+    | TypeType -- type of type
+    | TypeCompound 
         StringToken -- name
-        [KeliType] -- type params
+        [Type] -- type params
     deriving (Show, Eq)
 
-data KeliConstraint
-    = KeliConstraintAny
-    | KeliConstraintUnverified KeliExpr
+data Constraint
+    = ConstraintAny
+    | ConstraintUnverified Expr
     deriving (Show, Eq)
 
 
-data KeliTag
-    = KeliTagCarryless 
+data Tag
+    = TagCarryless 
         StringToken -- tag
-        KeliType    -- belonging type
+        Type    -- belonging type
 
-    | KeliTagCarryful
+    | TagCarryful
         StringToken -- tag
-        KeliType    -- carry type
-        KeliType    -- beloging type
+        Type    -- carry type
+        Type    -- beloging type
             deriving (Show, Eq)
 
-data KeliExpr 
-    = KeliNumber NumberToken 
-    | KeliString StringToken
-    | KeliId     StringToken
-    | KeliFuncCall {
-        funcCallParams :: [KeliExpr],
+data Expr 
+    = Number NumberToken 
+    | String StringToken
+    | Id     StringToken
+    | FuncCall {
+        funcCallParams :: [Expr],
         funcCallIds    :: [StringToken],
-        funcCallRef    :: Maybe KeliFunc
+        funcCallRef    :: Maybe Func
     }
-    | KeliLambda {
+    | Lambda {
         lambdaParams :: [StringToken],
-        lambdaBody   :: KeliExpr
+        lambdaBody   :: Expr
     }
-    | KeliRecord {
-        recordKeyValues             :: [(StringToken, KeliExpr)],
-        recordExpectedPropTypePairs :: Maybe [(StringToken, KeliType)] 
+    | Record {
+        recordKeyValues             :: [(StringToken, Expr)],
+        recordExpectedPropTypePairs :: Maybe [(StringToken, Type)] 
             -- if Just, means it is created using record constructor
             -- if Nothing, means this is an anonymous record
     }
-    | KeliRecordGetter {
-        recordGetterSubject      :: KeliExpr,
+    | RecordGetter {
+        recordGetterSubject      :: Expr,
         recordGetterPropertyName :: StringToken
     }
-    | KeliRecordSetter {
-        recordSetterSubject              :: KeliExpr,
+    | RecordSetter {
+        recordSetterSubject              :: Expr,
         recordSetterPropertyName         :: StringToken,
-        recordSetterNewValue             :: KeliExpr,
-        recordSetterExpectedPropertyType :: KeliType,
-        recordSetterReturnType           :: KeliType
+        recordSetterNewValue             :: Expr,
+        recordSetterExpectedPropertyType :: Type,
+        recordSetterReturnType           :: Type
     }
-    | KeliTagMatcher {
-        tagMatcherSubject    :: KeliExpr,
-        tagMatcherBranches   :: [(StringToken, KeliExpr)], -- [(Tag, KeliExpr)]
-        tagMatcherElseBranch :: Maybe KeliExpr
+    | TagMatcher {
+        tagMatcherSubject    :: Expr,
+        tagMatcherBranches   :: [(StringToken, Expr)], -- [(Tag, Expr)]
+        tagMatcherElseBranch :: Maybe Expr
     } 
-    | KeliTagConstructor {
+    | TagConstructor {
         tagConstructorId    :: StringToken,
-        tagConstructorCarry :: Maybe KeliExpr
+        tagConstructorCarry :: Maybe Expr
     } 
-    | KeliTypeCheckedExpr {
-        _expr :: KeliExpr,
-        _type :: KeliType
+    | TypeCheckedExpr {
+        _expr :: Expr,
+        _type :: Type
     }
-    | KeliRecordConstructor [(StringToken, KeliType)]
+    | RecordConstructor [(StringToken, Type)]
 
     deriving (Show,Eq)
 
@@ -126,10 +126,10 @@ data KeliExpr
 class Identifiable a where
     getIdentifier :: a -> StringToken
 
-instance Identifiable KeliDecl where
+instance Identifiable Decl where
     getIdentifier d = case d of
-        KeliConstDecl c -> getIdentifier c
-        KeliFuncDecl  f -> getIdentifier f
+        ConstDecl c -> getIdentifier c
+        FuncDecl  f -> getIdentifier f
 
 -- Each function identifier shall follows the following format:
 --
@@ -146,8 +146,8 @@ instance Identifiable KeliDecl where
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
 --  especially when looking up generic functions
-instance Identifiable KeliFunc where
-    getIdentifier (KeliFunc{funcDeclIds=ids, funcDeclParams=params})
+instance Identifiable Func where
+    getIdentifier (Func{funcDeclIds=ids, funcDeclParams=params})
         = (
             fst (head ids)
             ,
@@ -160,12 +160,12 @@ toValidJavaScriptId :: String -> String
 toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
 
 
-instance Identifiable KeliConst where
+instance Identifiable Const where
     getIdentifier c = constDeclId c
 
 
 
-instance Identifiable KeliType where
+instance Identifiable Type where
     getIdentifier x = (newPos "" (-1) (-1), stringifyType x)
 
 
@@ -179,32 +179,32 @@ instance Identifiable KeliType where
 class Stringifiable a where
     toString :: a -> String
 
-stringifyType :: KeliType -> String
+stringifyType :: Type -> String
 stringifyType t = case t of
-        KeliTypeFloat  -> "float"
-        KeliTypeInt    -> "int"
-        KeliTypeString -> "str"
-        KeliTypeRecord kvs -> error (show kvs)
-        KeliTypeTagUnion tags -> undefined 
-        KeliTypeAlias ids _ -> concat (map snd ids)
-        KeliTypeUnverified expr -> "unknown" -- error (show expr)
-        KeliTypeConstraint c -> toString c
-        KeliTypeParam _ _ -> ""
-        KeliTypeType -> "type"
+        TypeFloat  -> "float"
+        TypeInt    -> "int"
+        TypeString -> "str"
+        TypeRecord kvs -> error (show kvs)
+        TypeTagUnion tags -> undefined 
+        TypeAlias ids _ -> concat (map snd ids)
+        TypeUnverified expr -> "unknown" -- error (show expr)
+        TypeConstraint c -> toString c
+        TypeParam _ _ -> ""
+        TypeType -> "type"
         _ -> error (show t)
 
 -- For constraint type, we just return an empty string
-instance Stringifiable KeliConstraint where
+instance Stringifiable Constraint where
     toString c = case c of
-        KeliConstraintAny -> "any"
+        ConstraintAny -> "any"
         _ -> undefined
 
 
-typeEquals :: KeliType -> KeliType -> Bool
+typeEquals :: Type -> Type -> Bool
 x `typeEquals` y = unpackType x == unpackType y
     
-unpackType :: KeliType -> KeliType
+unpackType :: Type -> Type
 unpackType t =
     case t of
-        KeliTypeAlias _ type' -> type'
+        TypeAlias _ type' -> type'
         _ -> t

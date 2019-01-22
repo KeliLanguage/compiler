@@ -9,113 +9,113 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 type StringToken = (SourcePos, String)
 type NumberToken = (SourcePos, (Either Integer Double))
 
-data VerifiedDecl 
-    = VerifiedConstDecl VerifiedConst
-    | VerifiedFuncDecl VerifiedFunc
-    | VerifiedIdlessDecl VerifiedExpr
-    | VerifiedTypeAliasDecl [StringToken] VerifiedType
+data Decl 
+    = ConstDecl Const
+    | FuncDecl Func
+    | IdlessDecl Expr
+    | TypeAliasDecl [StringToken] Type
     deriving (Show, Eq)
 
-data VerifiedConst = VerifiedConst { 
+data Const = Const { 
     constDeclId    :: StringToken, -- because we can ignore the identifier
-    constDeclValue :: VerifiedExpr
+    constDeclValue :: Expr
 } deriving (Show, Eq)
 
-type VerifiedFuncDeclParam = (StringToken, VerifiedType)
-type VerifiedFuncDeclConstraint = (StringToken, VerifiedType)
+type FuncDeclParam = (StringToken, Type)
+type FuncDeclConstraint = (StringToken, Type)
 
-data VerifiedFunc = VerifiedFunc {
-    funcDeclGenericParams :: [VerifiedFuncDeclConstraint],
-    funcDeclParams        :: [VerifiedFuncDeclParam],
+data Func = Func {
+    funcDeclGenericParams :: [FuncDeclConstraint],
+    funcDeclParams        :: [FuncDeclParam],
     funcDeclIds           :: [StringToken],
-    funcDeclReturnType    :: VerifiedType,
-    funcDeclBody          :: VerifiedExpr
+    funcDeclReturnType    :: Type,
+    funcDeclBody          :: Expr
 } deriving (Show, Eq)
 
 
-data VerifiedType  
-    = VerifiedTypeFloat
-    | VerifiedTypeInt
-    | VerifiedTypeString
-    | VerifiedTypeRecord [(StringToken, VerifiedType)]
-    | VerifiedTypeTagUnion [VerifiedTag] -- list of tags
-    | VerifiedTypeAlias [StringToken] VerifiedType
-    | VerifiedTypeSingleton StringToken
-    | VerifiedTypeUndefined
-    | VerifiedTypeCarryfulTagConstructor 
+data Type  
+    = TypeFloat
+    | TypeInt
+    | TypeString
+    | TypeRecord [(StringToken, Type)]
+    | TypeTagUnion [Tag] -- list of tags
+    | TypeAlias [StringToken] Type
+    | TypeSingleton StringToken
+    | TypeUndefined
+    | TypeCarryfulTagConstructor 
         StringToken  -- tag
-        VerifiedType     -- carry type
-        VerifiedType     -- belonging type
+        Type     -- carry type
+        Type     -- belonging type
 
-    | VerifiedTypeRecordConstructor [(StringToken, VerifiedType)]
-    | VerifiedTypeConstraint VerifiedConstraint 
-    | VerifiedTypeParam StringToken VerifiedConstraint
-    | VerifiedTypeType -- type of type
-    | VerifiedTypeCompound 
+    | TypeRecordConstructor [(StringToken, Type)]
+    | TypeConstraint Constraint 
+    | TypeParam StringToken Constraint
+    | TypeType -- type of type
+    | TypeCompound 
         StringToken -- name
-        [VerifiedType] -- type params
+        [Type] -- type params
     deriving (Show, Eq)
 
-data VerifiedConstraint
-    = VerifiedConstraintAny
+data Constraint
+    = ConstraintAny
     deriving (Show, Eq)
 
 
-data VerifiedTag
-    = VerifiedTagCarryless 
+data Tag
+    = TagCarryless 
         StringToken -- tag
-        VerifiedType    -- belonging type
+        Type    -- belonging type
 
-    | VerifiedTagCarryful
+    | TagCarryful
         StringToken -- tag
-        VerifiedType    -- carry type
-        VerifiedType    -- beloging type
+        Type    -- carry type
+        Type    -- beloging type
             deriving (Show, Eq)
 
-data VerifiedExpr 
-    = VerifiedNumber NumberToken 
-    | VerifiedString StringToken
-    | VerifiedId     StringToken
-    | VerifiedFuncCall {
-        funcCallParams :: [VerifiedExpr],
+data Expr 
+    = Number NumberToken 
+    | String StringToken
+    | Id     StringToken
+    | FuncCall {
+        funcCallParams :: [Expr],
         funcCallIds    :: [StringToken],
-        funcCallRef    :: Maybe VerifiedFunc
+        funcCallRef    :: Maybe Func
     }
-    | VerifiedLambda {
+    | Lambda {
         lambdaParams :: [StringToken],
-        lambdaBody   :: VerifiedExpr
+        lambdaBody   :: Expr
     }
-    | VerifiedRecord {
-        recordKeyValues             :: [(StringToken, VerifiedExpr)],
-        recordExpectedPropTypePairs :: Maybe [(StringToken, VerifiedType)] 
+    | Record {
+        recordKeyValues             :: [(StringToken, Expr)],
+        recordExpectedPropTypePairs :: Maybe [(StringToken, Type)] 
             -- if Just, means it is created using record constructor
             -- if Nothing, means this is an anonymous record
     }
-    | VerifiedRecordGetter {
-        recordGetterSubject      :: VerifiedExpr,
+    | RecordGetter {
+        recordGetterSubject      :: Expr,
         recordGetterPropertyName :: StringToken
     }
-    | VerifiedRecordSetter {
-        recordSetterSubject              :: VerifiedExpr,
+    | RecordSetter {
+        recordSetterSubject              :: Expr,
         recordSetterPropertyName         :: StringToken,
-        recordSetterNewValue             :: VerifiedExpr,
-        recordSetterExpectedPropertyType :: VerifiedType,
-        recordSetterReturnType           :: VerifiedType
+        recordSetterNewValue             :: Expr,
+        recordSetterExpectedPropertyType :: Type,
+        recordSetterReturnType           :: Type
     }
-    | VerifiedTagMatcher {
-        tagMatcherSubject    :: VerifiedExpr,
-        tagMatcherBranches   :: [(StringToken, VerifiedExpr)], -- [(Tag, VerifiedExpr)]
-        tagMatcherElseBranch :: Maybe VerifiedExpr
+    | TagMatcher {
+        tagMatcherSubject    :: Expr,
+        tagMatcherBranches   :: [(StringToken, Expr)], -- [(Tag, Expr)]
+        tagMatcherElseBranch :: Maybe Expr
     } 
-    | VerifiedTagConstructor {
+    | TagConstructor {
         tagConstructorId    :: StringToken,
-        tagConstructorCarry :: Maybe VerifiedExpr
+        tagConstructorCarry :: Maybe Expr
     } 
-    | VerifiedVerifiedExpr {
-        _expr :: VerifiedExpr,
-        _type :: VerifiedType
+    | Expr {
+        _expr :: Expr,
+        _type :: Type
     }
-    | VerifiedRecordConstructor [(StringToken, VerifiedType)]
+    | RecordConstructor [(StringToken, Type)]
 
     deriving (Show,Eq)
 
@@ -123,10 +123,10 @@ data VerifiedExpr
 class Identifiable a where
     getIdentifier :: a -> StringToken
 
-instance Identifiable VerifiedDecl where
+instance Identifiable Decl where
     getIdentifier d = case d of
-        VerifiedConstDecl c -> getIdentifier c
-        VerifiedFuncDecl  f -> getIdentifier f
+        ConstDecl c -> getIdentifier c
+        FuncDecl  f -> getIdentifier f
 
 -- Each function identifier shall follows the following format:
 --
@@ -143,8 +143,8 @@ instance Identifiable VerifiedDecl where
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
 --  especially when looking up generic functions
-instance Identifiable VerifiedFunc where
-    getIdentifier (VerifiedFunc{funcDeclIds=ids, funcDeclParams=params})
+instance Identifiable Func where
+    getIdentifier (Func{funcDeclIds=ids, funcDeclParams=params})
         = (
             fst (head ids)
             ,
@@ -157,12 +157,12 @@ toValidJavaScriptId :: String -> String
 toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
 
 
-instance Identifiable VerifiedConst where
+instance Identifiable Const where
     getIdentifier c = constDeclId c
 
 
 
-instance Identifiable VerifiedType where
+instance Identifiable Type where
     getIdentifier x = (newPos "" (-1) (-1), stringifyType x)
 
 
@@ -176,31 +176,31 @@ instance Identifiable VerifiedType where
 class Stringifiable a where
     toString :: a -> String
 
-stringifyType :: VerifiedType -> String
+stringifyType :: Type -> String
 stringifyType t = case t of
-        VerifiedTypeFloat  -> "float"
-        VerifiedTypeInt    -> "int"
-        VerifiedTypeString -> "str"
-        VerifiedTypeRecord kvs -> error (show kvs)
-        VerifiedTypeTagUnion tags -> undefined 
-        VerifiedTypeAlias ids _ -> concat (map snd ids)
-        VerifiedTypeConstraint c -> toString c
-        VerifiedTypeParam _ _ -> ""
-        VerifiedTypeType -> "type"
+        TypeFloat  -> "float"
+        TypeInt    -> "int"
+        TypeString -> "str"
+        TypeRecord kvs -> error (show kvs)
+        TypeTagUnion tags -> undefined 
+        TypeAlias ids _ -> concat (map snd ids)
+        TypeConstraint c -> toString c
+        TypeParam _ _ -> ""
+        TypeType -> "type"
         _ -> error (show t)
 
 -- For constraint type, we just return an empty string
-instance Stringifiable VerifiedConstraint where
+instance Stringifiable Constraint where
     toString c = case c of
-        VerifiedConstraintAny -> "any"
+        ConstraintAny -> "any"
         _ -> undefined
 
 
-typeEquals :: VerifiedType -> VerifiedType -> Bool
+typeEquals :: Type -> Type -> Bool
 x `typeEquals` y = unpackType x == unpackType y
     
-unpackType :: VerifiedType -> VerifiedType
+unpackType :: Type -> Type
 unpackType t =
     case t of
-        VerifiedTypeAlias _ type' -> type'
+        TypeAlias _ type' -> type'
         _ -> t

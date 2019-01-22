@@ -1,55 +1,55 @@
 module StaticError where 
 
-import Ast.Raw
+import qualified Ast.Raw as Raw
 import Text.ParserCombinators.Parsec
 import Symbol
 
 data KeliError 
     = KErrorParseError ParseError
-    | KErrorDuplicatedId [StringToken]
+    | KErrorDuplicatedId [Raw.StringToken]
     | KErrorDuplicatedProperties
-    | KErrorDuplicatedTags [StringToken]
-    | KErrorExcessiveTags [StringToken]
-    | KErrorExcessiveProperties [StringToken]
+    | KErrorDuplicatedTags [Raw.StringToken]
+    | KErrorExcessiveTags [Raw.StringToken]
+    | KErrorExcessiveProperties [Raw.StringToken]
     | KErrorIncorrectCarryType 
-        KeliType -- expected type
-        KeliExpr -- actual expr
-    | KErrorIncorrectUsageOfRecord StringToken
-    | KErrorIncorrectUsageOfTag KeliExpr
-    | KErrorIncorrectUsageOfTaggedUnion KeliExpr
+        Raw.Type -- expected type
+        Raw.Expr -- actual expr
+    | KErrorIncorrectUsageOfRecord Raw.StringToken
+    | KErrorIncorrectUsageOfTag Raw.Expr
+    | KErrorIncorrectUsageOfTaggedUnion Raw.Expr
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
-    | KErrorNotAllBranchHaveTheSameType [KeliExpr]
-    | KErrorUnmatchingFuncReturnType KeliType KeliType
+    | KErrorNotAllBranchHaveTheSameType [Raw.Expr]
+    | KErrorUnmatchingFuncReturnType Raw.Type Raw.Type
     | KErrorUsingUndefinedFunc 
-        [StringToken] -- function ids
-        [KeliFunc] -- list of possible functions with the same ids
+        [Raw.StringToken] -- function ids
+        [Raw.Func] -- list of possible functions with the same ids
 
-    | KErrorUsingUndefinedId StringToken
-    | KErrorUsingUndefinedType [StringToken]
+    | KErrorUsingUndefinedId Raw.StringToken
+    | KErrorUsingUndefinedType [Raw.StringToken]
     | KErrorWrongTypeInSetter
     | KErrorPropretyTypeMismatch
-        StringToken -- property name
-        KeliType    -- expected type
-        KeliExpr    -- actual expr (type-checked)
+        Raw.StringToken -- property name
+        Raw.Type    -- expected type
+        Raw.Expr    -- actual expr (type-checked)
     | KErrorNotATypeConstraint KeliSymbol
-    | KErrorExprIsNotAType KeliExpr
-    | KErrorTagIsNotAType KeliTag
+    | KErrorExprIsNotAType Raw.Expr
+    | KErrorTagIsNotAType Raw.Tag
     | KErrorNotAFunction KeliSymbol
-    | KErrorDuplicatedFunc KeliFunc
-    | KErrorTypeNotConformingConstraint KeliType KeliConstraint
+    | KErrorDuplicatedFunc Raw.Func
+    | KErrorTypeNotConformingConstraint Raw.Type Raw.Constraint
     | KErrorFuncCallTypeMismatch
-        KeliType -- expected type
-        KeliExpr -- actual expr (type-checked)
-    | KErrorInvalidTypeConstructorParam KeliFuncDeclParam
+        Raw.Type -- expected type
+        Raw.Expr -- actual expr (type-checked)
+    | KErrorInvalidTypeConstructorParam Raw.FuncDeclParam
     | KErrorInvalidParamLengthForGenericType 
-        [KeliExpr] -- applied params
+        [Raw.Expr] -- applied params
         Int -- expected param length
     | KErrorBodyOfGenericTypeIsNotTypeDeclaration
-        KeliExpr -- actual body
-    | KErrorCannotDeclareTypeAsAnonymousConstant KeliType
-    | KErrorCannotDeclareTagAsAnonymousConstant KeliTag
-    | KErrorTypeIsNotAnExpr KeliType
-    | KErrorTagIsNotAnExpr KeliTag
+        Raw.Expr -- actual body
+    | KErrorCannotDeclareTypeAsAnonymousConstant Raw.Type
+    | KErrorCannotDeclareTagAsAnonymousConstant Raw.Tag
+    | KErrorTypeIsNotAnExpr Raw.Type
+    | KErrorTagIsNotAnExpr Raw.Tag
 
     deriving(Show)

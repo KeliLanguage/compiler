@@ -1,14 +1,14 @@
 module Util where
 
 import Data.List
-import Ast.Raw
+import qualified Ast.Raw as Raw
 import Data.Maybe
 import Data.Set hiding (map, (\\))
 
 data MatchResult 
     = GotDuplicates
     | ZeroIntersection
-    | GotExcessive [StringToken] -- means there are extraneous elements in source
+    | GotExcessive [Raw.StringToken] -- means there are extraneous elements in source
     | Missing [String]           -- means some elements in target is not matched
     | PerfectMatch               -- means all elements in source matches all elements in target
     deriving (Show)
@@ -16,7 +16,7 @@ data MatchResult
 -- NOTE: 
 --  source also means actual elements
 --  target also means expected elements
-match :: [StringToken] -> [StringToken] -> MatchResult
+match :: [Raw.StringToken] -> [Raw.StringToken] -> MatchResult
 match source target =
     let source' = map snd source in
     let target' = map snd target in
