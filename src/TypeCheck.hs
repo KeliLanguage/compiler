@@ -158,6 +158,21 @@ typeCheckExpr symtab assumption e = case e of
 
                                     Third tag -> 
                                         Left (KErrorExpectedExprOrTypeButGotTag tag)
+
+                        -- 3. check if user is using javascript ffi
+                        "ffi" ->
+                            if length funcIds /= 1 || length params' /= 2 then
+                                Left (KErrorIncorrectUsageOfFFI (fst firstParamToken))
+                            else if snd (funcIds !! 0) /= "javascript" then
+                                Left (KErrorUnknownFFITarget (funcIds !! 0))
+                            else do
+                                jsCode <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
+                                case jsCode of
+                                    (V.Expr (V.StringExpr value) _) ->
+                                        Right (First (V.Expr (V.FFIJavascript value) V.TypeUndefined))
+
+                                    _ -> 
+                                        Left (KErrorFFIValueShouldBeString jsCode)
                             
                         _ -> 
                             continuePreprocessFuncCall
@@ -312,6 +327,16 @@ typeCheckExpr symtab assumption e = case e of
             treatAsNormalFuncCall = do
                 params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
                 typeCheckFuncCall symtab params funcIds
+
+    Raw.AnnotatedExpr expr annotatedType -> do
+        verifiedExpr <- typeCheckExpr symtab assumption expr >>= extractExpr
+        verifiedType <- typeCheckExpr symtab StrictlyAnalyzingType annotatedType >>= extractType
+        case verifiedExpr of
+            (V.Expr expr' V.TypeUndefined) ->
+                Right (First (V.Expr expr' verifiedType))
+
+            _ ->
+                undefined
 
     other -> 
         undefined

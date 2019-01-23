@@ -46,7 +46,15 @@ keliExpr :: Parser Raw.Expr
 keliExpr 
     =  try keliFuncCall
    <|> try keliLambda
+   <|> try keliTypeAnnotatedExpr
    <|> keliAtomicExpr 
+
+keliTypeAnnotatedExpr :: Parser Raw.Expr
+keliTypeAnnotatedExpr 
+    =   keliAtomicExpr  >>= \expr
+    ->  reservedOp ":"  >>= \_
+    ->  keliAtomicExpr  >>= \annotatedType
+    -> return (Raw.AnnotatedExpr expr annotatedType)
 
 keliFuncCall :: Parser Raw.Expr
 keliFuncCall 
@@ -83,6 +91,7 @@ flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 keliFuncCallTail :: Parser KeliFuncCallChain
 keliFuncCallTail
     = buildExpressionParser [[Infix (char '.' >> spaces >> return KeliFuncCallChain) AssocLeft]] keliPartialFuncCall
+
 
 keliPartialFuncCall
     -- binary/ternary/polynary

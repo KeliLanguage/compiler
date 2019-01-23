@@ -11,4 +11,5 @@ any = _primitive_constraint;
 undefined = undefined;
 record     = record;
 interface  = interface;
+ffi = ffi;
 _ = _;

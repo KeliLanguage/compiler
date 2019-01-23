@@ -81,6 +81,9 @@ instance Transpilable Verified.Expr where
         Verified.FuncCall params _ ref -> 
             fst (Verified.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
 
+        Verified.FFIJavascript (_,code) ->
+            code
+
         other -> (error (show other))
 
     

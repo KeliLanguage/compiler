@@ -44,5 +44,8 @@ data Expr
         lambdaParams :: [StringToken],
         lambdaBody   :: Expr
     }
+    | AnnotatedExpr 
+        Expr -- the expression on the left
+        Expr -- the type annotation on the right
     deriving (Show,Eq)
 

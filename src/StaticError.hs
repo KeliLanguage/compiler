@@ -16,6 +16,7 @@ data KeliError
         Verified.Expr -- actual expr
     | KErrorIncorrectUsageOfRecord Verified.StringToken
     | KErrorIncorrectUsageOfTag SourcePos
+    | KErrorIncorrectUsageOfFFI SourcePos
     | KErrorIncorrectUsageOfTaggedUnion Verified.Expr
     | KErrorMissingTags [String]
     | KErrorMissingProperties [String]
@@ -55,6 +56,8 @@ data KeliError
     | KErrorExpectedTypeButGotTag       Verified.Tag
     | KErrorExpectedExprButGotTag       Verified.Tag
     | KErrorExpectedExprOrTypeButGotTag Verified.Tag
+    | KErrorUnknownFFITarget Verified.StringToken
+    | KErrorFFIValueShouldBeString Verified.Expr
 
 
     deriving(Show)

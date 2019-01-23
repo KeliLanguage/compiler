@@ -6,3 +6,7 @@
 - each function decl should be assign a uniq UID, to ease transpilation
 
 - error reporting does not contain accurate location
+
+- define factorial function
+
+- js ffi

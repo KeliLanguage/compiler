@@ -121,6 +121,8 @@ data Expr'
 
     | RecordConstructor [(StringToken, Type)]
 
+    | FFIJavascript StringToken
+
     deriving (Show,Eq)
 
 
