@@ -120,23 +120,13 @@ analyzeDecl decl symtab = case decl of
 
         where 
             continueAnalyzeConstDecl = do
-                result <- typeCheckExpr symtab expr
+                result <- typeCheckExpr symtab CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right [KeliSymConst id typeCheckedExpr]
 
                     -- if is tag union types, need to insert tags into symbol table
                     Second (V.TypeTagUnion tags) ->
-                        -- verifiedTags <- 
-                        --     mapM
-                        --     (\tag -> case tag of
-                        --         Raw.TagCarryless name _ -> 
-                        --             Right (Raw.TagCarryless name Raw.TypeUndefined)
-                        --         Raw.TagCarryful name carryType _ -> do
-                        --             verifiedCarryType <- verifyType symtab carryType
-                        --             Right (Raw.TagCarryful name verifiedCarryType Raw.TypeUndefined))
-                        --     tags
-
                         let 
                             -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
                             tagUnionType = (V.TypeTagUnion tags')
@@ -237,7 +227,7 @@ analyzeDecl decl symtab = case decl of
                         --         Left err
             else do
                 -- 3. type check the function body
-                result <- typeCheckExpr symtab3 funcBody
+                result <- typeCheckExpr symtab3 CanBeAnything funcBody
                 case result of
                     First typeCheckedBody ->
                         let bodyType = getType typeCheckedBody in
@@ -262,7 +252,7 @@ analyzeDecl decl symtab = case decl of
                     _ -> undefined
     
     Raw.IdlessDecl expr -> do
-        result <- typeCheckExpr symtab expr
+        result <- typeCheckExpr symtab CanBeAnything expr
         case result of
             First checkedExpr ->
                 Right [KeliSymInlineExprs [checkedExpr]]

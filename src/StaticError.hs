@@ -33,8 +33,6 @@ data KeliError
         Verified.Type    -- expected type
         Verified.Expr    -- actual expr (type-checked)
     | KErrorNotATypeConstraint KeliSymbol
-    | KErrorExprIsNotAType Verified.Expr
-    | KErrorTagIsNotAType Verified.Tag
     | KErrorNotAFunction KeliSymbol
     | KErrorDuplicatedFunc Verified.Func
     | KErrorTypeNotConformingConstraint Verified.Type Verified.TypeConstraint
@@ -49,9 +47,14 @@ data KeliError
         Verified.Expr -- actual body
     | KErrorCannotDeclareTypeAsAnonymousConstant Verified.Type
     | KErrorCannotDeclareTagAsAnonymousConstant Verified.Tag
-    | KErrorTypeIsNotAnExpr Verified.Type
-    | KErrorTagIsNotAnExpr Verified.Tag
-    | KErrorExprIsNotATagOrUnion Verified.Expr
-    | KErrorTypeIsNotATagOrUnion Verified.Type
+
+    | KErrorExpectedTypeButGotExpr      Verified.Expr
+    | KErrorExpectedTagButGotExpr       Verified.Expr
+    | KErrorExpectedTagButGotType       Verified.Type
+    | KErrorExpectedExprButGotType      Verified.Type
+    | KErrorExpectedTypeButGotTag       Verified.Tag
+    | KErrorExpectedExprButGotTag       Verified.Tag
+    | KErrorExpectedExprOrTypeButGotTag Verified.Tag
+
 
     deriving(Show)

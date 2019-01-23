@@ -3,7 +3,7 @@ module TypeCheck where
 
 import Control.Monad
 import Data.List hiding (lookup)
-import Data.Map.Ordered (OMap, (|>), assocs, member, lookup, empty, fromList) 
+import Data.Map.Ordered (OMap, (|>), lookup, fromList) 
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 import Data.Maybe (catMaybes, fromJust)
@@ -19,8 +19,12 @@ data OneOf3 a b c = First a | Second b | Third c deriving (Show)
 getType :: V.Expr -> V.Type
 getType (V.Expr _ type') = type'
 
-typeCheckExpr :: KeliSymTab -> Raw.Expr -> Either KeliError (OneOf3 V.Expr V.Type V.Tag)
-typeCheckExpr symtab e = case e of 
+data Assumption 
+    = StrictlyAnalyzingType
+    | CanBeAnything 
+
+typeCheckExpr :: KeliSymTab -> Assumption -> Raw.Expr -> Either KeliError (OneOf3 V.Expr V.Type V.Tag)
+typeCheckExpr symtab assumption e = case e of 
     Raw.NumberExpr(pos,n) -> 
         case n of 
             Left intValue ->
@@ -45,9 +49,15 @@ typeCheckExpr symtab e = case e of
                 --  Don't need to explicitly check it, the type system will handle it
                 (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.TypeCarryfulTagConstructor tag carryType belongingType))))
             
-            Just (KeliSymType (V.TypeAlias _ (V.TypeRecord propTypePairs))) -> 
-                -- NOTE: How are we gonna know if user is using this as type annotation or as record constructor?
-                (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.TypeRecordConstructor propTypePairs))))
+            Just (KeliSymType (V.TypeAlias _ t@(V.TypeRecord propTypePairs))) -> 
+                -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
+                -- Answer: Using assumptions
+
+                case assumption of
+                    StrictlyAnalyzingType -> 
+                        (Right (Second t))
+                    CanBeAnything ->
+                        (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.TypeRecordConstructor propTypePairs))))
             
             Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
@@ -60,7 +70,7 @@ typeCheckExpr symtab e = case e of
                 undefined
 
 
-    expr@(Raw.FuncCall params' funcIds) -> do
+    Raw.FuncCall params' funcIds -> do
         case head funcIds of 
             -- 0. Check if user wants to create a tagged union
             (_,"or") -> do
@@ -69,7 +79,7 @@ typeCheckExpr symtab e = case e of
                             Second (V.TypeTagUnion{})-> True; 
                             Third _ -> True; 
                             _ -> False;
-                params <- mapM (typeCheckExpr symtab) params';
+                params <- mapM (typeCheckExpr symtab assumption) params';
                 if isTagOrUnion (head params) then do
                     tags <- mapM extractTag params
                     Right (Second (V.TypeTagUnion (concat tags)))
@@ -97,7 +107,7 @@ typeCheckExpr symtab e = case e of
                                                 if length params' < 3 then
                                                     Left (KErrorIncorrectUsageOfTag pos)
                                                 else do
-                                                    thirdParam <- typeCheckExpr symtab (params' !! 2)
+                                                    thirdParam <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 2)
                                                     case thirdParam of
                                                         Second carryType ->
                                                             Right (Third (V.CarryfulTag tag carryType V.TypeUndefined))
@@ -118,12 +128,23 @@ typeCheckExpr symtab e = case e of
                                 Left (KErrorIncorrectUsageOfRecord firstParamToken)
 
                             else do 
-                                values <- mapM (typeCheckExpr symtab) (tail params')
-                                case values !! 0 of
+                                -- NOTE: 
+                                --  Because of the following line of code,
+                                --  the following recursive record type cannot be declared:
+                                --
+                                --      fruit = record.next fruit;
+                                -- 
+                                -- PROPOSED SOLUTION:
+                                --  Force user to annotate the type of type as such:
+                                --
+                                --      fruit:type = record.next fruit;
+                                firstValue <- typeCheckExpr symtab CanBeAnything (tail params' !! 0)  
+
+                                let keys = funcIds
+                                case firstValue of
                                     -- assume user want to create a record value
                                     First _ -> do
-                                        let keys = funcIds
-                                        typeCheckedExprs <- mapM extractExpr values
+                                        typeCheckedExprs <- typeCheckExprs symtab CanBeAnything (tail params') >>= mapM extractExpr
                                         Right 
                                             (First
                                                 (V.Expr
@@ -132,9 +153,11 @@ typeCheckExpr symtab e = case e of
                                     
                                     -- assume user want to declare a record type
                                     Second _ -> do
-                                        types <- mapM extractType values
-                                        let keys = funcIds
+                                        types <- mapM (typeCheckExpr symtab StrictlyAnalyzingType) (tail params') >>=  mapM extractType 
                                         Right (Second (V.TypeRecord (zip keys types)))
+
+                                    Third tag -> 
+                                        Left (KErrorExpectedExprOrTypeButGotTag tag)
                             
                         _ -> 
                             continuePreprocessFuncCall
@@ -145,7 +168,7 @@ typeCheckExpr symtab e = case e of
         where 
             continuePreprocessFuncCall :: Either KeliError (OneOf3 V.Expr V.Type V.Tag)
             continuePreprocessFuncCall = do
-                firstParam <- typeCheckExpr symtab (head params') >>= extractExpr
+                firstParam <- typeCheckExpr symtab assumption (head params') >>= extractExpr
 
                 let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
@@ -167,7 +190,7 @@ typeCheckExpr symtab e = case e of
                                 Left (KErrorMissingProperties missingProps)
                             
                             PerfectMatch ->  do
-                                values  <- mapM (typeCheckExpr symtab) (tail params') >>= mapM extractExpr 
+                                values  <- typeCheckExprs symtab assumption (tail params') >>= mapM extractExpr 
 
                                 let verifiedPropValuePairs = zip funcIds values
 
@@ -188,7 +211,7 @@ typeCheckExpr symtab e = case e of
                     -- (B) check if user is invoking carryful tag constructor
                     V.TypeCarryfulTagConstructor tag carryType belongingType -> 
                         if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then do
-                            carryExpr  <- typeCheckExpr symtab (params' !! 1) >>= extractExpr
+                            carryExpr  <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
                             let carryExprType = getType carryExpr 
                             let carryType'    = carryType 
                             if carryExprType `V.typeEquals` carryType' then
@@ -201,7 +224,7 @@ typeCheckExpr symtab e = case e of
                     
                     -- (C) check if user is calling tag matchers
                     V.TypeTagUnion tags -> do
-                        branches <- mapM (typeCheckExpr symtab) (tail params') >>= mapM extractExpr 
+                        branches <- mapM (typeCheckExpr symtab assumption) (tail params') >>= mapM extractExpr 
                         let firstBranch = head branches 
                         let subject = firstParam 
                         let tagsWithQuestionMark = map 
@@ -245,7 +268,6 @@ typeCheckExpr symtab e = case e of
 
                             PerfectMatch -> do
                                 -- check if all branch have the same type
-                                let firstBranch = head branches 
                                 if any (\x -> not (getType x `V.typeEquals` getType firstBranch)) branches then
                                     Left (KErrorNotAllBranchHaveTheSameType branches)
                                 else
@@ -272,7 +294,7 @@ typeCheckExpr symtab e = case e of
                                     then -- is getter
                                         Right (First (V.Expr (V.RecordGetter subject propertyName) expectedType))
                                     else do -- is setter
-                                        newValue <- typeCheckExpr symtab ((tail params') !! 0) >>= extractExpr
+                                        newValue <- typeCheckExpr symtab assumption ((tail params') !! 0) >>= extractExpr
                                         if getType newValue `V.typeEquals` expectedType then
                                             Right 
                                                 (First 
@@ -288,7 +310,7 @@ typeCheckExpr symtab e = case e of
                         treatAsNormalFuncCall
             
             treatAsNormalFuncCall = do
-                params <- mapM (typeCheckExpr symtab) params' >>= mapM extractExpr
+                params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
                 typeCheckFuncCall symtab params funcIds
 
     other -> 
@@ -411,7 +433,7 @@ substituteGeneric' bindingTable type' =
 
 
 verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
-verifyType symtab expr = typeCheckExpr symtab expr >>= extractType
+verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
     -- case expr of
     --     V.TypeUnverified expr ->
     --         case expr of
@@ -438,8 +460,8 @@ verifyTypeConstraint symtab type' = undefined
     --     _ -> 
     --         undefined
 
-typeCheckExprs :: KeliSymTab -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type V.Tag]
-typeCheckExprs symtab exprs = mapM (typeCheckExpr symtab) exprs
+typeCheckExprs :: KeliSymTab -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type V.Tag]
+typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) exprs
 
 
 getTypeWithoutResolvingAlias :: Raw.Expr -> V.Type
@@ -525,17 +547,17 @@ type GenericBindingTable = OMap String (Maybe V.Type)
 extractTag :: OneOf3 V.Expr V.Type V.Tag -> Either KeliError [V.Tag]
 extractTag x =
     case x of
-        First expr -> Left (KErrorExprIsNotATagOrUnion expr)
+        First expr -> Left (KErrorExpectedTagButGotExpr expr)
         Second (V.TypeTagUnion tags) -> Right tags
-        Second type' -> Left (KErrorTypeIsNotATagOrUnion type')
+        Second type' -> Left (KErrorExpectedTagButGotType type')
         Third tag -> Right [tag]
 
 extractType :: OneOf3 V.Expr V.Type V.Tag -> Either KeliError V.Type
 extractType x = 
     case x of
-        First expr   -> Left (KErrorExprIsNotAType expr)
+        First expr   -> Left (KErrorExpectedTypeButGotExpr expr)
         Second type' -> Right type' 
-        Third tag    -> Left (KErrorTagIsNotAType tag)
+        Third tag    -> Left (KErrorExpectedTypeButGotTag tag)
 
 
 
@@ -543,5 +565,5 @@ extractExpr :: OneOf3 V.Expr V.Type V.Tag -> Either KeliError V.Expr
 extractExpr x = 
     case x of 
         First expr -> Right expr
-        Second type' -> Left (KErrorTypeIsNotAnExpr type')
-        Third tag -> Left (KErrorTagIsNotAnExpr tag)
+        Second type' -> Left (KErrorExpectedExprButGotType type')
+        Third tag -> Left (KErrorExpectedExprButGotTag tag)
