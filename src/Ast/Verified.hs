@@ -8,6 +8,9 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
 
+nullStringToken :: (SourcePos, [Char])
+nullStringToken = (newPos "" (-1) (-1), "null")
+
 data Decl 
     = ConstDecl Const
     | FuncDecl Func
@@ -39,7 +42,10 @@ data Type
     | TypeInt
     | TypeString
     | TypeRecord [(StringToken, Type)]
-    | TypeTagUnion [Tag] -- list of tags
+    | TypeTagUnion 
+        StringToken --name
+        [Tag]       -- list of tags
+
     | TypeSingleton StringToken
     | TypeUndefined
     | TypeCarryfulTagConstructor 
@@ -53,7 +59,25 @@ data Type
     | TypeCompound 
         StringToken -- name
         [Type] -- type params
-    deriving (Show, Eq)
+
+    deriving (Show)
+
+instance Eq Type where
+    TypeFloat                           == TypeFloat                        = True
+    TypeInt                             == TypeInt                          = True
+    TypeString                          == TypeString                       = True
+    TypeRecord kvs1                     == TypeRecord kvs2                  = kvs1 == kvs2
+    TypeTagUnion name1 _                == TypeTagUnion name2 _             = name1 == name2
+    TypeSingleton x                     == TypeSingleton y                  = x == y
+    TypeCarryfulTagConstructor x _ _    == TypeCarryfulTagConstructor y _ _ = x == y
+    TypeRecordConstructor kvs1          == TypeRecordConstructor kvs2       = kvs1 == kvs2
+    TypeType                            == TypeType                         = True
+    TypeCompound name1 params1          == TypeCompound name2 params2       = name1 == name2 && params1 == params2
+    TypeParam _ _                       == _                                = undefined -- not sure how to check for equality of type param yet
+    _                                   == TypeParam _ _                    = undefined
+    TypeUndefined                       == _                                = error "Cannot compare type of undefined"
+    _                                   == TypeUndefined                    = error "Cannot compare type of undefined"
+    _                                   == _                                = False
 
 data TypeConstraint
     = ConstraintAny
@@ -69,7 +93,12 @@ data Tag
         StringToken -- tag
         Type    -- carry type
         Type    -- beloging type
-            deriving (Show, Eq)
+            deriving (Show)
+
+instance Eq Tag where
+    (CarrylessTag t1 _) == (CarrylessTag t2 _) = t1 == t2
+    (CarryfulTag t1 _ _) == (CarryfulTag t2 _ _) = t1 == t2
+    _ == _ = False
 
 data Expr = 
     Expr 
@@ -183,7 +212,7 @@ stringifyType t = case t of
         TypeInt    -> "int"
         TypeString -> "str"
         TypeRecord kvs ->  error (show kvs)
-        TypeTagUnion tags -> undefined 
+        TypeTagUnion name _ -> snd name 
         TypeParam _ _ -> ""
         TypeType -> "type"
         _ -> error (show t)

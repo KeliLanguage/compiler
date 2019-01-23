@@ -33,4 +33,4 @@ keli'' :: String -> Either KeliError String
 keli'' contents
     =   parseKeli contents
     >>= analyze 
-    >>= \symbols -> return (intercalate ";" (map transpile symbols))
+    >>= \symbols -> return (intercalate ";\n" (map transpile symbols))

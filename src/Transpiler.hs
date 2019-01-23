@@ -66,17 +66,19 @@ instance Transpilable Verified.Expr where
         Verified.StringExpr (_,value)                    -> show value
         Verified.Id     (_,value)                        -> idPrefix ++ value
         Verified.Lambda params body                      -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
-        Verified.Record kvs                              -> transpileKeyValuePairs (kvs)
+        Verified.Record kvs                              -> transpileKeyValuePairs False (kvs)
         Verified.RecordGetter expr prop                  -> transpile expr ++ "." ++ snd prop
         Verified.RecordSetter subject prop newValue      -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
         Verified.CarryfulTagExpr (_,tag) carry           -> idPrefix ++ tag ++ "("++ transpile carry ++")"
         Verified.CarrylessTagConstructor(_,tag)          -> idPrefix ++ tag
         Verified.TagMatcher subject branches elseBranch        
             -> 
-            "((" ++ transpileKeyValuePairs branches ++ "[" ++ transpile subject ++ ".__tag + '?'])" ++ 
+            -- We will need to implement lazy evaluation here, as JavaScript is strict
+            -- Also, lazy evaluation is needed to prevent evaluating unentered branch
+            "((" ++ transpileKeyValuePairs True branches ++ "[" ++ transpile subject ++ ".__tag + '?'])" ++ 
                 (case elseBranch of
-                    Just expr -> " || " ++ transpile expr
-                    Nothing   -> "") ++ ")"
+                    Just expr -> " || " ++ "(" ++ (lazify (transpile expr)) ++ ")"
+                    Nothing   -> "") ++ ")()"
 
         Verified.FuncCall params _ ref -> 
             fst (Verified.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
@@ -88,9 +90,12 @@ instance Transpilable Verified.Expr where
 
     
 
-transpileKeyValuePairs :: [(Verified.StringToken, Verified.Expr)] -> String
-transpileKeyValuePairs kvs 
-    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" ++ transpile expr ++ ",") "" kvs) ++ "})"
+transpileKeyValuePairs :: Bool -> [(Verified.StringToken, Verified.Expr)] -> String
+transpileKeyValuePairs lazifyExpr kvs 
+    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" 
+        ++ (if lazifyExpr then lazify (transpile expr) else (transpile expr))
+        ++ ",") "" kvs) ++ "})"
 
 
-
+lazify :: String -> String
+lazify str = "()=>(" ++ str ++ ")"

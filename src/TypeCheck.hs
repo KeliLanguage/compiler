@@ -82,7 +82,7 @@ typeCheckExpr symtab assumption e = case e of
                 params <- mapM (typeCheckExpr symtab assumption) params';
                 if isTagOrUnion (head params) then do
                     tags <- mapM extractTag params
-                    Right (Second (V.TypeTagUnion (concat tags)))
+                    Right (Second (V.TypeTagUnion V.nullStringToken (concat tags)))
                 else  do
                     continuePreprocessFuncCall
 
@@ -238,7 +238,7 @@ typeCheckExpr symtab assumption e = case e of
                         
                     
                     -- (C) check if user is calling tag matchers
-                    V.TypeTagUnion tags -> do
+                    V.TypeTagUnion _ tags -> do
                         branches <- mapM (typeCheckExpr symtab assumption) (tail params') >>= mapM extractExpr 
                         let firstBranch = head branches 
                         let subject = firstParam 
@@ -573,7 +573,7 @@ extractTag :: OneOf3 V.Expr V.Type V.Tag -> Either KeliError [V.Tag]
 extractTag x =
     case x of
         First expr -> Left (KErrorExpectedTagButGotExpr expr)
-        Second (V.TypeTagUnion tags) -> Right tags
+        Second (V.TypeTagUnion _ tags) -> Right tags
         Second type' -> Left (KErrorExpectedTagButGotType type')
         Third tag -> Right [tag]
 

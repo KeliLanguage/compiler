@@ -10,3 +10,7 @@
 - define factorial function
 
 - js ffi
+
+- problem: cannot map JS boolean to Keli boolean
+
+- should check for duplciated IDS first before going into analyzing

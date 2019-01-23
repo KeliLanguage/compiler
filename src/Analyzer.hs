@@ -42,53 +42,56 @@ analyzeDecls decls =
 
         -- insert analyzedSymbols into symtab
         (foldM 
-            (\symtab2 analyzedSymbol -> 
-                case analyzedSymbol of 
-                    KeliSymFunc [f] -> 
-                        let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
-                        let funcsWithSameName = lookup funcid symtab2 in
-                        let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
-                        case funcsWithSameName of
-                            Just (KeliSymFunc fs) ->
-                                if any 
-                                    (\func -> 
-                                        all (\(t1,t2) -> t1 `V.typeEquals` t2) 
-                                        (zip (funcParamTypes f) (funcParamTypes func))) fs then
-                                    Left (KErrorDuplicatedFunc f)
-                                else
-                                    Right (symtab2 |> (funcid, KeliSymFunc (f:fs)))
-                            
-                            Just _ ->
-                                Left (KErrorDuplicatedId (V.funcDeclIds f))
-
-                            Nothing ->
-                                Right (symtab2 |> (funcid, analyzedSymbol))
-
-                    KeliSymInlineExprs exprs ->
-                        case lookup "@inline_exprs" symtab2 of
-                            Just (KeliSymInlineExprs exprs') ->
-                                Right (symtab2 |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
-
-                            Just _ ->
-                                error "shouldn't reach here"
-                            
-                            Nothing ->
-                                Right (symtab2 |> ("@inline_exprs", KeliSymInlineExprs exprs))
-
-                    KeliSymType (V.TypeAlias _ (V.TypeSingleton _ )) -> -- do nothing
-                        Right symtab2
-
-                    _ -> 
-                        let (key,ids) = V.getIdentifier analyzedSymbol in
-                        if member key symtab2 then
-                            Left (KErrorDuplicatedId ids)
-                        else 
-                            Right (symtab2 |> (key, analyzedSymbol)))
+            (\symtab2 analyzedSymbol -> insertSymbolIntoSymtab analyzedSymbol symtab2)
             symtab1
             analyzedSymbols)
     )::KeliSymTab -> Raw.Decl -> Either KeliError KeliSymTab)
     emptyKeliSymTab
     decls
+
+insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
+insertSymbolIntoSymtab symbol symtab =
+    case symbol of 
+        KeliSymFunc [f] -> 
+            let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
+            let funcsWithSameName = lookup funcid symtab in
+            let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
+            case funcsWithSameName of
+                Just (KeliSymFunc fs) ->
+                    if any 
+                        (\func -> 
+                            all (\(t1,t2) -> t1 `V.typeEquals` t2) 
+                            (zip (funcParamTypes f) (funcParamTypes func))) fs then
+                        Left (KErrorDuplicatedFunc f)
+                    else
+                        Right (symtab |> (funcid, KeliSymFunc (f:fs)))
+                
+                Just _ ->
+                    Left (KErrorDuplicatedId (V.funcDeclIds f))
+
+                Nothing ->
+                    Right (symtab |> (funcid, symbol))
+
+        KeliSymInlineExprs exprs ->
+            case lookup "@inline_exprs" symtab of
+                Just (KeliSymInlineExprs exprs') ->
+                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
+
+                Just _ ->
+                    error "shouldn't reach here"
+                
+                Nothing ->
+                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs exprs))
+
+        KeliSymType (V.TypeAlias _ (V.TypeSingleton _ )) -> -- do nothing
+            Right symtab
+
+        _ -> 
+            let (key,ids) = V.getIdentifier symbol in
+            if member key symtab then
+                Left (KErrorDuplicatedId ids)
+            else 
+                Right (symtab |> (key, symbol))
 
 analyzeDecl :: Raw.Decl -> KeliSymTab -> Either KeliError [KeliSymbol]
 analyzeDecl decl symtab = case decl of
@@ -126,10 +129,10 @@ analyzeDecl decl symtab = case decl of
                         Right [KeliSymConst id typeCheckedExpr]
 
                     -- if is tag union types, need to insert tags into symbol table
-                    Second (V.TypeTagUnion tags) ->
+                    Second (V.TypeTagUnion _ tags) ->
                         let 
                             -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
-                            tagUnionType = (V.TypeTagUnion tags')
+                            tagUnionType = (V.TypeTagUnion id tags')
                             tags' =
                                 map 
                                     (\x -> case x of
@@ -226,8 +229,21 @@ analyzeDecl decl symtab = case decl of
                         --     Left err ->
                         --         Left err
             else do
-                -- 3. type check the function body
-                result <- typeCheckExpr symtab3 CanBeAnything funcBody
+                -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
+                let tempFunc = KeliSymFunc 
+                        [V.Func {
+                            V.funcDeclIds = funcIds,
+                            V.funcDeclGenericParams = verifiedGenericParams,
+                            V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) V.TypeUndefined, -- temporary body (useless)
+                            V.funcDeclParams = verifiedFuncParams,
+                            V.funcDeclReturnType = verifiedReturnType
+                        }] 
+
+                symtab4 <- insertSymbolIntoSymtab tempFunc symtab3
+
+
+                -- 4. type check the function body
+                result <- typeCheckExpr symtab4 CanBeAnything funcBody
                 case result of
                     First typeCheckedBody ->
                         let bodyType = getType typeCheckedBody in
