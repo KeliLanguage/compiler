@@ -37,7 +37,7 @@ data KeliError
     | KErrorTagIsNotAType Verified.Tag
     | KErrorNotAFunction KeliSymbol
     | KErrorDuplicatedFunc Verified.Func
-    | KErrorTypeNotConformingConstraint Verified.Type Verified.Constraint
+    | KErrorTypeNotConformingConstraint Verified.Type Verified.TypeConstraint
     | KErrorFuncCallTypeMismatch
         Verified.Type -- expected type
         Verified.Expr -- actual expr (type-checked)

@@ -43,18 +43,15 @@ typeCheckExpr symtab e = case e of
             Just (KeliSymTag (V.CarryfulTag tag carryType belongingType)) ->
                 -- How to check if user forgot to put .carry ?
                 --  Don't need to explicitly check it, the type system will handle it
-                (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) belongingType)))
+                (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.TypeCarryfulTagConstructor tag carryType belongingType))))
             
             Just (KeliSymType (V.TypeAlias _ (V.TypeRecord propTypePairs))) -> 
                 -- NOTE: How are we gonna know if user is using this as type annotation or as record constructor?
                 (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.TypeRecordConstructor propTypePairs))))
             
-            Just (KeliSymType t) ->
+            Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
 
-            Just (KeliSymType t@(V.TypeParam{})) ->
-                error "shouldn't reach here, preprocessDecl should already converted those things"
-            
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
             
@@ -150,7 +147,7 @@ typeCheckExpr symtab e = case e of
             continuePreprocessFuncCall = do
                 firstParam <- typeCheckExpr symtab (head params') >>= extractExpr
 
-                let typeOfFirstParam = V.unpackType (getType firstParam) in
+                let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
                     -- (A) check if user is invoking record constructor
                     V.TypeRecordConstructor expectedPropTypePairs -> do
@@ -413,9 +410,7 @@ substituteGeneric' bindingTable type' =
             type'
 
 
-type TypeVerifier = KeliSymTab -> Raw.Expr -> Either KeliError V.Type
-
-verifyType :: TypeVerifier
+verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
 verifyType symtab expr = typeCheckExpr symtab expr >>= extractType
     -- case expr of
     --     V.TypeUnverified expr ->
@@ -430,7 +425,7 @@ verifyType symtab expr = typeCheckExpr symtab expr >>= extractType
     --     t -> 
     --         Right t
 
-verifyTypeConstraint :: TypeVerifier
+verifyTypeConstraint :: KeliSymTab -> Raw.Expr -> Either KeliError V.TypeConstraint
 verifyTypeConstraint symtab type' = undefined
     -- case type' of 
     --     V.TypeAlias name aliasingType ->
@@ -474,7 +469,7 @@ type1 `haveShapeOf` type2 =
                 _ ->
                     type1 `V.typeEquals` type2
 
-hardConformsTo :: V.Type -> V.Constraint -> Bool
+hardConformsTo :: V.Type -> V.TypeConstraint -> Bool
 type' `hardConformsTo` constraint =
     case constraint of
         V.ConstraintAny -> 
@@ -486,7 +481,7 @@ data GenericParamLocation
     = GenericParamNotFound
     | GenericParamFoundAsSimpleType
         V.StringToken-- generic param name
-        V.Constraint
+        V.TypeConstraint
 
     | GenericParamFoundAsCompoundType
         [(

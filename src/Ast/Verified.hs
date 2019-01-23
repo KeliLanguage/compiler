@@ -12,7 +12,6 @@ data Decl
     = ConstDecl Const
     | FuncDecl Func
     | IdlessDecl Expr
-    | TypeAliasDecl [StringToken] Type
     deriving (Show, Eq)
 
 data Const = Const { 
@@ -21,7 +20,7 @@ data Const = Const {
 } deriving (Show, Eq)
 
 type FuncDeclParam = (StringToken, Type)
-type FuncDeclConstraint = (StringToken, Type)
+type FuncDeclConstraint = (StringToken, TypeConstraint)
 
 data Func = Func {
     funcDeclGenericParams :: [FuncDeclConstraint],
@@ -31,14 +30,16 @@ data Func = Func {
     funcDeclBody          :: Expr
 } deriving (Show, Eq)
 
+data TypeAlias =  TypeAlias [StringToken] Type deriving (Show, Eq)
 
-data Type  
+
+
+data Type
     = TypeFloat
     | TypeInt
     | TypeString
     | TypeRecord [(StringToken, Type)]
     | TypeTagUnion [Tag] -- list of tags
-    | TypeAlias [StringToken] Type
     | TypeSingleton StringToken
     | TypeUndefined
     | TypeCarryfulTagConstructor 
@@ -47,15 +48,14 @@ data Type
         Type     -- belonging type
 
     | TypeRecordConstructor [(StringToken, Type)]
-    | TypeConstraint Constraint 
-    | TypeParam StringToken Constraint
+    | TypeParam StringToken TypeConstraint
     | TypeType -- type of type
     | TypeCompound 
         StringToken -- name
         [Type] -- type params
     deriving (Show, Eq)
 
-data Constraint
+data TypeConstraint
     = ConstraintAny
     deriving (Show, Eq)
 
@@ -125,7 +125,7 @@ data Expr'
 
 
 class Identifiable a where
-    getIdentifier :: a -> StringToken
+    getIdentifier :: a -> (String, [StringToken])
 
 instance Identifiable Decl where
     getIdentifier d = case d of
@@ -142,18 +142,18 @@ instance Identifiable Decl where
 -- Example:
 --      this:str.replace old:str with new:str | str = undefined
 -- Shall have id of
---      replace$old$$str$str$str 
+--      replace$with$$str$str$str 
 --
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
 --  especially when looking up generic functions
 instance Identifiable Func where
     getIdentifier (Func{funcDeclIds=ids, funcDeclParams=params})
-        = (
-            fst (head ids)
+        = ( 
+            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (stringifyType . snd) params)
             ,
-            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (stringifyType . snd) params) 
-        )
+            ids
+         )
 
 -- Basically, this function will convert all symbols to its corresponding ASCII code
 -- e.g. toValidJavaScriptId "$" = "_36"
@@ -162,12 +162,7 @@ toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then s
 
 
 instance Identifiable Const where
-    getIdentifier c = constDeclId c
-
-
-
-instance Identifiable Type where
-    getIdentifier x = (newPos "" (-1) (-1), stringifyType x)
+    getIdentifier c = let x = constDeclId c in (snd x, [x])
 
 
 -- What is toString for?
@@ -185,26 +180,19 @@ stringifyType t = case t of
         TypeFloat  -> "float"
         TypeInt    -> "int"
         TypeString -> "str"
-        TypeRecord kvs -> error (show kvs)
+        TypeRecord kvs ->  error (show kvs)
         TypeTagUnion tags -> undefined 
-        TypeAlias ids _ -> concat (map snd ids)
-        TypeConstraint c -> toString c
         TypeParam _ _ -> ""
         TypeType -> "type"
         _ -> error (show t)
 
 -- For constraint type, we just return an empty string
-instance Stringifiable Constraint where
+instance Stringifiable TypeConstraint where
     toString c = case c of
         ConstraintAny -> "any"
         _ -> undefined
 
 
 typeEquals :: Type -> Type -> Bool
-x `typeEquals` y = unpackType x == unpackType y
+x `typeEquals` y = x == y
     
-unpackType :: Type -> Type
-unpackType t =
-    case t of
-        TypeAlias _ type' -> type'
-        _ -> t

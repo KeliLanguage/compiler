@@ -3,10 +3,8 @@ where
 
 import Prelude hiding (id)
 import Data.List
-import Debug.Trace
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
-import Analyzer
 import qualified Ast.Verified as Verified
 import Symbol
 
@@ -17,7 +15,7 @@ idPrefix :: String
 idPrefix = "_"
 
 instance Transpilable KeliSymbol where
-    transpile x = case x of
+    transpile symbol = case symbol of
         KeliSymFunc fs ->
             intercalate ";" (map transpile fs)
 
@@ -25,6 +23,9 @@ instance Transpilable KeliSymbol where
             "const " ++ idPrefix ++ id ++ "=" ++ transpile expr
 
         KeliSymType _ -> 
+            ""
+
+        KeliSymTypeConstraint {} ->
             ""
 
         KeliSymTag (Verified.CarrylessTag (_,id) _) -> 
@@ -35,6 +36,9 @@ instance Transpilable KeliSymbol where
 
         KeliSymInlineExprs exprs -> 
             intercalate ";" (map (\x -> "console.log(" ++ transpile x ++ ")") exprs)
+
+        other ->
+            error (show other)
 
 
 instance Transpilable Verified.Decl where
@@ -47,7 +51,7 @@ instance Transpilable Verified.Decl where
 instance Transpilable Verified.Func where
     transpile f@(Verified.Func _ params _ _ body) 
         = let params' = intercalate "," (map ((idPrefix ++ ) . snd . fst) params) in
-        "function " ++ snd (Verified.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
+        "function " ++ fst (Verified.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 
 
@@ -75,9 +79,9 @@ instance Transpilable Verified.Expr where
                     Nothing   -> "") ++ ")"
 
         Verified.FuncCall params _ ref -> 
-            snd (Verified.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
+            fst (Verified.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
 
-        _ -> undefined
+        other -> (error (show other))
 
     
 

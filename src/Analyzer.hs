@@ -2,22 +2,17 @@
 {-# LANGUAGE BangPatterns #-}
 module Analyzer where
 
-
 import Control.Monad
 import Data.List hiding (lookup)
-import Data.Map.Ordered (OMap, (|>), assocs, member, lookup, empty, fromList) 
+import Data.Map.Ordered ((|>), assocs, member, lookup) 
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
-import Data.Maybe (catMaybes, fromJust)
 
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
 import Symbol
 import TypeCheck
-import Util
-
-
 
 analyze :: [Raw.Decl] -> Either KeliError [KeliSymbol]
 analyze decls = do
@@ -28,11 +23,13 @@ analyze decls = do
     -- Smaller number means will be transpiled first
     let sortedSymbols = sortOn (
             \x -> case x of 
-                KeliSymTag _        -> 1
-                KeliSymFunc _       -> 2
-                KeliSymConst _ _    -> 3
-                KeliSymType _       -> 4
-                KeliSymInlineExprs _-> 5
+                KeliSymTag _             -> 1
+                KeliSymFunc _            -> 2
+                KeliSymConst _ _         -> 3
+                KeliSymType _            -> 4
+                KeliSymTypeParam {}      -> 5
+                KeliSymTypeConstraint {} -> 6
+                KeliSymInlineExprs _     -> 7
             ) analyzedSymbols
     return sortedSymbols 
 
@@ -78,13 +75,13 @@ analyzeDecls decls =
                             Nothing ->
                                 Right (symtab2 |> ("@inline_exprs", KeliSymInlineExprs exprs))
 
-                    KeliSymType (V.TypeSingleton _ ) -> -- do nothing
+                    KeliSymType (V.TypeAlias _ (V.TypeSingleton _ )) -> -- do nothing
                         Right symtab2
 
                     _ -> 
-                        let id@(_,key) = V.getIdentifier analyzedSymbol in
+                        let (key,ids) = V.getIdentifier analyzedSymbol in
                         if member key symtab2 then
-                            Left (KErrorDuplicatedId [id])
+                            Left (KErrorDuplicatedId ids)
                         else 
                             Right (symtab2 |> (key, analyzedSymbol)))
             symtab1
@@ -112,7 +109,7 @@ analyzeDecl decl symtab = case decl of
                         other   -> error("Unkown primitive type: " ++ other)
                 else if id' == "_primitive_constraint" then
                     case snd id of
-                        "any" -> Right [KeliSymType (V.TypeAlias [id] (V.TypeConstraint V.ConstraintAny))]
+                        "any" -> Right [KeliSymTypeConstraint [id] V.ConstraintAny]
 
                         other -> error ("Unknown primitive constraint type: " ++ other)
                 else 
@@ -125,17 +122,42 @@ analyzeDecl decl symtab = case decl of
             continueAnalyzeConstDecl = do
                 result <- typeCheckExpr symtab expr
                 case result of
-                    First expr ->
-                        Right [KeliSymConst id expr]
+                    First typeCheckedExpr ->
+                        Right [KeliSymConst id typeCheckedExpr]
 
+                    -- if is tag union types, need to insert tags into symbol table
+                    Second (V.TypeTagUnion tags) ->
+                        -- verifiedTags <- 
+                        --     mapM
+                        --     (\tag -> case tag of
+                        --         Raw.TagCarryless name _ -> 
+                        --             Right (Raw.TagCarryless name Raw.TypeUndefined)
+                        --         Raw.TagCarryful name carryType _ -> do
+                        --             verifiedCarryType <- verifyType symtab carryType
+                        --             Right (Raw.TagCarryful name verifiedCarryType Raw.TypeUndefined))
+                        --     tags
+
+                        let 
+                            -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
+                            tagUnionType = (V.TypeTagUnion tags')
+                            tags' =
+                                map 
+                                    (\x -> case x of
+                                        V.CarrylessTag tag _          -> (V.CarrylessTag tag tagUnionType)
+                                        V.CarryfulTag tag carryType _ -> (V.CarryfulTag tag carryType tagUnionType)) 
+                                    tags
+                                    in
+                            Right ([KeliSymType (V.TypeAlias [id] tagUnionType)] ++ (map KeliSymTag tags') :: [KeliSymbol])
+                        
+                    -- other types
                     Second type' ->
-                        Right [KeliSymType type']
+                        Right [KeliSymType (V.TypeAlias [id] type')]
 
                     Third tag ->
                         Right [KeliSymTag tag]
 
 
-    Raw.FuncDecl(func@Raw.Func {
+    Raw.FuncDecl(Raw.Func {
         Raw.funcDeclGenericParams = genericParams,
         Raw.funcDeclIds           = funcIds,
         Raw.funcDeclParams        = funcParams,
@@ -168,31 +190,26 @@ analyzeDecl decl symtab = case decl of
             verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeConstraint
 
             -- 0.2 populate symbol table with generic type parameters
-            symtab2 <- 
-                populateSymbolTable 
-                symtab 
-                verifiedGenericParams
-                (\id paramType ->
-                    case paramType of 
-                        V.TypeConstraint constraint -> 
-                            KeliSymType (V.TypeParam id constraint)
+            -- symtab2 <- 
+            --     populateSymbolTable 
+            --     symtab 
+            --     verifiedGenericParams
+            --     (\id paramType ->
+            --         case paramType of 
+            --             V.TypeConstraint constraint -> 
+            --                 KeliSymType (V.TypeParam id constraint)
 
-                        _ -> undefined)
+            --             _ -> undefined)
 
             -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <- verifyParamType symtab2 funcParams verifyType
+            verifiedFuncParams <- verifyParamType symtab funcParams verifyType
 
             -- 1.2 populate symbol table with function parameters
             symtab3 <- 
                 populateSymbolTable 
-                symtab2 
+                symtab 
                 verifiedFuncParams
-                (\id expectedType -> 
-                    case expectedType of
-                        V.TypeConstraint c ->
-                            KeliSymType (V.TypeParam id c)
-                        _ -> 
-                            KeliSymConst id (V.Expr (V.Id id) expectedType))
+                (\id expectedType -> KeliSymConst id (V.Expr (V.Id id) expectedType))
             
             -- 2. verify return type
             verifiedReturnType <- verifyType symtab3 returnType
@@ -201,10 +218,10 @@ analyzeDecl decl symtab = case decl of
             -- 3. check if user is declaring generic type (a.k.a type constructor)
             if verifiedReturnType `V.typeEquals` V.TypeType then
                 -- 3.1 make sure every param has the type of TypeConstraint
-                case find (\(_,paramType) -> not (case paramType of V.TypeConstraint _ -> True; _ -> False)) verifiedFuncParams of
-                    Just p -> 
-                        Left (KErrorInvalidTypeConstructorParam p)
-                    Nothing ->
+                -- case find (\(_,paramType) -> not (case paramType of V.TypeConstraint _ -> True; _ -> False)) verifiedFuncParams of
+                --     Just p -> 
+                --         Left (KErrorInvalidTypeConstructorParam p)
+                --     Nothing ->
                         -- insert the name of this user-defined type into the symbol table, this is necessary for recursive types to be analyzed properly
                         let typeId = concat (map snd funcIds) in
                         undefined
@@ -224,7 +241,7 @@ analyzeDecl decl symtab = case decl of
                 case result of
                     First typeCheckedBody ->
                         let bodyType = getType typeCheckedBody in
-                        let result = Right 
+                        let result' = Right 
                                 [KeliSymFunc 
                                     [V.Func {
                                         V.funcDeclIds = funcIds,
@@ -236,10 +253,10 @@ analyzeDecl decl symtab = case decl of
 
                         -- 4. ensure body type adheres to return type
                         if bodyType `V.typeEquals` verifiedReturnType then
-                            result
+                            result'
                         else 
                             case bodyType of
-                                V.TypeSingleton (_,"undefined") -> result
+                                V.TypeSingleton (_,"undefined") -> result'
                                 _ -> Left (KErrorUnmatchingFuncReturnType (getType typeCheckedBody) verifiedReturnType)
                     
                     _ -> undefined
@@ -256,32 +273,5 @@ analyzeDecl decl symtab = case decl of
             Third tag ->
                 Left (KErrorCannotDeclareTagAsAnonymousConstant tag)
         
-
-    -- Raw.TypeAliasDecl name (V.TypeTagUnion tags) -> do
-    --     verifiedTags <- 
-    --         mapM
-    --         (\tag -> case tag of
-    --             Raw.TagCarryless name _ -> 
-    --                 Right (Raw.TagCarryless name Raw.TypeUndefined)
-    --             Raw.TagCarryful name carryType _ -> do
-    --                 verifiedCarryType <- verifyType symtab carryType
-    --                 Right (Raw.TagCarryful name verifiedCarryType Raw.TypeUndefined))
-    --         tags
-
-    --     let 
-    --         -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
-    --         tagUnionType = Raw.TypeAlias name (Raw.TypeTagUnion tags') 
-    --         tags' =
-    --             map 
-    --                 (\x -> case x of
-    --                     Raw.TagCarryless tag _          -> (Raw.TagCarryless tag tagUnionType)
-    --                     Raw.TagCarryful tag carryType _ -> (Raw.TagCarryful tag carryType tagUnionType)) 
-    --                 verifiedTags
-    --                 in
-    --         Right ([KeliSymType tagUnionType] ++ (map KeliSymTag tags') :: [KeliSymbol])
-    
-    -- Raw.TypeAliasDecl name t -> do
-    --     verifiedType <- verifyType symtab t
-    --     Right [KeliSymType (Raw.TypeAlias name verifiedType)]
 
     other -> undefined

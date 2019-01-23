@@ -7,23 +7,25 @@ import qualified Ast.Raw as Raw
 import qualified Ast.Verified as Verified
 
 data KeliSymbol
-    = KeliSymFunc [Verified.Func]
-    | KeliSymConst Raw.StringToken Verified.Expr
-    | KeliSymTag Verified.Tag
-    | KeliSymType Verified.Type
-    | KeliSymInlineExprs [Verified.Expr] -- for storing expr from Raw.IdlessConst
+    = KeliSymFunc           [Verified.Func]
+    | KeliSymConst          Raw.StringToken     Verified.Expr
+    | KeliSymTag            Verified.Tag
+    | KeliSymType           Verified.TypeAlias
+    | KeliSymTypeParam      Raw.StringToken     Verified.TypeConstraint
+    | KeliSymTypeConstraint [Raw.StringToken]   Verified.TypeConstraint
+    | KeliSymInlineExprs    [Verified.Expr] -- for storing expr from Raw.IdlessConst
     deriving(Show)
 
+-- TODO: Verify the significance of this TypeClass
 instance Verified.Identifiable KeliSymbol where
     getIdentifier sym = case sym of 
-        (KeliSymFunc f)            -> error "Shouldn't reach here"
-        (KeliSymType t)            -> Verified.getIdentifier t
-        (KeliSymTag t)             -> 
+        (KeliSymType (Verified.TypeAlias ids t)) -> (concat (map snd ids), ids)
+        (KeliSymTag t)              -> 
             case t of
-                Verified.CarrylessTag x _   -> x
-                Verified.CarryfulTag  x _ _ -> x
-        (KeliSymInlineExprs _)     -> (newPos "" 0  0, "@inline_exprs")
-        (KeliSymConst id _)        -> id
+                Verified.CarrylessTag x _   -> (snd x, [x])
+                Verified.CarryfulTag  x _ _ -> (snd x, [x])
+        (KeliSymConst id _)           -> (snd id, [id])
+        (KeliSymTypeConstraint ids _) -> (concat (map snd ids), ids)
         other -> error (show other)
     
 
