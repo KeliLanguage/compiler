@@ -1,0 +1,8 @@
+
+this:int .plus that:int | int = (ffi.javascript "_this + _that") : int ;
+
+= 1 .plus 2 .plus 3;
+
+====
+
+6
