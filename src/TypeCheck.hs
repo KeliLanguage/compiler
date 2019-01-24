@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module TypeCheck where
 
 
@@ -141,7 +142,7 @@ typeCheckExpr symtab assumption e = case e of
                                 --  Force user to annotate the type of type as such:
                                 --
                                 --      fruit:type = record.next fruit;
-                                firstValue <- typeCheckExpr symtab CanBeAnything (tail params' !! 0)  
+                                firstValue <- typeCheckExpr symtab CanBeAnything (tail params' !! 0)  -- <-- this line
 
                                 let keys = funcIds
                                 case firstValue of
@@ -241,9 +242,7 @@ typeCheckExpr symtab assumption e = case e of
                         
                     
                     -- (C) check if user is calling tag matchers
-                    V.TypeTagUnion _ tags -> do
-                        branches <- mapM (typeCheckExpr symtab assumption) (tail params') >>= mapM extractExpr 
-                        let firstBranch = head branches 
+                    V.TypeTagUnion _ expectedTags -> do
                         let subject = firstParam 
                         let tagsWithQuestionMark = map 
                                 (\(pos,id) -> (pos,id ++ "?")) 
@@ -251,8 +250,44 @@ typeCheckExpr symtab assumption e = case e of
                                     (\tag -> case tag of
                                         V.CarryfulTag id _ _ -> id
                                         V.CarrylessTag id _  -> id) 
-                                    tags)
+                                    expectedTags)
 
+                        -- update the symtab for each branch
+                        -- because each branch will have a different carry type
+                        tagBranches <- 
+                            mapM 
+                                (\(tag, branch) ->  
+                                    let updatedSymtab = 
+                                            case subject of 
+                                            -- we only update the symtab if the subject is an identifier
+                                            V.Expr (V.Id id) _ -> 
+                                                case find 
+                                                    (\t -> case t of 
+                                                        V.CarryfulTag tagname _ _ -> snd tag == (snd tagname ++ "?")
+                                                        V.CarrylessTag {} -> False) 
+                                                    expectedTags of
+
+                                                    -- if the current branch indiciates a carryful tag
+                                                    -- update the symtab 
+                                                    Just (V.CarryfulTag _ carryType _) -> 
+                                                        symtab |> (snd id, KeliSymConst id (V.Expr (V.Id id) (V.TypeIdentifiedCarryfulBranch carryType)))
+
+                                                    -- else just return back the same symtab
+                                                    _ ->
+                                                        symtab
+
+                                            -- else just return back the same symtab
+                                            _ ->
+                                                symtab 
+                                    in do
+                                        typeCheckedBranch <- typeCheckExpr updatedSymtab assumption branch >>= extractExpr
+                                        return (tag, typeCheckedBranch)) 
+                                (zip funcIds (tail params')) 
+
+                        let branches = map snd tagBranches
+                        let firstBranch = head branches 
+
+                        -- check if there are errors in the tags
                         case match funcIds tagsWithQuestionMark of
                             GotDuplicates -> 
                                 Left (KErrorDuplicatedTags funcIds)
@@ -265,20 +300,17 @@ typeCheckExpr symtab assumption e = case e of
                             
                             Missing cases ->
                                 if "else?" `elem` (map snd funcIds) then
-                                    let tagBranches = zip funcIds branches in
                                     let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
                                     let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
                                     if any (\x -> not (getType x `V.typeEquals` getType firstBranch)) branches then
                                         Left (KErrorNotAllBranchHaveTheSameType branches)
                                     else
-                                        Right 
-                                            (First 
-                                                (V.Expr 
-                                                    (V.TagMatcher 
-                                                        subject 
-                                                        otherBranches 
-                                                        (Just (snd elseBranch)))
-                                                    (getType (head branches))))
+                                        Right (First (V.Expr 
+                                            (V.TagMatcher 
+                                                subject 
+                                                otherBranches 
+                                                (Just (snd elseBranch)))
+                                            (getType (head branches))))
 
 
                                 else -- missing tags
@@ -289,14 +321,12 @@ typeCheckExpr symtab assumption e = case e of
                                 if any (\x -> not (getType x `V.typeEquals` getType firstBranch)) branches then
                                     Left (KErrorNotAllBranchHaveTheSameType branches)
                                 else
-                                    Right 
-                                        (First
-                                            (V.Expr 
-                                                (V.TagMatcher 
-                                                    subject 
-                                                    (zip funcIds branches)
-                                                    Nothing) 
-                                                (getType (head branches))))
+                                    Right (First (V.Expr 
+                                        (V.TagMatcher 
+                                            subject 
+                                            tagBranches
+                                            Nothing) 
+                                        (getType (head branches))))
 
 
                     -- (D) check if user is calling record getter/setter
@@ -311,7 +341,7 @@ typeCheckExpr symtab assumption e = case e of
                                     if length (tail params') == 0
                                     then -- is getter
                                         Right (First (V.Expr (V.RecordGetter subject propertyName) expectedType))
-                                    else do -- is setter
+                                    else do -- is setterhi
                                         newValue <- typeCheckExpr symtab assumption ((tail params') !! 0) >>= extractExpr
                                         if getType newValue `V.typeEquals` expectedType then
                                             Right 
@@ -323,6 +353,15 @@ typeCheckExpr symtab assumption e = case e of
 
                                 Nothing -> 
                                     treatAsNormalFuncCall
+
+
+                    -- (E) check if user is retrieving the carry of an identified tag branch
+                    V.TypeIdentifiedCarryfulBranch carryType ->
+                        if length funcIds == 1 && snd (funcIds !! 0) == "carry" then
+                            let subject = firstParam in
+                            (Right (First (V.Expr (V.RetrieveCarryExpr subject) carryType)))
+                        else
+                            Left (KErrorIncorrectMethodToRetrieveCarry (funcIds !! 0))
 
                     _ ->
                         treatAsNormalFuncCall

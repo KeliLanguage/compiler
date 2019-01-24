@@ -1,0 +1,9 @@
+color = (_.tag red).or(_.tag green carry int);
+
+x=green.carry 2;
+
+=x.red? 10 green? (x.carry);
+
+====
+
+2

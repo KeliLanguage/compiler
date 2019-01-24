@@ -86,6 +86,9 @@ instance Transpilable Verified.Expr where
         Verified.FFIJavascript (_,code) ->
             code
 
+        Verified.RetrieveCarryExpr expr ->
+            "((" ++ transpile expr ++ ")._carry)"
+
         other -> (error (show other))
 
     

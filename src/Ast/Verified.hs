@@ -15,12 +15,12 @@ data Decl
     = ConstDecl Const
     | FuncDecl Func
     | IdlessDecl Expr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Const = Const { 
     constDeclId    :: StringToken, -- because we can ignore the identifier
     constDeclValue :: Expr
-} deriving (Show, Eq)
+} deriving (Show)
 
 type FuncDeclParam = (StringToken, Type)
 type FuncDeclConstraint = (StringToken, TypeConstraint)
@@ -31,9 +31,9 @@ data Func = Func {
     funcDeclIds           :: [StringToken],
     funcDeclReturnType    :: Type,
     funcDeclBody          :: Expr
-} deriving (Show, Eq)
+} deriving (Show)
 
-data TypeAlias =  TypeAlias [StringToken] Type deriving (Show, Eq)
+data TypeAlias =  TypeAlias [StringToken] Type deriving (Show)
 
 
 
@@ -60,8 +60,12 @@ data Type
         StringToken -- name
         [Type] -- type params
 
+    | TypeIdentifiedCarryfulBranch
+        Type -- carry type
+
 instance Show Type where
     show TypeFloat                              = "float"
+    show (TypeIdentifiedCarryfulBranch t)       = show t ++ " branch"
     show TypeInt                                = "int"
     show TypeString                             = "str"
     show (TypeRecord kvs)                       = show kvs
@@ -79,7 +83,6 @@ instance Eq Type where
     TypeFloat                           == TypeFloat                        = True
     TypeInt                             == TypeInt                          = True
     TypeString                          == TypeString                       = True
-    TypeRecord kvs1                     == TypeRecord kvs2                  = kvs1 == kvs2
     TypeTagUnion name1 _                == TypeTagUnion name2 _             = name1 == name2
     TypeSingleton x                     == TypeSingleton y                  = x == y
     TypeCarryfulTagConstructor x _ _    == TypeCarryfulTagConstructor y _ _ = x == y
@@ -89,7 +92,17 @@ instance Eq Type where
     TypeParam name1 _                   == TypeParam name2 _                = name1 == name2
     TypeUndefined                       == _                                = error "Cannot compare type of undefined"
     _                                   == TypeUndefined                    = error "Cannot compare type of undefined"
-    _                                   == _                                = False
+
+    -- record type is handled differently, because we want to have structural typing
+    -- NOTE: kts means "key-type pairs"
+    TypeRecord kts1 == TypeRecord kts2 = 
+        let removeSourcePos kts = map (\((_,key),t) -> (key, t)) kts in
+        let sortedKvs1 = sortOn fst (removeSourcePos kts1) in
+        let sortedKvs2 = sortOn fst (removeSourcePos kts2) in
+        sortedKvs1 == sortedKvs2
+
+    -- anything other pattern should be false
+    _ == _ = False
 
 data TypeConstraint
     = ConstraintAny
@@ -116,7 +129,7 @@ data Expr =
     Expr 
         Expr' 
         Type  -- type of this expr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Expr'
     = IntExpr   (SourcePos, Integer) 
@@ -162,9 +175,11 @@ data Expr'
 
     | RecordConstructor [(StringToken, Type)]
 
+    | RetrieveCarryExpr Expr
+
     | FFIJavascript StringToken
 
-    deriving (Show,Eq)
+    deriving (Show)
 
 
 class Identifiable a where

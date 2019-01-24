@@ -60,6 +60,7 @@ data KeliError
     | KErrorUnknownFFITarget Verified.StringToken
     | KErrorFFIValueShouldBeString Verified.Expr
     | KErrorExprIsNotATypeConstraint    Raw.Expr
+    | KErrorIncorrectMethodToRetrieveCarry Verified.StringToken
 
 
     deriving(Show)
