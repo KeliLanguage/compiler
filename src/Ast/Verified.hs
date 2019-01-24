@@ -60,7 +60,20 @@ data Type
         StringToken -- name
         [Type] -- type params
 
-    deriving (Show)
+instance Show Type where
+    show TypeFloat                              = "float"
+    show TypeInt                                = "int"
+    show TypeString                             = "str"
+    show (TypeRecord kvs)                       = show kvs
+    show (TypeTagUnion name _)                  = show name
+    show (TypeSingleton name)                   = show name
+    show (TypeUndefined)                        = "undefined"
+    show (TypeCarryfulTagConstructor name _ _)  = show name
+    show (TypeRecordConstructor kvs)            = show kvs
+    show (TypeParam name _)                     = show name
+    show TypeType                               = "type"
+    show (TypeCompound name params)             = show name ++ show params
+
 
 instance Eq Type where
     TypeFloat                           == TypeFloat                        = True
@@ -73,8 +86,7 @@ instance Eq Type where
     TypeRecordConstructor kvs1          == TypeRecordConstructor kvs2       = kvs1 == kvs2
     TypeType                            == TypeType                         = True
     TypeCompound name1 params1          == TypeCompound name2 params2       = name1 == name2 && params1 == params2
-    TypeParam _ _                       == _                                = undefined -- not sure how to check for equality of type param yet
-    _                                   == TypeParam _ _                    = undefined
+    TypeParam name1 _                   == TypeParam name2 _                = name1 == name2
     TypeUndefined                       == _                                = error "Cannot compare type of undefined"
     _                                   == TypeUndefined                    = error "Cannot compare type of undefined"
     _                                   == _                                = False

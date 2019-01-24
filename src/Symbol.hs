@@ -12,7 +12,7 @@ data KeliSymbol
     | KeliSymTag            Verified.Tag
     | KeliSymType           Verified.TypeAlias
     | KeliSymTypeParam      Raw.StringToken     Verified.TypeConstraint
-    | KeliSymTypeConstraint [Raw.StringToken]   Verified.TypeConstraint
+    | KeliSymTypeConstraint Raw.StringToken     Verified.TypeConstraint
     | KeliSymInlineExprs    [Verified.Expr] -- for storing expr from Raw.IdlessConst
     deriving(Show)
 
@@ -25,7 +25,7 @@ instance Verified.Identifiable KeliSymbol where
                 Verified.CarrylessTag x _   -> (snd x, [x])
                 Verified.CarryfulTag  x _ _ -> (snd x, [x])
         (KeliSymConst id _)           -> (snd id, [id])
-        (KeliSymTypeConstraint ids _) -> (concat (map snd ids), ids)
+        (KeliSymTypeConstraint id _) -> (snd id, [id])
         other -> error (show other)
     
 

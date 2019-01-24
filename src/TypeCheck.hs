@@ -61,6 +61,9 @@ typeCheckExpr symtab assumption e = case e of
             
             Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
+            
+            Just (KeliSymTypeParam id constraint) ->
+                Right (Second (V.TypeParam id constraint))
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -459,41 +462,24 @@ substituteGeneric' bindingTable type' =
 
 verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
 verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
-    -- case expr of
-    --     V.TypeUnverified expr ->
-    --         case expr of
-    --             (Raw.Id token@(_,id)) -> 
-    --                 case lookup id symtab of
-    --                     Just (KeliSymType constraint@(V.TypeConstraint{})) -> Right constraint
-    --                     Just (KeliSymType t)                                 -> Right t
-    --                     Just other                                           -> Left (KErrorExprIsNotAType expr) 
-    --                     Nothing                                              -> Left (KErrorUsingUndefinedId token)
-
-    --     t -> 
-    --         Right t
 
 verifyTypeConstraint :: KeliSymTab -> Raw.Expr -> Either KeliError V.TypeConstraint
-verifyTypeConstraint symtab type' = undefined
-    -- case type' of 
-    --     V.TypeAlias name aliasingType ->
-    --         let key = intercalate "$" (map snd name) in
-    --         case lookup key symtab of
-    --             Just (KeliSymType (V.TypeAlias _ constraint@(V.TypeConstraint{}))) -> Right constraint
-    --             Just other -> Left (KErrorNotATypeConstraint other)
-    --             Nothing    -> Left (KErrorUsingUndefinedType name)
-        
-    --     _ -> 
-    --         undefined
+verifyTypeConstraint symtab expr = 
+    case expr of
+        Raw.Id (_,name) ->
+            case lookup name symtab of
+                Just (KeliSymTypeConstraint _ constraint) -> 
+                    Right constraint
+                
+                _ ->
+                    Left (KErrorExprIsNotATypeConstraint expr)
+
+        _ ->
+            undefined
 
 typeCheckExprs :: KeliSymTab -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type V.Tag]
 typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) exprs
 
-
-getTypeWithoutResolvingAlias :: Raw.Expr -> V.Type
-getTypeWithoutResolvingAlias e = undefined 
--- case e of
---     V.TypeCheckedExpr _ t -> t
---     _ -> undefined
 
     
 -- Example

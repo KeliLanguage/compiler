@@ -1,8 +1,10 @@
-{a:any}
-x:a.id | a = x;
-this:int. ! |int=999;
+{a:any} x:a.id | a = x;
+
+x:int.returnSame |int = x;
+
 z=99;
-zz=z.id. !;
+=z.id.returnSame;
 
 ====
-hi
+
+99

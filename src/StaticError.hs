@@ -1,6 +1,7 @@
 module StaticError where 
 
 import qualified Ast.Verified as Verified
+import qualified Ast.Raw as Raw
 import Text.ParserCombinators.Parsec
 import Symbol
 
@@ -58,6 +59,7 @@ data KeliError
     | KErrorExpectedExprOrTypeButGotTag Verified.Tag
     | KErrorUnknownFFITarget Verified.StringToken
     | KErrorFFIValueShouldBeString Verified.Expr
+    | KErrorExprIsNotATypeConstraint    Raw.Expr
 
 
     deriving(Show)

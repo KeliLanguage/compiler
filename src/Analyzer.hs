@@ -112,7 +112,7 @@ analyzeDecl decl symtab = case decl of
                         other   -> error("Unkown primitive type: " ++ other)
                 else if id' == "_primitive_constraint" then
                     case snd id of
-                        "any" -> Right [KeliSymTypeConstraint [id] V.ConstraintAny]
+                        "any" -> Right [KeliSymTypeConstraint id V.ConstraintAny]
 
                         other -> error ("Unknown primitive constraint type: " ++ other)
                 else 
@@ -160,49 +160,38 @@ analyzeDecl decl symtab = case decl of
             let verifyParamType = 
                     (\tempSymtab params verify -> 
                         mapM
-                        (\(id, paramType) -> do 
-                            verifiedType <- verify tempSymtab paramType
-                            return (id, verifiedType)
-                        ) params
-                    )
-
-            let populateSymbolTable = (\tempSymtab params constructor -> 
-                    foldM ((\acc (id, expectedType) -> 
-                    let id' = snd id in
-                    if member id' acc then 
-                        Left (KErrorDuplicatedId [id])
-                    else 
-                        Right(
-                            let keyValue = (id', constructor id expectedType)
-                            in acc |> keyValue
-                                ))::KeliSymTab -> V.FuncDeclParam -> Either KeliError KeliSymTab)
-                    tempSymtab
-                    params)
+                            (\(id, paramType) -> do 
+                                verifiedType <- verify tempSymtab paramType
+                                return (id, verifiedType)) 
+                            params)
 
             -- 0.1 Verify annotated constraint of each generic param
             verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeConstraint
 
             -- 0.2 populate symbol table with generic type parameters
-            -- symtab2 <- 
-            --     populateSymbolTable 
-            --     symtab 
-            --     verifiedGenericParams
-            --     (\id paramType ->
-            --         case paramType of 
-            --             V.TypeConstraint constraint -> 
-            --                 KeliSymType (V.TypeParam id constraint)
-
-            --             _ -> undefined)
+            symtab2 <- 
+                foldM 
+                    (\acc (id, constraint) -> 
+                        if member (snd id) acc then
+                            Left (KErrorDuplicatedId [id])
+                        else 
+                            Right (acc |> (snd id, KeliSymTypeParam id constraint)))
+                    symtab 
+                    verifiedGenericParams
 
             -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <- verifyParamType symtab funcParams verifyType
+            verifiedFuncParams <- verifyParamType symtab2 funcParams verifyType
 
             -- 1.2 populate symbol table with function parameters
             symtab3 <- 
-                populateSymbolTable 
-                symtab 
+                foldM 
+                    (\acc (id, type') ->
+                        if member (snd id) acc then
+                            Left (KErrorDuplicatedId [id])
+                        else
+                            Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) type'))))
+                symtab2 
                 verifiedFuncParams
-                (\id expectedType -> KeliSymConst id (V.Expr (V.Id id) expectedType))
             
             -- 2. verify return type
             verifiedReturnType <- verifyType symtab3 returnType
