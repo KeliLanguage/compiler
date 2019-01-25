@@ -32,6 +32,7 @@ dependencies:
 - directory
 - strings
 - MissingH
+- optparse-applicative
 
 library:
   source-dirs: src

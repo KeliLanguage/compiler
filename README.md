@@ -3,6 +3,13 @@
 ## Namings
 Refer Glossary.md
 
+## How to run the binary?
+
+```
+stack build
+./.stack-work/install/x86_64-linux/lts-13.0/8.6.3/bin/keli-compiler-exe
+```
+
 ## How to setup this project?
 
 ```

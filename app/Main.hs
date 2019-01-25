@@ -5,4 +5,4 @@ import Repl
 import Cli
 
 main :: IO ()
-main = keliRepl
+main = cli
