@@ -1,3 +1,3 @@
-# Changelog for compiler-demo
+# Changelog for keli-compiler
 
 ## Unreleased changes

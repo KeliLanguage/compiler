@@ -1,23 +1,21 @@
 import Test.Hspec
-import Control.Exception (evaluate)
 import Parser
-import qualified Ast.Raw as Raw
 import Debug.Trace
-import Analyzer
-import Data.Either
-import StaticError
-import Keli
 import System.Directory
 import Control.Monad
 import Data.Strings
 import Data.List
 import Data.String.Utils
 
+import Interpreter
+
+testParseKeli :: String -> Expectation
 testParseKeli x = 
     (case (parseKeli x) of
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
+runTest :: IO ()
 runTest = do
     testSubjects <- listDirectory "./test/specs"
     testCases <- 
@@ -37,9 +35,9 @@ runTest = do
     -- find for test cases prefixed with ONLY:
     let specificTestCases = 
             filter 
-                (\(subject, files) -> length files > 0)
+                (\(_, files) -> length files > 0)
                 (map 
-                    (\(subject, files) -> (subject, filter (\(filename,contents) -> filename `strStartsWith` "ONLY:") files))
+                    (\(subject, files) -> (subject, filter (\(filename,_) -> filename `strStartsWith` "ONLY:") files))
                     testCases)
     
     if length specificTestCases > 0 then
@@ -62,15 +60,15 @@ runTest' testCases =
                                 let [code, expectedOutput] = split "====" contents in
                                 it filename $ do
                                     if '@' `elem` filename then do
-                                        result <- keli' code 
+                                        result <- keliInterpret code 
                                         case result of 
-                                            Right output ->
+                                            Right _ ->
                                                 error "No error is thrown"
                                             Left err ->
                                                 -- error (show err) -- Uncomment this line to show parse error
                                                 split " " (show err) !! 0 `shouldBe` strip expectedOutput
                                     else do
-                                        result <- keli' code
+                                        result <- keliInterpret code
                                         case result of
                                             Right output ->
                                                 strip output `shouldBe` strip expectedOutput
@@ -79,6 +77,7 @@ runTest' testCases =
                             else
                                 error $ "\n\n\tERROR at " ++ filename ++ " : Each test file needs to contain ====\n\n"))
 
+main :: IO ()
 main = runTest
 
 otherTest :: IO ()

@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-} -- for exhasutive pattern checking
 module Main where
 
-import Keli
+import Repl
+import Cli
 
 main :: IO ()
-main = print "hello world"
+main = keliRepl

@@ -8,6 +8,10 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import qualified Ast.Verified as Verified
 import Symbol
 
+keliTranspile :: [KeliSymbol] -> String
+keliTranspile symbols = (intercalate ";\n" (map transpile symbols)) ++ ";\n"
+
+
 class Transpilable a where
     transpile :: a -> String
 

@@ -16,8 +16,8 @@ import TypeCheck
 
 analyze :: [Raw.Decl] -> Either KeliError [KeliSymbol]
 analyze decls = do
-    finalSymtab        <- analyzeDecls decls
-    let analyzedSymbols = map snd (assocs finalSymtab)
+    (finalSymtab, _) <- analyzeDecls emptyKeliSymTab decls  
+    let analyzedSymbols = extractSymbols finalSymtab
 
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
@@ -33,20 +33,30 @@ analyze decls = do
             ) analyzedSymbols
     return sortedSymbols 
 
+extractSymbols :: KeliSymTab -> [KeliSymbol]
+extractSymbols symtab = map snd (assocs symtab)
 
-analyzeDecls :: [Raw.Decl] ->  Either KeliError KeliSymTab
-analyzeDecls decls = 
+analyzeDecls 
+    :: KeliSymTab -- previous symtab
+    -> [Raw.Decl] -- parsed input
+    ->  Either 
+            KeliError 
+            (KeliSymTab, [KeliSymbol]) -- (newSymtab, newSymbols)
+
+analyzeDecls symtab decls = 
     foldM
-    ((\symtab1 nextDecl1 -> do
+    ((\(symtab1, prevSymbols) nextDecl1 -> do
         analyzedSymbols <- analyzeDecl nextDecl1 symtab1
 
         -- insert analyzedSymbols into symtab
-        (foldM 
+        newSymtab <- (foldM 
             (\symtab2 analyzedSymbol -> insertSymbolIntoSymtab analyzedSymbol symtab2)
             symtab1
             analyzedSymbols)
-    )::KeliSymTab -> Raw.Decl -> Either KeliError KeliSymTab)
-    emptyKeliSymTab
+        
+        return (newSymtab, prevSymbols ++ analyzedSymbols)
+    )::(KeliSymTab, [KeliSymbol]) -> Raw.Decl -> Either KeliError (KeliSymTab, [KeliSymbol]))
+    (symtab, [])
     decls
 
 insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
