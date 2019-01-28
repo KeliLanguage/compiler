@@ -11,7 +11,7 @@ import Interpreter
 
 testParseKeli :: String -> Expectation
 testParseKeli x = 
-    (case (parseKeli x) of
+    (case (keliParse x) of
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 

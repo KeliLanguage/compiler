@@ -7,10 +7,12 @@
 
 - error reporting does not contain accurate location
 
-- define factorial function
+[x] define factorial function
 
-- js ffi
+[x] js ffi
 
-- problem: cannot map JS boolean to Keli boolean
+[] problem: cannot map JS boolean to Keli boolean
 
-- should check for duplciated IDS first before going into analyzing
+[] should check for duplciated IDS first before going into analyzing
+
+[] import base code when starting repl

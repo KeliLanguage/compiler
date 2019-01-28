@@ -133,7 +133,9 @@ analyzeDecl decl symtab = case decl of
 
         where 
             continueAnalyzeConstDecl = do
-                result <- typeCheckExpr symtab CanBeAnything expr
+                -- insert temporary types into symtab to allow declaraion of recursive types
+                let updatedSymtab = symtab |> (snd id, KeliSymType (V.TypeAlias [id] V.TypeSelf)) 
+                result <- typeCheckExpr updatedSymtab CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right [KeliSymConst id typeCheckedExpr]
@@ -146,11 +148,34 @@ analyzeDecl decl symtab = case decl of
                             tags' =
                                 map 
                                     (\x -> case x of
-                                        V.CarrylessTag tag _          -> (V.CarrylessTag tag tagUnionType)
-                                        V.CarryfulTag tag carryType _ -> (V.CarryfulTag tag carryType tagUnionType)) 
+                                        V.CarrylessTag tag _          -> 
+                                            (V.CarrylessTag tag tagUnionType)
+                                        V.CarryfulTag tag carryType _ -> 
+                                            let carryType' = substituteSelfType tagUnionType carryType in
+                                            (V.CarryfulTag tag carryType' tagUnionType)) 
                                     tags
                                     in
                             Right ([KeliSymType (V.TypeAlias [id] tagUnionType)] ++ (map KeliSymTag tags') :: [KeliSymbol])
+                        
+                        where 
+                            substituteSelfType :: V.Type -> V.Type -> V.Type
+                            substituteSelfType source target =
+                                case target of
+                                    V.TypeSelf ->
+                                        source
+                                    
+                                    V.TypeRecord propTypePairs ->
+                                        let updatedPropTypePairs = 
+                                                map 
+                                                    (\(prop, type') -> 
+                                                        (prop, substituteSelfType source type'))
+                                                    propTypePairs
+                                        in V.TypeRecord updatedPropTypePairs
+                                        
+
+                                    _ ->
+                                        target 
+ 
                         
                     -- other types
                     Second type' ->

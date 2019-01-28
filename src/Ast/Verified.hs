@@ -63,12 +63,14 @@ data Type
     | TypeIdentifiedCarryfulBranch
         Type -- carry type
 
+    | TypeSelf -- for defining recursive type
+
 instance Show Type where
     show TypeFloat                              = "float"
     show (TypeIdentifiedCarryfulBranch t)       = show t ++ " branch"
     show TypeInt                                = "int"
     show TypeString                             = "str"
-    show (TypeRecord kvs)                       = show kvs
+    show (TypeRecord kvs)                       = "record:" ++ show kvs
     show (TypeTagUnion name _)                  = show name
     show (TypeSingleton name)                   = show name
     show (TypeUndefined)                        = "undefined"
@@ -77,6 +79,7 @@ instance Show Type where
     show (TypeParam name _)                     = show name
     show TypeType                               = "type"
     show (TypeCompound name params)             = show name ++ show params
+    show TypeSelf                               = "$self"
 
 
 instance Eq Type where
