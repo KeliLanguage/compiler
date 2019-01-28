@@ -17,8 +17,8 @@ keliRead
 
 keliEval :: (KeliSymTab, String) -> String -> Either KeliError (IO String, (KeliSymTab, String))
 keliEval (prevSymtab, prevBytecode) input 
-    =   keliParse input         >>= 
-        analyzeDecls prevSymtab >>= \(newSymtab, symbols) ->
+    =   keliParse "<repl>" input >>= 
+        analyzeDecls prevSymtab  >>= \(newSymtab, symbols) ->
         let newBytecodeToBeExecuted = keliTranspile symbols in 
         
         let onlyDeclarationSymbols = filter (\s -> case s of KeliSymInlineExprs {} -> False; _ -> True) symbols in

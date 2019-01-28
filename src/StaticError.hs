@@ -1,12 +1,23 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 module StaticError where 
+
+import GHC.Generics
+import Data.Aeson
+
+import Text.ParserCombinators.Parsec
+import Text.Parsec.Error
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import qualified Ast.Verified as Verified
 import qualified Ast.Raw as Raw
-import Text.ParserCombinators.Parsec
 import Symbol
 
+
 data KeliError 
-    = KErrorParseError ParseError
+    = KErrorParseError SourcePos [Message]
     | KErrorDuplicatedId [Verified.StringToken]
     | KErrorDuplicatedProperties
     | KErrorDuplicatedTags [Verified.StringToken]
@@ -61,6 +72,55 @@ data KeliError
     | KErrorFFIValueShouldBeString Verified.Expr
     | KErrorExprIsNotATypeConstraint    Raw.Expr
     | KErrorIncorrectMethodToRetrieveCarry Verified.StringToken
-
-
     deriving(Show)
+
+instance Show Message where
+
+data DerivedKeliError = 
+    DerivedKeliError {
+        range       :: Range,
+        errorMessage:: String,
+        hintMessage :: String
+    }
+    deriving (Show, Generic)
+
+data Range = 
+    Range {
+        from :: Position,
+        to   :: Position
+    }
+    deriving (Show, Generic)
+
+data Position = 
+    Position {
+        line   :: Int,
+        column :: Int
+    }
+    deriving (Show, Generic)
+
+toPosition :: SourcePos -> Position
+toPosition sp = Position (sourceLine sp) (sourceColumn sp)
+
+deriveError :: KeliError -> [DerivedKeliError]
+deriveError err = case err of
+    KErrorParseError sp messages ->
+        let pos = toPosition sp in
+        let message = showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input" messages in
+        [DerivedKeliError (Range pos pos) message ""]
+    
+    KErrorDuplicatedId ids ->
+        map (\id -> DerivedKeliError (getRange id) "Duplicated identifier." "") ids
+
+class HaveRange a where
+    getRange :: a -> Range
+
+instance HaveRange Verified.StringToken where
+    getRange (sourcePos, str) = 
+        let from = toPosition sourcePos in
+        let to = from {column = column from + length str} in
+        Range from to 
+
+
+instance ToJSON DerivedKeliError where
+instance ToJSON Range where
+instance ToJSON Position where

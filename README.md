@@ -7,7 +7,7 @@ Refer Glossary.md
 
 ```
 stack build
-./.stack-work/install/x86_64-linux/lts-13.0/8.6.3/bin/keli-compiler-exe
+stack exec -- keli-compiler-exe [keli-compiler-args]
 ```
 
 ## How to setup this project?

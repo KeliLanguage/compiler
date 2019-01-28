@@ -33,6 +33,7 @@ dependencies:
 - strings
 - MissingH
 - optparse-applicative
+- aeson
 
 library:
   source-dirs: src

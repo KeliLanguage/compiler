@@ -9,11 +9,11 @@ getBaseCode :: IO String
 getBaseCode = readFile "./kelilib/base.keli"
 
 
-keliInterpret :: String -> IO (Either KeliError String)
-keliInterpret contents = do
+keliInterpret :: String -> String -> IO (Either KeliError String)
+keliInterpret filename contents = do
     baseCode <- getBaseCode
     -- baseCode is loaded automaticall by default
-    case (keliCompile $ baseCode ++ contents) of 
+    case (keliCompile filename $ baseCode ++ contents) of 
         Right code -> do 
             -- pPrint code
             output <- keliExecute code

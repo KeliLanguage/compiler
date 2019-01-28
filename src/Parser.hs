@@ -1,23 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parser where
 
+import Prelude hiding (id)
+
 import qualified Ast.Raw as Raw
 
 import Lexer
 
 import StaticError
-import System.IO
-import Control.Monad
-import Text.ParserCombinators.Parsec
-import Text.Parsec.Combinator
-import Text.Parsec.Char
+import Text.ParserCombinators.Parsec hiding (token)
 import Text.ParserCombinators.Parsec.Expr
-import Text.ParserCombinators.Parsec.Language
-import qualified Text.ParserCombinators.Parsec.Token as Token
-import qualified Data.Text as T
+import Text.ParserCombinators.Parsec.Error 
 import Data.List
-import Data.Maybe
-import Debug.Trace
 
 keliParser :: Parser [Raw.Decl]
 keliParser = whiteSpace >> keliDecl
@@ -111,7 +105,7 @@ keliAtomicExpr :: Parser Raw.Expr
 keliAtomicExpr 
     =  parens keliExpr
    <|> (getPosition >>= \pos -> number     >>= \n   -> return (Raw.NumberExpr (pos, n)))
-   <|> (getPosition >>= \pos -> keliFuncId >>= \id  -> return (Raw.Id id))
+   <|> (                        keliFuncId >>= \id  -> return (Raw.Id id))
    <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (Raw.StringExpr (pos, str)))
 
 keliFuncDecl :: Parser Raw.Decl
@@ -179,8 +173,8 @@ preprocess str = str
     -- let packed = T.pack str in
     -- T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
-keliParse :: String -> Either KeliError [Raw.Decl] 
-keliParse input = 
-    case parse keliParser "" (preprocess input) of
+keliParse :: String -> String -> Either KeliError [Raw.Decl] 
+keliParse filename input = 
+    case parse keliParser filename (preprocess input) of
         Right decls -> Right decls
-        Left err -> Left (KErrorParseError err)
+        Left parseError -> Left (KErrorParseError (errorPos parseError) (errorMessages parseError))
