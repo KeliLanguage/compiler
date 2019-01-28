@@ -8,8 +8,11 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
 
-nullStringToken :: (SourcePos, [Char])
+nullStringToken :: StringToken
 nullStringToken = (newPos "" (-1) (-1), "null")
+
+newStringToken :: String -> StringToken
+newStringToken value = (newPos "" (-1) (-1), value)
 
 data Decl 
     = ConstDecl Const

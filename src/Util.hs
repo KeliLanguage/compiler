@@ -12,7 +12,7 @@ data MatchResult
     | GotExcessive [Raw.StringToken] -- means there are extraneous elements in source
     | Missing [String]           -- means some elements in target is not matched
     | PerfectMatch               -- means all elements in source matches all elements in target
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- NOTE: 
 --  source also means actual elements
@@ -21,8 +21,8 @@ match :: [Raw.StringToken] -> [Raw.StringToken] -> MatchResult
 match source target =
     let source' = map snd source in
     let target' = map snd target in
-    let intersection = intersect source' target' in
-    let intersectionLength = length intersection in
+    let intersection' = intersect source' target' in
+    let intersectionLength = length intersection' in
     if length (nub source') /= length source' then
         GotDuplicates
     else if intersectionLength == 0 then

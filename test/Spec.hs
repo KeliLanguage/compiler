@@ -7,7 +7,9 @@ import Data.Strings
 import Data.List
 import Data.String.Utils
 
+import Util
 import Interpreter
+import Ast.Verified (newStringToken, StringToken)
 
 testParseKeli :: String -> Expectation
 testParseKeli x = 
@@ -80,8 +82,38 @@ runTest' testCases =
 main :: IO ()
 main = runTest
 
+targetTags :: [StringToken]
+targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]
+
 otherTest :: IO ()
 otherTest = hspec $ do
+    describe "match" $ do
+        it "got duplicate" $ do
+            let source = [newStringToken "a", newStringToken "a"]
+            match source targetTags `shouldBe` GotDuplicates
+
+        it "zero intersection" $ do
+            let source = [newStringToken "x", newStringToken "y"]
+            match source targetTags `shouldBe` ZeroIntersection
+
+        it "got excessive" $ do
+            let source = [
+                    newStringToken "a", 
+                    newStringToken "b",
+                    newStringToken "c",
+                    newStringToken "d" -- extra
+                    ]
+            match source targetTags `shouldBe` GotExcessive [newStringToken "d"]
+
+        it "missing" $ do
+            let source = [ newStringToken "a", newStringToken "b"]
+            match source targetTags `shouldBe` Missing ["c"]
+
+        it "perfect match" $ do
+            let source = [newStringToken "a", newStringToken "b", newStringToken "c"]
+            match source targetTags `shouldBe` PerfectMatch
+
+
     describe "keli parser" $ do
         it "identifiers" $ do
             testParseKeli "_=0;"
