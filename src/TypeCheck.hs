@@ -7,7 +7,7 @@ import Data.List hiding (lookup)
 import Data.Map.Ordered (OMap, (|>), lookup, fromList) 
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (fromJust)
 
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
@@ -59,12 +59,19 @@ typeCheckExpr symtab assumption e = case e of
                         (Right (Second t))
                     CanBeAnything ->
                         (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.TypeRecordConstructor propTypePairs))))
+
+            Just (KeliSymType (V.TypeAlias _ t@(V.TypeTagUnion name tags))) ->
+                case assumption of
+                    StrictlyAnalyzingType -> 
+                        (Right (Second t))
+                    CanBeAnything ->
+                        (Right (First (V.Expr (V.TagConstructorPrefix) (V.TypeTagConstructorPrefix name tags))))
             
             Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
             
-            Just (KeliSymTypeParam id constraint) ->
-                Right (Second (V.TypeParam id constraint))
+            Just (KeliSymImplicitTypeParam id' (V.TypeParam constraint)) ->
+                Right (Second (V.TypeTypeParam id' constraint))
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -368,8 +375,28 @@ typeCheckExpr symtab assumption e = case e of
                         else
                             Left (KErrorIncorrectMethodToRetrieveCarry (funcIds !! 0))
 
+
+                    -- (F) check if user is invoking tag constructor prefix
+                    V.TypeTagConstructorPrefix taggedUnionName tags ->
+                        if length funcIds == 1 then
+                            let tagname = head funcIds in
+                            case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
+                                Just (V.CarrylessTag tag belongingType) -> 
+                                    (Right (First (V.Expr (V.CarrylessTagConstructor tag) belongingType)))
+
+                                Just (V.CarryfulTag tag carryType belongingType) ->
+                                    (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.TypeCarryfulTagConstructor tag carryType belongingType))))
+
+                                Nothing ->
+                                    Left (KErrorTagNotFound tagname taggedUnionName tags)
+                        else
+                            Left (KErrorIncorrectUsageOfTagConstructorPrefix e)
+
+                    -- otherwise
                     _ ->
                         treatAsNormalFuncCall
+
+                    
             
             treatAsNormalFuncCall = do
                 params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
@@ -492,7 +519,7 @@ substituteGeneric bindingTable matchingFunc =
 substituteGeneric' :: GenericBindingTable -> V.Type -> V.Type
 substituteGeneric' bindingTable type' =
     case type' of
-        V.TypeParam (_,id) _ -> 
+        V.TypeTypeParam (_,id) _ -> 
             case lookup id bindingTable of 
                 Just (Just bindingType) -> bindingType
                 _ -> error "possibly due to binding table is not populated properly"
@@ -507,19 +534,25 @@ substituteGeneric' bindingTable type' =
 verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
 verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
 
-verifyTypeConstraint :: KeliSymTab -> Raw.Expr -> Either KeliError V.TypeConstraint
-verifyTypeConstraint symtab expr = 
-    case expr of
-        Raw.Id (_,name) ->
-            case lookup name symtab of
-                Just (KeliSymTypeConstraint _ constraint) -> 
-                    Right constraint
-                
-                _ ->
-                    Left (KErrorExprIsNotATypeConstraint expr)
-
+verifyTypeParam :: KeliSymTab -> Raw.Expr -> Either KeliError V.TypeParam
+verifyTypeParam symtab expr = do
+    result <- typeCheckExpr symtab StrictlyAnalyzingType expr
+    case result of
+        Second V.TypeType ->
+            Right (V.TypeParam Nothing)
         _ ->
-            undefined
+            Left (KErrorInvalidTypeParamDecl expr)
+    -- case expr of
+    --     Raw.Id (_,name) ->
+    --         case lookup name symtab of
+    --             Just (KeliSymTypeConstraint _ constraint) -> 
+    --                 Right constraint
+                
+    --             _ ->
+    --                 Left (KErrorExprIsNotATypeConstraint expr)
+
+    --     _ ->
+    --         undefined
 
 typeCheckExprs :: KeliSymTab -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type V.Tag]
 typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) exprs
@@ -540,14 +573,15 @@ type1 `haveShapeOf` type2 =
         
         _ -> 
             case type2 of
-                V.TypeParam _ _ -> 
+                V.TypeTypeParam _ _ -> 
                     True
                 
                 _ ->
                     type1 `V.typeEquals` type2
 
-hardConformsTo :: V.Type -> V.TypeConstraint -> Bool
-type' `hardConformsTo` constraint =
+hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
+type' `hardConformsTo` Nothing = True
+type' `hardConformsTo` (Just constraint) = 
     case constraint of
         V.ConstraintAny -> 
             True
@@ -558,7 +592,7 @@ data GenericParamLocation
     = GenericParamNotFound
     | GenericParamFoundAsSimpleType
         V.StringToken-- generic param name
-        V.TypeConstraint
+        (Maybe V.TypeConstraint)
 
     | GenericParamFoundAsCompoundType
         [(
@@ -573,7 +607,7 @@ whereAreGenericParams t = case t of
     V.TypeCompound _ _ -> undefined
 
     -- simple type
-    V.TypeParam id constraint -> GenericParamFoundAsSimpleType id constraint
+    V.TypeTypeParam id constraint -> GenericParamFoundAsSimpleType id constraint
 
     _ -> GenericParamNotFound
 
@@ -593,7 +627,7 @@ findCorrespondingType location actualType =
                 Right (CorrespondingTypeFound [(genericParamId, actualType)])
 
             else
-                Left (KErrorTypeNotConformingConstraint actualType constraint)
+                Left (KErrorTypeNotConformingConstraint actualType (fromJust constraint))
 
         GenericParamFoundAsCompoundType _ -> undefined
 

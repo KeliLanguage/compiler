@@ -2,7 +2,7 @@ x:int .plus y:int | int  = (ffi.javascript "_x + _y") : int;
 
 intlist = (_.tag nil).or(_.tag cons carry (record.current int next intlist));
 
-myList=cons.carry(record.current 1 next (cons.carry(record.current 2 next (cons.carry(record.current 3 next nil)))));
+myList=intlist.cons.carry(record.current 1 next (intlist.cons.carry(record.current 2 next (intlist.cons.carry(record.current 3 next (intlist.nil))))));
 
 
 this:intlist.length | int = 

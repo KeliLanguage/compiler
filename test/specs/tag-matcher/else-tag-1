@@ -1,7 +1,7 @@
 yesOrNo=_.tag ok.or(_.tag nope);
-a=ok;
+a=yesOrNo.ok;
 =a.ok? 2 else? 1;
-=nope.ok? 2 else? 1;
+=yesOrNo.nope.ok? 2 else? 1;
 
 ====
 

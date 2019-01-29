@@ -24,10 +24,10 @@ analyze decls = do
     let sortedSymbols = sortOn (
             \x -> case x of 
                 KeliSymTag _             -> 1
-                KeliSymFunc _            -> 2
-                KeliSymConst _ _         -> 3
-                KeliSymType _            -> 4
-                KeliSymTypeParam {}      -> 5
+                KeliSymType _            -> 2
+                KeliSymFunc _            -> 3
+                KeliSymConst _ _         -> 4
+                KeliSymImplicitTypeParam {}      -> 5
                 KeliSymTypeConstraint {} -> 6
                 KeliSymInlineExprs _     -> 7
             ) analyzedSymbols
@@ -46,15 +46,12 @@ analyzeDecls
 analyzeDecls symtab decls = 
     foldM
     ((\(symtab1, prevSymbols) nextDecl1 -> do
-        analyzedSymbols <- analyzeDecl nextDecl1 symtab1
+        analyzedSymbol <- analyzeDecl nextDecl1 symtab1
 
         -- insert analyzedSymbols into symtab
-        newSymtab <- (foldM 
-            (\symtab2 analyzedSymbol -> insertSymbolIntoSymtab analyzedSymbol symtab2)
-            symtab1
-            analyzedSymbols)
+        newSymtab <- insertSymbolIntoSymtab analyzedSymbol symtab1
         
-        return (newSymtab, prevSymbols ++ analyzedSymbols)
+        return (newSymtab, prevSymbols ++ [analyzedSymbol])
     )::(KeliSymTab, [KeliSymbol]) -> Raw.Decl -> Either KeliError (KeliSymTab, [KeliSymbol]))
     (symtab, [])
     decls
@@ -103,7 +100,7 @@ insertSymbolIntoSymtab symbol symtab =
             else 
                 Right (symtab |> (key, symbol))
 
-analyzeDecl :: Raw.Decl -> KeliSymTab -> Either KeliError [KeliSymbol]
+analyzeDecl :: Raw.Decl -> KeliSymTab -> Either KeliError KeliSymbol
 analyzeDecl decl symtab = case decl of
     Raw.ConstDecl Raw.Const {
         Raw.constDeclId=id,
@@ -112,17 +109,17 @@ analyzeDecl decl symtab = case decl of
         case expr of
             Raw.Id s@(_,id') -> 
                 if snd id == id' then 
-                    Right [KeliSymType (V.TypeAlias [s] (V.TypeSingleton s))]
+                    Right (KeliSymType (V.TypeAlias [s] (V.TypeSingleton s)))
                 else if id' == "_primitive_type" then
                     case snd id of
-                        "int"   -> Right [KeliSymType (V.TypeAlias [id] V.TypeInt)]
-                        "str"   -> Right [KeliSymType (V.TypeAlias [id] V.TypeString)]
-                        "float" -> Right [KeliSymType (V.TypeAlias [id] V.TypeFloat)]
-                        "type"  -> Right [KeliSymType (V.TypeAlias [id] V.TypeType)]
+                        "int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
+                        "str"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
+                        "float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
+                        "type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
                         other   -> error("Unkown primitive type: " ++ other)
                 else if id' == "_primitive_constraint" then
                     case snd id of
-                        "any" -> Right [KeliSymTypeConstraint id V.ConstraintAny]
+                        "any" -> Right (KeliSymTypeConstraint id V.ConstraintAny)
 
                         other -> error ("Unknown primitive constraint type: " ++ other)
                 else 
@@ -138,7 +135,7 @@ analyzeDecl decl symtab = case decl of
                 result <- typeCheckExpr updatedSymtab CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
-                        Right [KeliSymConst id typeCheckedExpr]
+                        Right (KeliSymConst id typeCheckedExpr)
 
                     -- if is tag union types, need to insert tags into symbol table
                     Second (V.TypeTagUnion _ tags) ->
@@ -155,34 +152,23 @@ analyzeDecl decl symtab = case decl of
                                             (V.CarryfulTag tag carryType' tagUnionType)) 
                                     tags
                                     in
-                            Right ([KeliSymType (V.TypeAlias [id] tagUnionType)] ++ (map KeliSymTag tags') :: [KeliSymbol])
-                        
-                        where 
-                            substituteSelfType :: V.Type -> V.Type -> V.Type
-                            substituteSelfType source target =
-                                case target of
-                                    V.TypeSelf ->
-                                        source
-                                    
-                                    V.TypeRecord propTypePairs ->
-                                        let updatedPropTypePairs = 
-                                                map 
-                                                    (\(prop, type') -> 
-                                                        (prop, substituteSelfType source type'))
-                                                    propTypePairs
-                                        in V.TypeRecord updatedPropTypePairs
-                                        
-
-                                    _ ->
-                                        target 
- 
+                            Right (KeliSymType (V.TypeAlias [id] tagUnionType))
                         
                     -- other types
                     Second type' ->
-                        Right [KeliSymType (V.TypeAlias [id] type')]
+                        Right (KeliSymType (V.TypeAlias [id] type'))
 
                     Third tag ->
-                        Right [KeliSymTag tag]
+                        let
+                            tagUnionType =(V.TypeTagUnion id [tag'])
+                            tag' = case tag of
+                                        V.CarrylessTag tagname _          -> 
+                                            (V.CarrylessTag tagname tagUnionType)
+                                        V.CarryfulTag tagname carryType _ -> 
+                                            let carryType' = substituteSelfType tagUnionType carryType in
+                                            (V.CarryfulTag tagname carryType' tagUnionType)
+                                in
+                            Right (KeliSymType (V.TypeAlias [id] tagUnionType))
 
 
     Raw.FuncDecl(Raw.Func {
@@ -200,17 +186,17 @@ analyzeDecl decl symtab = case decl of
                                 return (id, verifiedType)) 
                             params)
 
-            -- 0.1 Verify annotated constraint of each generic param
-            verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeConstraint
+            -- 0.1 Verify implicit type params
+            verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeParam
 
-            -- 0.2 populate symbol table with generic type parameters
+            -- 0.2 populate symbol table with implicit type params
             symtab2 <- 
                 foldM 
-                    (\acc (id, constraint) -> 
+                    (\acc (id, typeparam) -> 
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else 
-                            Right (acc |> (snd id, KeliSymTypeParam id constraint)))
+                            Right (acc |> (snd id, KeliSymImplicitTypeParam id typeparam)))
                     symtab 
                     verifiedGenericParams
 
@@ -234,11 +220,11 @@ analyzeDecl decl symtab = case decl of
 
             -- 3. check if user is declaring generic type (a.k.a type constructor)
             if verifiedReturnType `V.typeEquals` V.TypeType then
-                -- 3.1 make sure every param has the type of TypeConstraint
-                -- case find (\(_,paramType) -> not (case paramType of V.TypeConstraint _ -> True; _ -> False)) verifiedFuncParams of
-                --     Just p -> 
-                --         Left (KErrorInvalidTypeConstructorParam p)
-                --     Nothing ->
+                -- 3.1 make sure every param has the type of type
+                case find (\(_,paramType) -> not (case paramType of V.TypeType -> True; _ -> False)) verifiedFuncParams of
+                    Just p -> 
+                        Left (KErrorInvalidTypeConstructorParam p)
+                    Nothing ->
                         -- insert the name of this user-defined type into the symbol table, this is necessary for recursive types to be analyzed properly
                         let typeId = concat (map snd funcIds) in
                         undefined
@@ -272,14 +258,14 @@ analyzeDecl decl symtab = case decl of
                     First typeCheckedBody ->
                         let bodyType = getType typeCheckedBody in
                         let result' = Right 
-                                [KeliSymFunc 
+                                (KeliSymFunc 
                                     [V.Func {
                                         V.funcDeclIds = funcIds,
                                         V.funcDeclGenericParams = verifiedGenericParams,
                                         V.funcDeclBody = typeCheckedBody,
                                         V.funcDeclParams = verifiedFuncParams,
                                         V.funcDeclReturnType = verifiedReturnType
-                                    }]] in
+                                    }]) in
 
                         -- 4. ensure body type adheres to return type
                         if bodyType `V.typeEquals` verifiedReturnType then
@@ -295,7 +281,7 @@ analyzeDecl decl symtab = case decl of
         result <- typeCheckExpr symtab CanBeAnything expr
         case result of
             First checkedExpr ->
-                Right [KeliSymInlineExprs [checkedExpr]]
+                Right (KeliSymInlineExprs [checkedExpr])
 
             Second type' -> 
                 Left (KErrorCannotDeclareTypeAsAnonymousConstant type')
@@ -305,3 +291,21 @@ analyzeDecl decl symtab = case decl of
         
 
     other -> undefined
+
+substituteSelfType :: V.Type -> V.Type -> V.Type
+substituteSelfType source target =
+    case target of
+        V.TypeSelf ->
+            source
+        
+        V.TypeRecord propTypePairs ->
+            let updatedPropTypePairs = 
+                    map 
+                        (\(prop, type') -> 
+                            (prop, substituteSelfType source type'))
+                        propTypePairs
+            in V.TypeRecord updatedPropTypePairs
+            
+
+        _ ->
+            target 

@@ -1,5 +1,5 @@
 yesOrNo=_.tag yes.or(_.tag no);
-a=yes;
+a= yesOrNo.yes;
 b=a.yes? 2 no? 3 ok? 5;
 
 ====

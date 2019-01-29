@@ -11,7 +11,7 @@ data KeliSymbol
     | KeliSymConst          Raw.StringToken     Verified.Expr
     | KeliSymTag            Verified.Tag
     | KeliSymType           Verified.TypeAlias
-    | KeliSymTypeParam      Raw.StringToken     Verified.TypeConstraint
+    | KeliSymImplicitTypeParam Raw.StringToken Verified.TypeParam
     | KeliSymTypeConstraint Raw.StringToken     Verified.TypeConstraint
     | KeliSymInlineExprs    [Verified.Expr] -- for storing expr from Raw.IdlessConst
     deriving(Show)

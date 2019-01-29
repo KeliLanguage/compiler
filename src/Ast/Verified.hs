@@ -26,7 +26,7 @@ data Const = Const {
 } deriving (Show)
 
 type FuncDeclParam = (StringToken, Type)
-type FuncDeclConstraint = (StringToken, TypeConstraint)
+type FuncDeclConstraint = (StringToken, TypeParam)
 
 data Func = Func {
     funcDeclGenericParams :: [FuncDeclConstraint],
@@ -46,7 +46,7 @@ data Type
     | TypeString
     | TypeRecord [(StringToken, Type)]
     | TypeTagUnion 
-        StringToken --name
+        StringToken --name (name is compulsory, meaning that user cannot create anonymous tagged union)
         [Tag]       -- list of tags
 
     | TypeSingleton StringToken
@@ -57,7 +57,8 @@ data Type
         Type     -- belonging type
 
     | TypeRecordConstructor [(StringToken, Type)]
-    | TypeParam StringToken TypeConstraint
+    | TypeTagConstructorPrefix StringToken [Tag]
+    | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
     | TypeCompound 
         StringToken -- name
@@ -79,7 +80,7 @@ instance Show Type where
     show (TypeUndefined)                        = "undefined"
     show (TypeCarryfulTagConstructor name _ _)  = show name
     show (TypeRecordConstructor kvs)            = show kvs
-    show (TypeParam name _)                     = show name
+    show (TypeTypeParam name _)                     = show name
     show TypeType                               = "type"
     show (TypeCompound name params)             = show name ++ show params
     show TypeSelf                               = "$self"
@@ -95,7 +96,7 @@ instance Eq Type where
     TypeRecordConstructor kvs1          == TypeRecordConstructor kvs2       = kvs1 == kvs2
     TypeType                            == TypeType                         = True
     TypeCompound name1 params1          == TypeCompound name2 params2       = name1 == name2 && params1 == params2
-    TypeParam name1 _                   == TypeParam name2 _                = name1 == name2
+    TypeTypeParam name1 _               == TypeTypeParam name2 _            = name1 == name2
     TypeUndefined                       == _                                = error "Cannot compare type of undefined"
     _                                   == TypeUndefined                    = error "Cannot compare type of undefined"
 
@@ -114,6 +115,10 @@ data TypeConstraint
     = ConstraintAny
     deriving (Show, Eq)
 
+data TypeParam 
+    = TypeParam 
+        (Maybe TypeConstraint)  -- associated type constriant
+    deriving (Show)
 
 data Tag
     = CarrylessTag 
@@ -125,6 +130,10 @@ data Tag
         Type    -- carry type
         Type    -- beloging type
             deriving (Show)
+
+tagnameOf :: Tag -> StringToken
+tagnameOf (CarrylessTag t _) = t
+tagnameOf (CarryfulTag t _ _) = t
 
 instance Eq Tag where
     (CarrylessTag t1 _) == (CarrylessTag t2 _) = t1 == t2
@@ -180,6 +189,8 @@ data Expr'
         Expr        -- carry expr
 
     | RecordConstructor [(StringToken, Type)]
+
+    | TagConstructorPrefix
 
     | RetrieveCarryExpr Expr
 
@@ -246,7 +257,7 @@ stringifyType t = case t of
         TypeString -> "str"
         TypeRecord kvs ->  error (show kvs)
         TypeTagUnion name _ -> snd name 
-        TypeParam _ _ -> ""
+        TypeTypeParam _ _ -> ""
         TypeType -> "type"
         _ -> error (show t)
 

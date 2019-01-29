@@ -1,0 +1,17 @@
+comparable = constraint;
+
+{a:(type.thatis comparable)}
+this:a .moreThan that:a | bool = tobedefined;
+
+{a:(type.thatis comparable)}
+this:a .equals that:a | bool = tobedefined;
+
+{a:(type.thatis comparable)}
+this:a .lessThan that:a | bool = this.moreThan(that).not.and(this.equals(that).not);
+
+
+a:(type.thatis comparable).btree | type 
+    =  (_.tag leaf)
+    .or(_.tag node carry (record.current a left (a.btree) right (a.btree)));
+
+====

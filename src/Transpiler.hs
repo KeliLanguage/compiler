@@ -5,7 +5,7 @@ import Prelude hiding (id)
 import Data.List
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
-import qualified Ast.Verified as Verified
+import qualified Ast.Verified as V
 import Symbol
 
 keliTranspile :: [KeliSymbol] -> String
@@ -18,6 +18,15 @@ class Transpilable a where
 idPrefix :: String
 idPrefix = "_"
 
+instance Transpilable V.Tag where
+    transpile tag = case tag of 
+        V.CarrylessTag (_,id) _ -> 
+            idPrefix ++ id ++ ":({__tag:\"" ++ id ++ "\"})"
+
+        V.CarryfulTag (_,id) _ _ -> 
+            idPrefix ++ id ++ ":(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
+
+
 instance Transpilable KeliSymbol where
     transpile symbol = case symbol of
         KeliSymFunc fs ->
@@ -26,17 +35,14 @@ instance Transpilable KeliSymbol where
         KeliSymConst (_,id) expr ->
             "const " ++ idPrefix ++ id ++ "=" ++ transpile expr
 
+        KeliSymType (V.TypeAlias _ (V.TypeTagUnion (_,id) tags)) ->
+            "const " ++ idPrefix ++ id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+
         KeliSymType _ -> 
             ""
 
         KeliSymTypeConstraint {} ->
             ""
-
-        KeliSymTag (Verified.CarrylessTag (_,id) _) -> 
-            "const " ++ idPrefix ++ id ++ "=({__tag:\"" ++ id ++ "\"})"
-
-        KeliSymTag (Verified.CarryfulTag (_,id) _ _) -> 
-            "const " ++ idPrefix ++ id ++ "=(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
 
         KeliSymInlineExprs exprs -> 
             intercalate ";" (map (\x -> "console.log(" ++ transpile x ++ ")") exprs)
@@ -45,37 +51,51 @@ instance Transpilable KeliSymbol where
             error (show other)
 
 
-instance Transpilable Verified.Decl where
+instance Transpilable V.Decl where
     transpile x = case x of 
-        Verified.ConstDecl c  -> transpile c
-        Verified.IdlessDecl e -> transpile e
-        Verified.FuncDecl f   -> transpile f
+        V.ConstDecl c  -> transpile c
+        V.IdlessDecl e -> transpile e
+        V.FuncDecl f   -> transpile f
 
 
-instance Transpilable Verified.Func where
-    transpile f@(Verified.Func _ params _ _ body) 
+instance Transpilable V.Func where
+    transpile f@(V.Func _ params _ _ body) 
         = let params' = intercalate "," (map ((idPrefix ++ ) . snd . fst) params) in
-        "function " ++ fst (Verified.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
+        "function " ++ fst (V.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 
 
-instance Transpilable Verified.Const where
-    transpile (Verified.Const (_,id) expr)
+instance Transpilable V.Const where
+    transpile (V.Const (_,id) expr)
         = "const " ++ idPrefix ++ id ++ "=" ++ (transpile expr)
 
-instance Transpilable Verified.Expr where
-    transpile (Verified.Expr x _) = case x of 
-        Verified.IntExpr (_,value)                       -> show value
-        Verified.DoubleExpr (_, value)                   -> show value
-        Verified.StringExpr (_,value)                    -> show value
-        Verified.Id     (_,value)                        -> idPrefix ++ value
-        Verified.Lambda params body                      -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
-        Verified.Record kvs                              -> transpileKeyValuePairs False (kvs)
-        Verified.RecordGetter expr prop                  -> transpile expr ++ "." ++ snd prop
-        Verified.RecordSetter subject prop newValue      -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
-        Verified.CarryfulTagExpr (_,tag) carry           -> idPrefix ++ tag ++ "("++ transpile carry ++")"
-        Verified.CarrylessTagConstructor(_,tag)          -> idPrefix ++ tag
-        Verified.TagMatcher subject branches elseBranch        
+instance Transpilable V.Expr where
+    transpile expr = case expr of 
+        V.Expr(V.IntExpr (_,value)) _                       
+            -> show value
+
+        V.Expr(V.DoubleExpr (_, value)) _                   
+            -> show value
+
+        V.Expr(V.StringExpr (_,value)) _
+            -> show value
+
+        V.Expr(V.Id     (_,value)) _
+            -> idPrefix ++ value
+
+        V.Expr(V.Lambda params body) _                      
+            -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
+
+        V.Expr(V.Record kvs) _                              
+            -> transpileKeyValuePairs False (kvs)
+
+        V.Expr(V.RecordGetter expr prop) _                  
+            -> transpile expr ++ "." ++ snd prop
+
+        V.Expr(V.RecordSetter subject prop newValue) _      
+            -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
+
+        V.Expr(V.TagMatcher subject branches elseBranch) _
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
@@ -84,20 +104,28 @@ instance Transpilable Verified.Expr where
                     Just expr -> " || " ++ "(" ++ (lazify (transpile expr)) ++ ")"
                     Nothing   -> "") ++ ")()"
 
-        Verified.FuncCall params _ ref -> 
-            fst (Verified.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
+        V.Expr(V.FuncCall params _ ref) _ -> 
+            fst (V.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
 
-        Verified.FFIJavascript (_,code) ->
+        V.Expr(V.FFIJavascript (_,code)) _ ->
             code
 
-        Verified.RetrieveCarryExpr expr ->
+        V.Expr(V.RetrieveCarryExpr expr) _ ->
             "((" ++ transpile expr ++ ")._carry)"
 
-        other -> (error (show other))
+        V.Expr 
+            (V.CarryfulTagExpr (_,tag) carry)  
+            (V.TypeTagUnion (_,name) _)          
+                -> idPrefix ++ name ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
+
+        V.Expr 
+            (V.CarrylessTagConstructor(_,tag))
+            (V.TypeTagUnion (_,name) _)          
+                -> idPrefix ++ name ++ "." ++ idPrefix ++ tag
 
     
 
-transpileKeyValuePairs :: Bool -> [(Verified.StringToken, Verified.Expr)] -> String
+transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String
 transpileKeyValuePairs lazifyExpr kvs 
     = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" 
         ++ (if lazifyExpr then lazify (transpile expr) else (transpile expr))

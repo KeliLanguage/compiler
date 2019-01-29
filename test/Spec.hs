@@ -13,7 +13,7 @@ import Ast.Verified (newStringToken, StringToken)
 
 testParseKeli :: String -> Expectation
 testParseKeli x = 
-    (case (keliParse x) of
+    (case (keliParse "<test>" x) of
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
@@ -62,7 +62,7 @@ runTest' testCases =
                                 let [code, expectedOutput] = split "====" contents in
                                 it filename $ do
                                     if '@' `elem` filename then do
-                                        result <- keliInterpret code 
+                                        result <- keliInterpret filename code 
                                         case result of 
                                             Right _ ->
                                                 error "No error is thrown"
@@ -70,7 +70,7 @@ runTest' testCases =
                                                 -- error (show err) -- Uncomment this line to show parse error
                                                 split " " (show err) !! 0 `shouldBe` strip expectedOutput
                                     else do
-                                        result <- keliInterpret code
+                                        result <- keliInterpret filename code
                                         case result of
                                             Right output ->
                                                 strip output `shouldBe` strip expectedOutput

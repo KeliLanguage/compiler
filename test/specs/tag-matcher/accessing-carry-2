@@ -3,7 +3,7 @@ human =
     .or (_.tag baby carry (record.cuteness int))
     .or (_.tag worker carry (record.salary int));
 
-x=baby.carry(record.cuteness 2);
+x=human.baby.carry(record.cuteness 2);
 
 =x.boy? 0 baby? (x.carry.cuteness) worker? (x.carry.salary);
 

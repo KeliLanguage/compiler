@@ -15,9 +15,10 @@ import qualified Ast.Verified as Verified
 import qualified Ast.Raw as Raw
 import Symbol
 
+data Messages = Messages [Message]
 
 data KeliError 
-    = KErrorParseError SourcePos [Message]
+    = KErrorParseError SourcePos Messages
     | KErrorDuplicatedId [Verified.StringToken]
     | KErrorDuplicatedProperties
     | KErrorDuplicatedTags [Verified.StringToken]
@@ -72,9 +73,17 @@ data KeliError
     | KErrorFFIValueShouldBeString Verified.Expr
     | KErrorExprIsNotATypeConstraint    Raw.Expr
     | KErrorIncorrectMethodToRetrieveCarry Verified.StringToken
-    deriving(Show)
+    | KErrorInvalidTypeParamDecl Raw.Expr
+    | KErrorIncorrectUsageOfTagConstructorPrefix Raw.Expr
+    | KErrorTagNotFound 
+        Raw.StringToken -- tag that user wanted to use
+        Raw.StringToken -- name of the tagged union
+        [Verified.Tag]       -- list of possible tags
+    deriving (Show)
 
-instance Show Message where
+instance Show Messages where
+    show (Messages msgs) = showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input" msgs
+
 
 data DerivedKeliError = 
     DerivedKeliError {
@@ -105,8 +114,7 @@ deriveError :: KeliError -> [DerivedKeliError]
 deriveError err = case err of
     KErrorParseError sp messages ->
         let pos = toPosition sp in
-        let message = showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input" messages in
-        [DerivedKeliError (Range pos pos) message ""]
+        [DerivedKeliError (Range pos pos) (show messages) ""]
     
     KErrorDuplicatedId ids ->
         map (\id -> DerivedKeliError (getRange id) "Duplicated identifier." "") ids

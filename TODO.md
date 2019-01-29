@@ -11,8 +11,10 @@
 
 [x] js ffi
 
-[] problem: cannot map JS boolean to Keli boolean
+[x] problem: cannot map JS boolean to Keli boolean
 
 [] should check for duplciated IDS first before going into analyzing
 
 [] import base code when starting repl
+
+[] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`

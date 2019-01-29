@@ -177,4 +177,4 @@ keliParse :: String -> String -> Either KeliError [Raw.Decl]
 keliParse filename input = 
     case parse keliParser filename (preprocess input) of
         Right decls -> Right decls
-        Left parseError -> Left (KErrorParseError (errorPos parseError) (errorMessages parseError))
+        Left parseError -> Left (KErrorParseError (errorPos parseError) (Messages (errorMessages parseError)))
