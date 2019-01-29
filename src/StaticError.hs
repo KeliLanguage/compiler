@@ -4,8 +4,6 @@
 
 module StaticError where 
 
-import GHC.Generics
-import Data.Aeson
 
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Error
@@ -20,7 +18,7 @@ data Messages = Messages [Message]
 data KeliError 
     = KErrorParseError SourcePos Messages
     | KErrorDuplicatedId [Verified.StringToken]
-    | KErrorDuplicatedProperties
+    | KErrorDuplicatedProperties [Verified.StringToken]
     | KErrorDuplicatedTags [Verified.StringToken]
     | KErrorExcessiveTags [Verified.StringToken]
     | KErrorExcessiveProperties [Verified.StringToken]
@@ -85,50 +83,4 @@ instance Show Messages where
     show (Messages msgs) = showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input" msgs
 
 
-data DerivedKeliError = 
-    DerivedKeliError {
-        range       :: Range,
-        errorMessage:: String,
-        hintMessage :: String
-    }
-    deriving (Show, Generic)
 
-data Range = 
-    Range {
-        from :: Position,
-        to   :: Position
-    }
-    deriving (Show, Generic)
-
-data Position = 
-    Position {
-        line   :: Int,
-        column :: Int
-    }
-    deriving (Show, Generic)
-
-toPosition :: SourcePos -> Position
-toPosition sp = Position (sourceLine sp) (sourceColumn sp)
-
-deriveError :: KeliError -> [DerivedKeliError]
-deriveError err = case err of
-    KErrorParseError sp messages ->
-        let pos = toPosition sp in
-        [DerivedKeliError (Range pos pos) (show messages) ""]
-    
-    KErrorDuplicatedId ids ->
-        map (\id -> DerivedKeliError (getRange id) "Duplicated identifier." "") ids
-
-class HaveRange a where
-    getRange :: a -> Range
-
-instance HaveRange Verified.StringToken where
-    getRange (sourcePos, str) = 
-        let from = toPosition sourcePos in
-        let to = from {column = column from + length str} in
-        Range from to 
-
-
-instance ToJSON DerivedKeliError where
-instance ToJSON Range where
-instance ToJSON Position where

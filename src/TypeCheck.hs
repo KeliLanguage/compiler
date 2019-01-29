@@ -154,13 +154,17 @@ typeCheckExpr symtab assumption e = case e of
                                 let keys = funcIds
                                 case firstValue of
                                     -- assume user want to create a record value
-                                    First _ -> do
-                                        typeCheckedExprs <- typeCheckExprs symtab CanBeAnything (tail params') >>= mapM extractExpr
-                                        Right 
-                                            (First
-                                                (V.Expr
-                                                    (V.Record (zip keys typeCheckedExprs)) 
-                                                    (V.TypeRecord (zip keys (map getType typeCheckedExprs)))))
+                                    First _ -> 
+                                        case findDuplicates keys of
+                                            Just duplicates ->
+                                                Left (KErrorDuplicatedProperties duplicates)
+                                            Nothing -> do
+                                                typeCheckedExprs <- typeCheckExprs symtab CanBeAnything (tail params') >>= mapM extractExpr
+                                                Right 
+                                                    (First
+                                                        (V.Expr
+                                                            (V.Record (zip keys typeCheckedExprs)) 
+                                                            (V.TypeRecord (zip keys (map getType typeCheckedExprs)))))
                                     
                                     -- assume user want to declare a record type
                                     Second _ -> do
@@ -203,8 +207,8 @@ typeCheckExpr symtab assumption e = case e of
                         let expectedProps = map fst expectedPropTypePairs
                         let actualProps = funcIds 
                         case match actualProps expectedProps of
-                            GotDuplicates ->
-                                Left KErrorDuplicatedProperties
+                            GotDuplicates duplicates ->
+                                Left (KErrorDuplicatedProperties duplicates)
 
                             ZeroIntersection ->
                                 treatAsNormalFuncCall
@@ -261,8 +265,8 @@ typeCheckExpr symtab assumption e = case e of
 
                         -- check if there are errors in the tags
                         case match funcIds tagsWithQuestionMark of
-                            GotDuplicates -> 
-                                Left (KErrorDuplicatedTags funcIds)
+                            GotDuplicates duplicates -> 
+                                Left (KErrorDuplicatedTags duplicates)
 
                             ZeroIntersection -> 
                                 treatAsNormalFuncCall

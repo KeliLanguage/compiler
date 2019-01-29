@@ -9,7 +9,7 @@ import Interpreter
 import Repl
 import Parser(keliParse)
 import Analyzer(analyze)
-import StaticError(deriveError)
+import Diagnostics(toDiagnostic)
 
 
 
@@ -69,9 +69,9 @@ handleCliInput input =
             contents <- readFile filename
             case keliParse filename contents >>= analyze of
                 Right _ ->
-                    print ""
+                    print "[]"
                 Left err ->
-                    print (encode (deriveError err))
+                    print (encode (toDiagnostic err))
 
 
 

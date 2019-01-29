@@ -14,6 +14,8 @@ nullStringToken = (newPos "" (-1) (-1), "null")
 newStringToken :: String -> StringToken
 newStringToken value = (newPos "" (-1) (-1), value)
 
+newStringToken' :: (Int,Int,String) -> StringToken
+newStringToken' (line,col,value) = (newPos "" line col, value)
 data Decl 
     = ConstDecl Const
     | FuncDecl Func

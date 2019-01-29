@@ -9,7 +9,7 @@ import Data.String.Utils
 
 import Util
 import Interpreter
-import Ast.Verified (newStringToken, StringToken)
+import Ast.Verified (newStringToken, newStringToken', StringToken)
 
 testParseKeli :: String -> Expectation
 testParseKeli x = 
@@ -41,6 +41,8 @@ runTest = do
                 (map 
                     (\(subject, files) -> (subject, filter (\(filename,_) -> filename `strStartsWith` "ONLY:") files))
                     testCases)
+
+    otherTest
     
     if length specificTestCases > 0 then
         runTest' specificTestCases
@@ -48,7 +50,6 @@ runTest = do
         runTest' testCases
 
     
-    -- otherTest
     
 runTest' :: [(String, [(String,String)])] -> IO ()
 runTest' testCases = 
@@ -89,8 +90,13 @@ otherTest :: IO ()
 otherTest = hspec $ do
     describe "match" $ do
         it "got duplicate" $ do
-            let source = [newStringToken "a", newStringToken "a"]
-            match source targetTags `shouldBe` GotDuplicates
+            let source = [
+                    newStringToken' (0,0,"a"),
+                    newStringToken' (1,1,"b"), 
+                    newStringToken' (2,2,"c"), 
+                    newStringToken' (3,3,"a")
+                    ]
+            match source targetTags `shouldBe` GotDuplicates [newStringToken' (0,0,"a"),newStringToken' (3,3,"a")]
 
         it "zero intersection" $ do
             let source = [newStringToken "x", newStringToken "y"]
