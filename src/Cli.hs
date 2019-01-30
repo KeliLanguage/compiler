@@ -4,12 +4,15 @@ module Cli where
 import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
+import qualified Data.ByteString.Lazy.Char8 as Char8
 
 import Interpreter
 import Repl
 import Parser(keliParse)
-import Analyzer(analyze)
+import Analyzer(analyze, analyzeDecls)
 import Diagnostics(toDiagnostic)
+import Symbol(emptyKeliSymTab)
+import CompletionItems
 
 
 
@@ -18,6 +21,7 @@ data CliInput
     = Execute String 
     | Interactive Bool
     | Analyze String 
+    | Suggest String
     deriving (Show)
 
 parseExecute :: Parser CliInput
@@ -43,8 +47,20 @@ parseAnalyze = Analyze
             <> metavar "FILENAME"
             <> help "Analyze a Keli program (*.keli) and display error as JSON." )
 
+parseSuggest :: Parser CliInput
+parseSuggest = Suggest
+        <$> strOption
+            (  long "suggest"
+            <> short 's'
+            <> metavar "FILENAME"
+            <> help "Analyze a Keli program (*.keli) and display completion items." )
+
 allParser :: Parser CliInput
-allParser = parseExecute <|> parseInteractive <|> parseAnalyze 
+allParser 
+    =   parseExecute 
+    <|> parseInteractive 
+    <|> parseAnalyze 
+    <|> parseSuggest
 
 cli :: IO ()
 cli = handleCliInput =<< execParser opts
@@ -69,9 +85,24 @@ handleCliInput input =
             contents <- readFile filename
             case keliParse filename contents >>= analyze of
                 Right _ ->
-                    print "[]"
+                    putStr "[]"
                 Left errs ->
-                    print (encode (concat (map toDiagnostic errs)))
+                    putStr (Char8.unpack (encode (concat (map toDiagnostic errs))))
+
+        Suggest filename -> do
+            contents <- readFile filename
+            case keliParse filename contents of
+                Right ast ->
+                    let (_,_,symbols) = analyzeDecls emptyKeliSymTab ast in
+                    let completionItems = map toCompletionItem symbols in
+                    putStr (Char8.unpack (encode (concat completionItems)))
+
+                Left errs ->
+                    putStr "[]"
+ 
+
+        
+
 
 
 

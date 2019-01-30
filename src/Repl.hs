@@ -8,6 +8,7 @@ import Symbol
 import Interpreter
 import StaticError
 import Transpiler
+import qualified Ast.Raw as Raw
 
 keliRead :: IO String
 keliRead 
@@ -18,14 +19,24 @@ keliRead
 keliEval :: (KeliSymTab, String) -> String -> Either [KeliError] (IO String, (KeliSymTab, String))
 keliEval (prevSymtab, prevBytecode) input 
     =   keliParse "<repl>" input >>= 
-        analyzeDecls prevSymtab  >>= \(newSymtab, symbols) ->
+        analyzeDecls' prevSymtab  >>= \(newSymtab, symbols) ->
         let newBytecodeToBeExecuted = keliTranspile symbols in 
         
         let onlyDeclarationSymbols = filter (\s -> case s of KeliSymInlineExprs {} -> False; _ -> True) symbols in
         let newByteCodeToBePassFoward = keliTranspile onlyDeclarationSymbols in
         Right (keliExecute (prevBytecode ++ newBytecodeToBeExecuted), (newSymtab, newByteCodeToBePassFoward))
         
-        
+    where 
+        analyzeDecls' 
+            :: KeliSymTab -- previous symtab
+            -> [Raw.Decl] -- parsed input
+            -> Either [KeliError] (KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
+        analyzeDecls' symtab decls = 
+            let (errors, symtab', symbols') = analyzeDecls symtab decls in
+            if length errors > 0 then
+                Left errors
+            else 
+                Right (symtab', symbols')
         
 
 keliPrint :: String -> IO ()

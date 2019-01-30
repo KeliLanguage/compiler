@@ -16,9 +16,9 @@ import TypeCheck
 import Util
 
 analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
-analyze decls = do
-    (finalSymtab, _) <- analyzeDecls emptyKeliSymTab decls 
-    let analyzedSymbols = extractSymbols finalSymtab 
+analyze decls = 
+    let (errors, finalSymtab, _) = analyzeDecls emptyKeliSymTab decls in
+    let analyzedSymbols = extractSymbols finalSymtab in
 
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
@@ -31,9 +31,12 @@ analyze decls = do
                 KeliSymImplicitTypeParam {}      -> 5
                 KeliSymTypeConstraint {} -> 6
                 KeliSymInlineExprs _     -> 7
-            ) analyzedSymbols 
+            ) analyzedSymbols in
 
-    Right sortedSymbols
+    if length errors > 0 then
+        Left errors
+    else
+        Right sortedSymbols
 
 extractSymbols :: KeliSymTab -> [KeliSymbol]
 extractSymbols symtab = map snd (assocs symtab)
@@ -41,7 +44,7 @@ extractSymbols symtab = map snd (assocs symtab)
 analyzeDecls 
     :: KeliSymTab -- previous symtab
     -> [Raw.Decl] -- parsed input
-    -> Either [KeliError] (KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
+    -> ([KeliError], KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
 
 analyzeDecls symtab decls = 
     let (finalErrors, finalSymtab, finalSymbols) = 
@@ -62,10 +65,7 @@ analyzeDecls symtab decls =
             )::([KeliError], KeliSymTab, [KeliSymbol]) -> Raw.Decl -> ([KeliError],KeliSymTab, [KeliSymbol]))
             ([], symtab, [])
             decls in
-    if length finalErrors > 0 then
-        Left finalErrors
-    else 
-        Right (finalSymtab, finalSymbols)
+    (finalErrors, finalSymtab, finalSymbols)
 
 insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
 insertSymbolIntoSymtab symbol symtab =
