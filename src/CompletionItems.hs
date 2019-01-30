@@ -12,7 +12,6 @@ import qualified Ast.Verified as V
 -- The interface is based on CompletionItem described in https://microsoft.github.io/language-server-protocol/specification
 
 data CompletionItem = CompletionItem {
-    label  :: String,
     kind   :: Int
     {-
         export declare namespace CompletionItemKind {
@@ -42,7 +41,9 @@ data CompletionItem = CompletionItem {
             const Operator: 24;
             const TypeParameter: 25;
         }
-    -}
+    -},
+    label  :: String,
+    detail:: String
 } deriving (Show, Generic)
 
 instance ToJSON CompletionItem where
@@ -51,17 +52,44 @@ toCompletionItem :: KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
         KeliSymConst (_, id) _ -> 
-            [CompletionItem id 6]
+            [CompletionItem  6 id  ""]
         
         KeliSymType (V.TypeAlias ids _) ->
-            [CompletionItem (intercalate " " (map snd ids)) 8]
+            [CompletionItem 8 (intercalate " " (map snd ids)) ""]
         
         KeliSymFunc funcs -> 
             map 
                 (\f -> 
-                    let ids = V.funcDeclIds f in
-                    CompletionItem (intercalate " " (map snd ids)) 3
+                    let ids = V.funcDeclIds f in 
+                    CompletionItem 3
+                        (let signature = (intercalate "() " (map snd ids)) in
+                         if length (V.funcDeclParams f) > 1 then 
+                            signature ++ "()"
+                         else
+                            signature)
+                        (rebuildSignature f)
                 ) 
                 funcs
         _ -> 
             []
+
+
+rebuildSignature :: V.Func -> String 
+rebuildSignature (V.Func genparams params funcIds returnType _) = 
+    let 
+        front = stringifyFuncParam (head params) ++ "." 
+        back = " | " ++ V.stringifyType returnType 
+    in
+    if length funcIds == 1 && length params == 1 then
+        front ++ snd (head funcIds) ++ back 
+    else
+        front ++ intercalate " " (map (\(funcId, param) -> snd funcId ++ stringifyFuncParam param) (zip funcIds (tail params))) ++ back
+
+
+
+stringifyFuncParam :: V.FuncDeclParam -> String
+stringifyFuncParam ((_,paramName), paramType) = 
+    bracketize (paramName ++ ":" ++ V.stringifyType paramType)
+    
+bracketize :: String -> String
+bracketize str = "(" ++ str ++ ")"
