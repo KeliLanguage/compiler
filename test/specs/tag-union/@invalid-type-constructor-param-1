@@ -1,4 +1,4 @@
-a:int .hey | type = undefined;
+(a int) .hey | type = undefined;
 
 ====
 

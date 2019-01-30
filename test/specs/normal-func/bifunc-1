@@ -1,4 +1,4 @@
-x:int.+y:int|int=123;
+(x int).+(y int)|int=123;
 =1 .+ 3;
 
 

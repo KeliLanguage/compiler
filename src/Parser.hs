@@ -145,7 +145,7 @@ unpackMaybe Nothing  = []
 braces  = between (symbol "{") (symbol "}")
 keliGenericParams :: Parser (Maybe [Raw.FuncDeclConstraint])
 keliGenericParams 
-    =  optionMaybe $ braces $ many1 (keliFuncDeclParam >>= \param ->  return param)
+    =  optionMaybe $ many1 $ (braces keliFuncDeclParam' >>= \param ->  return param)
 
 
 keliIdParamPair = 
@@ -161,10 +161,13 @@ keliFuncId =
     ->  return (pos, id)
 
 keliFuncDeclParam ::Parser (Raw.StringToken, Raw.Expr)
-keliFuncDeclParam 
-    =  keliFuncId     >>= \id
-    -> reservedOp ":" >>= \_
-    -> keliAtomicExpr >>= \typeExpr
+keliFuncDeclParam = parens keliFuncDeclParam'
+
+keliFuncDeclParam' ::Parser (Raw.StringToken, Raw.Expr)
+keliFuncDeclParam' 
+    =  
+       keliFuncId     >>= \id
+    -> keliExpr       >>= \typeExpr
     -> return (id, typeExpr)
 
 preprocess :: String -> String

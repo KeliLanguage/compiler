@@ -1,6 +1,6 @@
 fruit = record. name str;
 
-this:str.asFruit | fruit = fruit.name this;
+(this str).asFruit | fruit = fruit.name this;
 
 ="pineapple".asFruit;
 

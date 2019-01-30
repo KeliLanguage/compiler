@@ -89,7 +89,7 @@ rebuildSignature (V.Func genparams params funcIds returnType _) =
 
 stringifyFuncParam :: V.FuncDeclParam -> String
 stringifyFuncParam ((_,paramName), paramType) = 
-    bracketize (paramName ++ ":" ++ V.stringifyType paramType)
+    bracketize (paramName ++ " " ++ V.stringifyType paramType)
     
 bracketize :: String -> String
 bracketize str = "(" ++ str ++ ")"

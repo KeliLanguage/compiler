@@ -1,4 +1,4 @@
-this:int .+ that:int | int = (ffi.javascript "_this + _that") : int ;
+(this int).+(that int) | int = (ffi.javascript "_this + _that") : int ;
 
 = 1 .+ 2;
 

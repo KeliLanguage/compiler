@@ -1,5 +1,5 @@
-x:str.bom|str="yoyo";
-x:int.bom|int=999;
+(x str).bom|str="yoyo";
+(x int).bom|int=999;
 =1 .bom;
 ="1".bom;
 
