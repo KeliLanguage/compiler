@@ -8,7 +8,7 @@ import Parser
 import Transpiler
 
 
-keliCompile :: String -> String -> Either KeliError String
+keliCompile :: String -> String -> Either [KeliError] String
 keliCompile filename input
     =   keliParse filename input
     >>= analyze 

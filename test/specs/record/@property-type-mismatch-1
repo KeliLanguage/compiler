@@ -4,4 +4,4 @@ x = people.name 123 age 9;
 
 ====
 
-KErrorPropretyTypeMismatch
+KErrorPropertyTypeMismatch

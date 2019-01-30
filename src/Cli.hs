@@ -70,8 +70,8 @@ handleCliInput input =
             case keliParse filename contents >>= analyze of
                 Right _ ->
                     print "[]"
-                Left err ->
-                    print (encode (toDiagnostic err))
+                Left errs ->
+                    print (encode (concat (map toDiagnostic errs)))
 
 
 

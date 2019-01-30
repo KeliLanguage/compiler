@@ -173,8 +173,8 @@ preprocess str = str
     -- let packed = T.pack str in
     -- T.unpack (T.replace "\n\n" "\n;;;\n" packed)
 
-keliParse :: String -> String -> Either KeliError [Raw.Decl] 
+keliParse :: String -> String -> Either [KeliError] [Raw.Decl] 
 keliParse filename input = 
     case parse keliParser filename (preprocess input) of
         Right decls -> Right decls
-        Left parseError -> Left (KErrorParseError (errorPos parseError) (Messages (errorMessages parseError)))
+        Left parseError -> Left [KErrorParseError (errorPos parseError) (Messages (errorMessages parseError))]

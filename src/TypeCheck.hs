@@ -104,9 +104,9 @@ typeCheckExpr symtab assumption e = case e of
                         -- 1. Check if user wants to create a tag
                         "_" ->
                             case funcIds !! 0 of 
-                            (pos,"tag") ->
+                            tagToken@(pos,"tag") ->
                                 if length params' < 2 then
-                                    Left (KErrorIncorrectUsageOfTag pos)
+                                    Left (KErrorIncorrectUsageOfTag tagToken)
                                 else
                                     case params' !! 1 of
                                         Raw.Id tag ->
@@ -116,7 +116,7 @@ typeCheckExpr symtab assumption e = case e of
 
                                             else if snd (funcIds !! 1) == "carry" then do -- carryful tag
                                                 if length params' < 3 then
-                                                    Left (KErrorIncorrectUsageOfTag pos)
+                                                    Left (KErrorIncorrectUsageOfTag tagToken)
                                                 else do
                                                     thirdParam <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 2)
                                                     case thirdParam of
@@ -124,12 +124,12 @@ typeCheckExpr symtab assumption e = case e of
                                                             Right (Third (V.CarryfulTag tag carryType V.TypeUndefined))
                                                         
                                                         _ ->
-                                                            Left (KErrorIncorrectUsageOfTag pos)
+                                                            Left (KErrorIncorrectUsageOfTag tagToken)
                                             else
-                                                Left (KErrorIncorrectUsageOfTag pos)
+                                                Left (KErrorIncorrectUsageOfTag tagToken)
                                         
                                         _ ->
-                                            Left (KErrorIncorrectUsageOfTag pos)
+                                            Left (KErrorIncorrectUsageOfTag tagToken)
                             _ ->
                                 continuePreprocessFuncCall
 
@@ -177,7 +177,7 @@ typeCheckExpr symtab assumption e = case e of
                         -- 3. check if user is using javascript ffi
                         "ffi" ->
                             if length funcIds /= 1 || length params' /= 2 then
-                                Left (KErrorIncorrectUsageOfFFI (fst firstParamToken))
+                                Left (KErrorIncorrectUsageOfFFI firstParamToken)
                             else if snd (funcIds !! 0) /= "javascript" then
                                 Left (KErrorUnknownFFITarget (funcIds !! 0))
                             else do
@@ -217,7 +217,7 @@ typeCheckExpr symtab assumption e = case e of
                                 Left (KErrorExcessiveProperties excessiveProps)
                             
                             Missing missingProps ->
-                                Left (KErrorMissingProperties missingProps)
+                                Left (KErrorMissingProperties firstParam missingProps)
                             
                             PerfectMatch ->  do
                                 values  <- typeCheckExprs symtab assumption (tail params') >>= mapM extractExpr 
@@ -233,7 +233,7 @@ typeCheckExpr symtab assumption e = case e of
                                     ) (zip expectedPropTypePairs' actualPropValuePairs) of
 
                                     Just (expected, actual) -> 
-                                        Left (KErrorPropretyTypeMismatch (fst expected) (snd expected) (snd actual))
+                                        Left (KErrorPropertyTypeMismatch (fst expected) (snd expected) (snd actual))
                                     Nothing -> 
                                         Right (First (V.Expr (V.Record actualPropValuePairs) (V.TypeRecord expectedPropTypePairs')))
 
@@ -253,7 +253,7 @@ typeCheckExpr symtab assumption e = case e of
                         
                     
                     -- (C) check if user is calling tag matchers
-                    V.TypeTagUnion _ expectedTags -> do
+                    V.TypeTagUnion name expectedTags -> do
                         let subject = firstParam 
                         let tagsWithQuestionMark = map 
                                 (\(pos,id) -> (pos,id ++ "?")) 
@@ -272,7 +272,7 @@ typeCheckExpr symtab assumption e = case e of
                                 treatAsNormalFuncCall
                             
                             GotExcessive excessiveCases ->
-                                Left (KErrorExcessiveTags excessiveCases)
+                                Left (KErrorExcessiveTags excessiveCases name)
                             
                             Missing cases -> do
                                 tagBranches <- getTagBranches subject
@@ -293,7 +293,7 @@ typeCheckExpr symtab assumption e = case e of
 
 
                                 else -- missing tags
-                                    Left (KErrorMissingTags cases)
+                                    Left (KErrorMissingTags subject cases)
 
                             PerfectMatch -> do
                                 tagBranches <- getTagBranches subject
@@ -365,7 +365,7 @@ typeCheckExpr symtab assumption e = case e of
                                                     (V.Expr 
                                                         (V.RecordSetter subject propertyName newValue) recordType))
                                         else
-                                            Left (KErrorWrongTypeInSetter)
+                                            Left (KErrorWrongTypeInSetter newValue expectedType)
 
                                 Nothing -> 
                                     treatAsNormalFuncCall
@@ -503,7 +503,7 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                     Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
         
         Just other ->
-            Left (KErrorNotAFunction other)
+            Left (KErrorNotAFunction funcIds)
 
         _ -> 
             Left (KErrorUsingUndefinedFunc funcIds [])

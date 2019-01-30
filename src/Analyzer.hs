@@ -13,11 +13,12 @@ import qualified Ast.Verified as V
 import StaticError
 import Symbol
 import TypeCheck
+import Util
 
-analyze :: [Raw.Decl] -> Either KeliError [KeliSymbol]
+analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
 analyze decls = do
-    (finalSymtab, _) <- analyzeDecls emptyKeliSymTab decls  
-    let analyzedSymbols = extractSymbols finalSymtab
+    (finalSymtab, _) <- analyzeDecls emptyKeliSymTab decls 
+    let analyzedSymbols = extractSymbols finalSymtab 
 
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
@@ -30,8 +31,9 @@ analyze decls = do
                 KeliSymImplicitTypeParam {}      -> 5
                 KeliSymTypeConstraint {} -> 6
                 KeliSymInlineExprs _     -> 7
-            ) analyzedSymbols
-    return sortedSymbols 
+            ) analyzedSymbols 
+
+    Right sortedSymbols
 
 extractSymbols :: KeliSymTab -> [KeliSymbol]
 extractSymbols symtab = map snd (assocs symtab)
@@ -39,22 +41,31 @@ extractSymbols symtab = map snd (assocs symtab)
 analyzeDecls 
     :: KeliSymTab -- previous symtab
     -> [Raw.Decl] -- parsed input
-    ->  Either 
-            KeliError 
-            (KeliSymTab, [KeliSymbol]) -- (newSymtab, newSymbols)
+    -> Either [KeliError] (KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
 
 analyzeDecls symtab decls = 
-    foldM
-    ((\(symtab1, prevSymbols) nextDecl1 -> do
-        analyzedSymbol <- analyzeDecl nextDecl1 symtab1
-
-        -- insert analyzedSymbols into symtab
-        newSymtab <- insertSymbolIntoSymtab analyzedSymbol symtab1
-        
-        return (newSymtab, prevSymbols ++ [analyzedSymbol])
-    )::(KeliSymTab, [KeliSymbol]) -> Raw.Decl -> Either KeliError (KeliSymTab, [KeliSymbol]))
-    (symtab, [])
-    decls
+    let (finalErrors, finalSymtab, finalSymbols) = 
+            foldl'
+            ((\(errors, prevSymtab, prevSymbols) nextDecl1 -> 
+                let (newErrors, newSymtab, newSymbols) = 
+                        case analyzeDecl nextDecl1 prevSymtab of
+                            Right analyzedSymbol -> 
+                                case insertSymbolIntoSymtab analyzedSymbol prevSymtab of
+                                    Right newSymtab' -> 
+                                        ([], newSymtab', [analyzedSymbol])
+                                    Left err' -> 
+                                        ([err'], prevSymtab, [analyzedSymbol]) 
+                            Left err' -> 
+                                ([err'], prevSymtab, []) in
+                
+                (errors ++ newErrors, newSymtab, prevSymbols ++ newSymbols)
+            )::([KeliError], KeliSymTab, [KeliSymbol]) -> Raw.Decl -> ([KeliError],KeliSymTab, [KeliSymbol]))
+            ([], symtab, [])
+            decls in
+    if length finalErrors > 0 then
+        Left finalErrors
+    else 
+        Right (finalSymtab, finalSymbols)
 
 insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
 insertSymbolIntoSymtab symbol symtab =
@@ -139,20 +150,25 @@ analyzeDecl decl symtab = case decl of
 
                     -- if is tag union types, need to insert tags into symbol table
                     Second (V.TypeTagUnion _ tags) ->
-                        let 
-                            -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
-                            tagUnionType = (V.TypeTagUnion id tags')
-                            tags' =
-                                map 
-                                    (\x -> case x of
-                                        V.CarrylessTag tag _          -> 
-                                            (V.CarrylessTag tag tagUnionType)
-                                        V.CarryfulTag tag carryType _ -> 
-                                            let carryType' = substituteSelfType tagUnionType carryType in
-                                            (V.CarryfulTag tag carryType' tagUnionType)) 
-                                    tags
-                                    in
-                            Right (KeliSymType (V.TypeAlias [id] tagUnionType))
+                        let tagnames = map V.tagnameOf tags in
+                        case findDuplicates tagnames of
+                            Just duplicates -> 
+                                Left (KErrorDuplicatedTags duplicates)
+                            Nothing ->
+                                let 
+                                    -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
+                                    tagUnionType = (V.TypeTagUnion id tags')
+                                    tags' =
+                                        map 
+                                            (\x -> case x of
+                                                V.CarrylessTag tag _          -> 
+                                                    (V.CarrylessTag tag tagUnionType)
+                                                V.CarryfulTag tag carryType _ -> 
+                                                    let carryType' = substituteSelfType tagUnionType carryType in
+                                                    (V.CarryfulTag tag carryType' tagUnionType)) 
+                                            tags
+                                            in
+                                    Right (KeliSymType (V.TypeAlias [id] tagUnionType))
                         
                     -- other types
                     Second type' ->
@@ -273,7 +289,7 @@ analyzeDecl decl symtab = case decl of
                         else 
                             case bodyType of
                                 V.TypeSingleton (_,"undefined") -> result'
-                                _ -> Left (KErrorUnmatchingFuncReturnType (getType typeCheckedBody) verifiedReturnType)
+                                _ -> Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
                     
                     _ -> undefined
     

@@ -9,7 +9,7 @@ getBaseCode :: IO String
 getBaseCode = readFile "./kelilib/base.keli"
 
 
-keliInterpret :: String -> String -> IO (Either KeliError String)
+keliInterpret :: String -> String -> IO (Either [KeliError] String)
 keliInterpret filename contents = do
     baseCode <- getBaseCode
     -- baseCode is loaded automaticall by default
@@ -19,7 +19,7 @@ keliInterpret filename contents = do
             output <- keliExecute code
             return (Right output)
 
-        Left err -> return (Left err)
+        Left errs -> return (Left errs)
 
 keliExecute :: String -> IO String
 keliExecute code = readProcess "node" ["-e", code] []

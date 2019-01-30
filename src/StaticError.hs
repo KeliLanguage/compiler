@@ -20,32 +20,39 @@ data KeliError
     | KErrorDuplicatedId [Verified.StringToken]
     | KErrorDuplicatedProperties [Verified.StringToken]
     | KErrorDuplicatedTags [Verified.StringToken]
-    | KErrorExcessiveTags [Verified.StringToken]
+    | KErrorExcessiveTags 
+        [Verified.StringToken] -- excessive tags
+        Verified.StringToken -- name of tagged union
     | KErrorExcessiveProperties [Verified.StringToken]
     | KErrorIncorrectCarryType 
         Verified.Type -- expected type
         Verified.Expr -- actual expr
     | KErrorIncorrectUsageOfRecord Verified.StringToken
-    | KErrorIncorrectUsageOfTag SourcePos
-    | KErrorIncorrectUsageOfFFI SourcePos
-    | KErrorIncorrectUsageOfTaggedUnion Verified.Expr
-    | KErrorMissingTags [String]
-    | KErrorMissingProperties [String]
+    | KErrorIncorrectUsageOfTag Verified.StringToken
+    | KErrorIncorrectUsageOfFFI Verified.StringToken
+    | KErrorMissingTags 
+        Verified.Expr -- subject
+        [String] -- missing tags
+
+    | KErrorMissingProperties 
+        Verified.Expr -- for telling where is the record constructor
+        [String] -- missing props
+
     | KErrorNotAllBranchHaveTheSameType [Verified.Expr]
-    | KErrorUnmatchingFuncReturnType Verified.Type Verified.Type
+    | KErrorUnmatchingFuncReturnType 
+        Verified.Expr -- actual body
+        Verified.Type -- expected type
     | KErrorUsingUndefinedFunc 
         [Verified.StringToken] -- function ids
         [Verified.Func] -- list of possible functions with the same ids
 
     | KErrorUsingUndefinedId Verified.StringToken
-    | KErrorUsingUndefinedType [Verified.StringToken]
-    | KErrorWrongTypeInSetter
-    | KErrorPropretyTypeMismatch
+    | KErrorWrongTypeInSetter Verified.Expr Verified.Type
+    | KErrorPropertyTypeMismatch
         Verified.StringToken -- property name
         Verified.Type    -- expected type
         Verified.Expr    -- actual expr (type-checked)
-    | KErrorNotATypeConstraint KeliSymbol
-    | KErrorNotAFunction KeliSymbol
+    | KErrorNotAFunction [Verified.StringToken]
     | KErrorDuplicatedFunc Verified.Func
     | KErrorTypeNotConformingConstraint Verified.Type Verified.TypeConstraint
     | KErrorFuncCallTypeMismatch

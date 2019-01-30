@@ -69,7 +69,7 @@ runTest' testCases =
                                                 error "No error is thrown"
                                             Left err ->
                                                 -- error (show err) -- Uncomment this line to show parse error
-                                                split " " (show err) !! 0 `shouldBe` strip expectedOutput
+                                                tail (split " " (show err) !! 0) `shouldBe` strip expectedOutput
                                     else do
                                         result <- keliInterpret filename code
                                         case result of

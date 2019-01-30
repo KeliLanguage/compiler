@@ -15,7 +15,7 @@ keliRead
     >> hFlush stdout
     >> getLine
 
-keliEval :: (KeliSymTab, String) -> String -> Either KeliError (IO String, (KeliSymTab, String))
+keliEval :: (KeliSymTab, String) -> String -> Either [KeliError] (IO String, (KeliSymTab, String))
 keliEval (prevSymtab, prevBytecode) input 
     =   keliParse "<repl>" input >>= 
         analyzeDecls prevSymtab  >>= \(newSymtab, symbols) ->
@@ -40,6 +40,7 @@ keliRepl' prevSymtab prevBytecode = do
                 evaluatedOutput >>= keliPrint >> keliRepl' newSymtab (prevBytecode ++ newBytecode)
             Left err ->
                 keliPrint (show err) >> keliRepl' prevSymtab prevBytecode) 
+
 
 
     
