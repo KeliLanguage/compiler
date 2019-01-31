@@ -18,3 +18,5 @@
 [] import base code when starting repl
 
 [] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`
+
+[] replace ":" with ".as" for type-annotated expressions

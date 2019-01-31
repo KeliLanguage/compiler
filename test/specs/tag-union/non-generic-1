@@ -1,8 +1,8 @@
-boolean=(_.tag true).or(_.tag false);
-a=boolean.true;
-b=boolean.false;
-=a;
-=b;
+boolean=(_.tag ( true )).or(_.tag ( false ))
+a=boolean.true
+b=boolean.false
+=a
+=b
 
 ====
 

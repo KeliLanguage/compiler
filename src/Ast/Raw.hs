@@ -41,7 +41,7 @@ data Expr
         funcCallIds    :: [StringToken]
     }
     | Lambda {
-        lambdaParams :: [StringToken],
+        lambdaParams :: StringToken,
         lambdaBody   :: Expr
     }
     | AnnotatedExpr 

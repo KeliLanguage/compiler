@@ -1,7 +1,9 @@
-(this str).replace(old str) with (new str)|str="hello";
+(this str).replace(old str) with (new str)|str="hello"
 
-z="hi".replace "i" with "h";
-=z;
+z="hi".replace("i") with("h") 
+
+g=123
+=z
 
 ====
 

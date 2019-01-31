@@ -1,6 +1,6 @@
-people=record.name str age int;
+people=record.name(str) age(int)
 
-x = people.name "Hello";
+x = people.name("Hello")
 
 ====
 

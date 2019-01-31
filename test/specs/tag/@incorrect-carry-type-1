@@ -1,5 +1,5 @@
-color=_.tag red.or(_.tag green carry int);
-x=color.green.carry "123";
+color=_.tag(red).or(_.tag(green) carry(int))
+x=color.green.carry("123")
 
 ====
 

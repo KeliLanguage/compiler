@@ -1,10 +1,10 @@
-(a type).list | type = (_.tag nil).or(_.tag cons carry (record.current a next (a.list)));
+(a type).list | type = (_.tag nil).or(_.tag cons carry (record.current a next (a.list)))
 
-x = nil;
+x = nil
 
-y = cons.carry(record.current 1 next nil);
+y = cons.carry(record.current 1 next nil)
 
-z = cons.carry(record.current 1 next (cons.carry(record.current 2 next nil)));
+z = cons.carry(record.current 1 next (cons.carry(record.current 2 next nil)))
 
 ====
 

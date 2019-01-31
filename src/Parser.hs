@@ -18,7 +18,7 @@ keliParser = whiteSpace >> keliDecl
 
 keliDecl :: Parser [Raw.Decl]
 keliDecl = do
-    list <- (keliDecl' `endBy1` (symbol ";"))
+    list <- (many1 keliDecl')
     eof
     return list
 
@@ -66,10 +66,10 @@ keliFuncCall
 
 keliLambda :: Parser Raw.Expr
 keliLambda
-    =  many1 keliFuncId >>= \params
+    =  keliFuncId       >>= \param
     -> reservedOp "|"   >>= \_
     -> keliExpr         >>= \expr
-    -> return (Raw.Lambda params expr)
+    -> return (Raw.Lambda param expr)
 
 data KeliFuncCallChain
     = KeliFuncCallChain KeliFuncCallChain KeliFuncCallChain
@@ -89,9 +89,10 @@ keliFuncCallTail
 
 keliPartialFuncCall
     -- binary/ternary/polynary
-    = try ((many1 ( 
-                    keliFuncId     >>= \token 
-                 -> keliAtomicExpr >>= \expr
+    = try ((many1 $ try ( 
+                    keliFuncId                     >>= \token 
+                --  -> notFollowedBy (reservedOp "=") >>= \_
+                 -> parens keliExpr                >>= \expr
                  -> return (token, expr)
             )) >>= \pairs
             -> return (KeliPartialFuncCall (map fst pairs) (map snd pairs))

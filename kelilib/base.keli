@@ -1,15 +1,14 @@
-_primitive_type = _primitive_type;
+_primitive_type = _primitive_type
 
-int  = _primitive_type;
-str  = _primitive_type;
-type = _primitive_type;
+int  = _primitive_type
+str  = _primitive_type
+type = _primitive_type
 
-_primitive_constraint = _primitive_constraint;
+_primitive_constraint = _primitive_constraint
 
-any = _primitive_constraint;
-
-undefined = undefined;
-record     = record;
-interface  = interface;
-ffi = ffi;
-_ = _;
+any = _primitive_constraint
+undefined = undefined
+record     = record
+interface  = interface
+ffi = ffi
+_ = _

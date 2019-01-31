@@ -1,6 +1,6 @@
-bool=_.tag true;
-x=bool.true;
-=x;
+bool=_.tag (true)
+x=bool.true
+=x
 
 ====
 

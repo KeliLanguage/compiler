@@ -1,9 +1,9 @@
-{a type} (x a).id | a = x;
+{a type} (x a).id | a = x
 
-(x int).returnSame | int = x;
+(x int).returnSame | int = x
 
-z=99;
-=z.id.returnSame;
+z=99
+=z.id.returnSame
 
 ====
 

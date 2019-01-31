@@ -1,6 +1,6 @@
-yesOrNo=_.tag yes.or(_.tag no);
-a=yesOrNo.yes;
-b=a.yes? 2;
+yesOrNo=_.tag ( yes ).or(_.tag ( no ))
+a=yesOrNo.yes
+b=a.yes? ( 2 )
 
 ====
 

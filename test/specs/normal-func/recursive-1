@@ -1,17 +1,19 @@
-bool = (_.tag true).or(_.tag false);
-(x int).minus   (y int) | int  = (ffi.javascript "_x - _y")  : int;
-(x int).plus    (y int) | int  = (ffi.javascript "_x + _y")  : int;
-(x int).times   (y int) | int  = (ffi.javascript "_x * _y")  : int;
-(x int).moreThan(y int) | bool = (ffi.javascript "_x > _y ? _bool._true : _bool._false")  : bool;
-(x int).equals  (y int) | bool = (ffi.javascript "_x === _y ? _bool._true : _bool._false"): bool;
+bool = (_.tag(true)).or(_.tag(false))
+(x int).minus   (y int) | int  = (ffi.javascript("_x - _y"))  : int
+(x int).plus    (y int) | int  = (ffi.javascript("_x + _y"))  : int
+(x int).times   (y int) | int  = (ffi.javascript("_x * _y"))  : int
+(x int).moreThan(y int) | bool = (ffi.javascript("_x > _y ? _bool._true : _bool._false"))   : bool
+(x int).equals  (y int) | bool = (ffi.javascript("_x === _y ? _bool._true : _bool._false")) : bool
 
 (x int).factorial | int =  
-    x.equals 0 .
-        true? 1
-        false? (x.times((x.minus 1).factorial));
+    x.equals(0).
+        true? 
+            (1)
+        false? 
+            (x.times((x.minus(1)).factorial))
 
-= 3 .factorial;
-= 6 .factorial;
+= 3 .factorial
+= 6 .factorial
 
 ====
 6

@@ -1,7 +1,7 @@
-="not all branch have same tag";
-answer=_.tag yes.or(_.tag no);
-a=answer.yes;
-b=a.yes? 2 no? "hi";
+="not all branch have same tag"
+answer=_.tag ( yes ).or(_.tag ( no ))
+a=answer.yes
+b=a.yes? ( 2 ) no? ("hi")
 
 ====
 

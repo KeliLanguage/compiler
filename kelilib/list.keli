@@ -1,26 +1,26 @@
-="list declartion";
+="list declartion"
 a:any.list | any 
     =   (_.tag nil)
-    .or (_.tag cons carry (record.current a next (a.list)));
+    .or (_.tag cons carry (record.current a next (a.list)))
 
 {a:any} 
-x:a.cons xs:(a.list) | a.list = cons.carry(record.current x next xs);
+x:a.cons xs:(a.list) | a.list = cons.carry(record.current x next xs)
 
 {a:any}
 xs:(a.list).++ ys:(a.list) | a.list =
     xs.
         nil?  ys
-        cons? (xs.current.cons(xs.next.++ys));
+        cons? (xs.current.cons(xs.next.++ys))
 
 {a:any}
 xs:(a.list).sum | int = 
-    xs.foldl(x y | x.+y) startingwith 0;
+    xs.foldl(x y | x.+y) startingwith 0
 
 {a:any b:any}
 xs:(a.list).map f:(a.to b) | b.list = 
     xs.
         nil?  nil
-        cons? (f.apply(xs.current).cons(xs.next.map f));
+        cons? (f.apply(xs.current).cons(xs.next.map f))
 
 {a:any}
 xs:(a.list).filter f:(a.to boolean) | a.list =
@@ -31,13 +31,13 @@ xs:(a.list).filter f:(a.to boolean) | a.list =
             f.apply(xs.current).
                 true?  (xs.current.cons remaining)
                 false? (nil.cons remaining))
-        );
+        )
 
 
 {a:any b:any}
 xs:(a.list).foldl f:(b.pair a.to b) startingWith value:b | b =
     xs.
         nil?  value
-        cons? (xs.next.foldl f startingWith(f.apply(xs.current)));
+        cons? (xs.next.foldl f startingWith(f.apply(xs.current)))
 
     

@@ -1,4 +1,4 @@
-=(record.name "dog").name;
+=record.name("dog").name
 
 ====
 dog

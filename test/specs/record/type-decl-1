@@ -1,5 +1,5 @@
-fruit=record.taste int; 
-=fruit.taste 3;
+fruit=record.taste(int)
+=fruit.taste(3)
 
 ====
 { taste: 3 }

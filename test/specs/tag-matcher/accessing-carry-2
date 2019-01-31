@@ -1,11 +1,11 @@
 human = 
-        (_.tag boy)
-    .or (_.tag baby carry (record.cuteness int))
-    .or (_.tag worker carry (record.salary int));
+        (_.tag ( boy ))
+    .or (_.tag ( baby ) carry (record.cuteness ( int )))
+    .or (_.tag ( worker ) carry (record.salary ( int )))
 
-x=human.baby.carry(record.cuteness 2);
+x=human.baby.carry(record.cuteness ( 2 ))
 
-=x.boy? 0 baby? (x.carry.cuteness) worker? (x.carry.salary);
+=x.boy? ( 0 ) baby? (x.carry.cuteness) worker? (x.carry.salary)
 
 ====
 
