@@ -231,11 +231,16 @@ analyzeDecl decl symtab = case decl of
                 verifiedFuncParams
             
             -- 2. verify return type
-            verifiedReturnType <- verifyType symtab3 returnType
+            verifiedReturnType <- 
+                (case returnType of 
+                    Just returnType' ->
+                        verifyType symtab3 returnType'
+                    Nothing ->
+                        Right V.TypeUndefined)
 
 
             -- 3. check if user is declaring generic type (a.k.a type constructor)
-            if verifiedReturnType `V.typeEquals` V.TypeType then
+            if (case verifiedReturnType of V.TypeUndefined -> False; _ -> True;) && verifiedReturnType `V.typeEquals` V.TypeType then
                 -- 3.1 make sure every param has the type of type
                 case find (\(_,paramType) -> not (case paramType of V.TypeType -> True; _ -> False)) verifiedFuncParams of
                     Just p -> 
@@ -273,23 +278,31 @@ analyzeDecl decl symtab = case decl of
                 case result of
                     First typeCheckedBody ->
                         let bodyType = getType typeCheckedBody in
-                        let result' = Right 
-                                (KeliSymFunc 
-                                    [V.Func {
+                        let resultFunc = V.Func {
                                         V.funcDeclIds = funcIds,
                                         V.funcDeclGenericParams = verifiedGenericParams,
                                         V.funcDeclBody = typeCheckedBody,
                                         V.funcDeclParams = verifiedFuncParams,
                                         V.funcDeclReturnType = verifiedReturnType
-                                    }]) in
+                                    } in
 
                         -- 4. ensure body type adheres to return type
-                        if bodyType `V.typeEquals` verifiedReturnType then
-                            result'
-                        else 
-                            case bodyType of
-                                V.TypeSingleton (_,"undefined") -> result'
-                                _ -> Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
+                        case verifiedReturnType of
+                            -- if return type is not declared, the return type of this function is inferred as the type of the body
+                            V.TypeUndefined ->
+                                Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
+
+                            _ ->
+                                if bodyType `V.typeEquals` verifiedReturnType then
+                                    Right (KeliSymFunc [resultFunc])
+                                else 
+                                    case bodyType of
+                                        -- if the body is `undefined`, bypass the type checking
+                                        V.TypeSingleton (_,"undefined") -> 
+                                            Right (KeliSymFunc [resultFunc])
+
+                                        _ -> 
+                                            Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
                     
                     _ -> undefined
     
