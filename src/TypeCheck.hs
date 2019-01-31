@@ -102,9 +102,9 @@ typeCheckExpr symtab assumption e = case e of
                     (Raw.Id firstParamToken@(_,firstParamId)) -> 
                         case firstParamId of
                         -- 1. Check if user wants to create a tag
-                        "_" ->
+                        "tag" ->
                             case funcIds !! 0 of 
-                            tagToken@(pos,"tag") ->
+                            tagToken@(pos,"#") ->
                                 if length params' < 2 then
                                     Left (KErrorIncorrectUsageOfTag tagToken)
                                 else

@@ -120,8 +120,7 @@ keliMonoFuncDecl
     -> keliFuncDeclParam  >>= \param
     -> char '.' >> spaces >>= \_ 
     -> keliFuncId         >>= \token
-    -> reservedOp "|"     >>= \_
-    -> keliExpr           >>= \typeExpr
+    -> keliFuncReturnType >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
     -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) [param] [token] typeExpr expr))
@@ -132,11 +131,17 @@ keliPolyFuncDecl
     -> keliFuncDeclParam  >>= \param1
     -> char '.' >> spaces >>= \_ 
     -> keliIdParamPair    >>= \xs
-    -> reservedOp "|"     >>= \_
-    -> keliExpr           >>= \typeExpr
+    -> keliFuncReturnType >>= \typeExpr
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
     -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr))
+
+keliFuncReturnType :: Parser (Maybe Raw.Expr)
+keliFuncReturnType = 
+    optionMaybe (
+       reservedOp "|"     >>= \_
+    -> keliExpr           >>= \typeExpr
+    -> return typeExpr)
 
 unpackMaybe :: Maybe [a] -> [a]
 unpackMaybe (Just x) = x

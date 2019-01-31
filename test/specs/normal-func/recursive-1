@@ -1,4 +1,4 @@
-bool = (_.tag(true)).or(_.tag(false))
+bool = (tag.#(true)).or(tag.#(false))
 (x int).minus   (y int) | int  = (ffi.javascript("_x - _y"))  : int
 (x int).plus    (y int) | int  = (ffi.javascript("_x + _y"))  : int
 (x int).times   (y int) | int  = (ffi.javascript("_x * _y"))  : int

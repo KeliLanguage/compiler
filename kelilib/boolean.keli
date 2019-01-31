@@ -1,4 +1,4 @@
-bool = (_.tag true).or(_.tag false)
+bool = (tag.#(true)).or(tag.#(true))
 
 x:bool.not | bool = x.true? false false? true
 

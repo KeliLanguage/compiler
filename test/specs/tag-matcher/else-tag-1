@@ -1,4 +1,4 @@
-yesOrNo=_.tag ( ok ).or(_.tag ( nope ))
+yesOrNo=tag.# ( ok ).or(tag.# ( nope ))
 a=yesOrNo.ok
 =a.ok? ( 2 ) else? ( 1 )
 =yesOrNo.nope.ok? ( 2 ) else? (1)

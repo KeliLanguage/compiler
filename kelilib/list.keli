@@ -1,7 +1,7 @@
 ="list declartion"
 a:any.list | any 
-    =   (_.tag nil)
-    .or (_.tag cons carry (record.current a next (a.list)))
+    =   (tag.# nil)
+    .or (tag.# cons carry (record.current a next (a.list)))
 
 {a:any} 
 x:a.cons xs:(a.list) | a.list = cons.carry(record.current x next xs)

@@ -1,10 +1,10 @@
-a:type.maybe | type = (_.tag nope).or(_.tag ok carry a)
+a:type.maybe | type = (tag.# nope).or(tag.# ok carry a)
 
-a.type.atau right:type | type = (_.tag left carry a).or(_.tag right carry b)
+a.type.atau right:type | type = (tag.# left carry a).or(tag.# right carry b)
 
 x:int .divide y:int | int = undefined
 
-mathError = (_.tag zeroDivisionError)
+mathError = (tag.# zeroDivisionError)
 
 x:int.safeDivide y:int | mathError.atau int = 
     x.== 0.

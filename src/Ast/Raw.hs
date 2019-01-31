@@ -27,7 +27,7 @@ data Func = Func {
     funcDeclGenericParams :: [FuncDeclConstraint],
     funcDeclParams        :: [FuncDeclParam],
     funcDeclIds           :: [StringToken],
-    funcDeclReturnType    :: Expr,
+    funcDeclReturnType    :: Maybe Expr,
     funcDeclBody          :: Expr
 } deriving (Show, Eq)
 

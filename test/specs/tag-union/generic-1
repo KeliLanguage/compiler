@@ -1,4 +1,4 @@
-(a type).list | type = (_.tag nil).or(_.tag cons carry (record.current a next (a.list)))
+(a type).list | type = (tag.# nil).or(tag.# cons carry (record.current a next (a.list)))
 
 x = nil
 

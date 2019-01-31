@@ -1,4 +1,4 @@
-answer=_.tag ( yes ).or(_.tag ( no ))
+answer=tag.# ( yes ).or(tag.# ( no ))
 a=answer.yes
 b=a.yes? ( 2 ) no? ( 2 ) no? ( 3 )
 
