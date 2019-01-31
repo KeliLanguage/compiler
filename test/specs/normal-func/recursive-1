@@ -12,8 +12,8 @@ bool = (tag.#(true)).or(tag.#(false))
         false? 
             (x.times((x.minus(1)).factorial))
 
-= 3 .factorial
-= 6 .factorial
+= 3.factorial
+= 6.factorial
 
 ====
 6

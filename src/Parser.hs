@@ -105,9 +105,10 @@ keliPartialFuncCall
 keliAtomicExpr :: Parser Raw.Expr
 keliAtomicExpr 
     =  parens keliExpr
-   <|> (getPosition >>= \pos -> number     >>= \n   -> return (Raw.NumberExpr (pos, n)))
-   <|> (                        keliFuncId >>= \id  -> return (Raw.Id id))
-   <|> (getPosition >>= \pos -> stringLit  >>= \str -> return (Raw.StringExpr (pos, str)))
+   <|> (getPosition >>= \pos -> try float   >>= \n   -> return (Raw.NumberExpr (pos, Right n)))
+   <|> (getPosition >>= \pos -> try natural >>= \n   -> return (Raw.NumberExpr (pos, Left n)))
+   <|> (                        keliFuncId  >>= \id  -> return (Raw.Id id))
+   <|> (getPosition >>= \pos -> stringLit   >>= \str -> return (Raw.StringExpr (pos, str)))
 
 keliFuncDecl :: Parser Raw.Decl
 keliFuncDecl 

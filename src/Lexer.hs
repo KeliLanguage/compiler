@@ -31,7 +31,7 @@ parens     = Token.parens         lexer -- parses surrounding parenthesis:
                                         -- uses p to parse what's inside them
 integer    = Token.integer        lexer -- parses an integer
 float      = Token.float          lexer
-number     = Token.naturalOrFloat lexer
+natural    = Token.natural        lexer
 semi       = Token.semi           lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace     lexer -- parses whitespace
 symbol     = Token.symbol         lexer -- custom symbol
