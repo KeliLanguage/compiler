@@ -166,14 +166,22 @@ suggestCompletionItems decls =
 
 
                         -- otherwise: scope related functions
-                        _ ->
-                            [CompletionItem {
-                                kind = 1,
-                                label = "Gotcha",
-                                detail = "Declare a carryful tag.",
-                                insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
-                                insertTextFormat = 1
-                            }]
+                        otherType ->
+                            let relatedFuncs = 
+                                    map 
+                                    (\s -> 
+                                        case s of 
+                                            KeliSymFunc funcs -> 
+                                                filter 
+                                                    (\f -> 
+                                                        let (_,firstParamType) = V.funcDeclParams f !! 0 in
+                                                        otherType `V.typeEquals` firstParamType) 
+                                                    funcs
+                                            _ -> 
+                                                [])
+                                    symbols in
+                            
+                            concat (map toCompletionItem [KeliSymFunc (concat relatedFuncs)])
 
                 Third tag ->
                     [CompletionItem {
