@@ -20,3 +20,5 @@
 [] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`
 
 [] replace ":" with ".as" for type-annotated expressions
+
+[] remove singleton constant feature (can be emulated using tagged union)

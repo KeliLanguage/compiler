@@ -5,7 +5,13 @@ module CompletionItems where
 import GHC.Generics
 import Data.Aeson
 import Symbol
+import Analyzer
+import Util
 import Data.List
+import qualified Ast.Raw as Raw
+import qualified Ast.Verified as V
+import StaticError(KeliError(KErrorIncompleteFuncCall))
+
 
 import qualified Ast.Verified as V
 
@@ -43,7 +49,10 @@ data CompletionItem = CompletionItem {
         }
     -},
     label  :: String,
-    detail:: String
+    detail:: String,
+    insertText :: String, -- text to be inserted if user chose this completion item
+    insertTextFormat :: Int -- 1 = Plain Text, 2 = Snippet
+                            -- For snippet format, refer https://github.com/Microsoft/vscode/blob/master/src/vs/editor/contrib/snippet/snippet.md
 } deriving (Show, Generic)
 
 instance ToJSON CompletionItem where
@@ -52,22 +61,28 @@ toCompletionItem :: KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
         KeliSymConst (_, id) _ -> 
-            [CompletionItem  6 id  ""]
+            [CompletionItem  6 id  "" id 1]
         
         KeliSymType (V.TypeAlias ids _) ->
-            [CompletionItem 8 (intercalate " " (map snd ids)) ""]
+            let text = intercalate " " (map snd ids) in
+            [CompletionItem 8 text "" text 1]
         
         KeliSymFunc funcs -> 
             map 
                 (\f -> 
                     let ids = V.funcDeclIds f in 
+                    let funcParams = V.funcDeclParams f in
+                    let signature = (intercalate "() " (map snd ids)) in
+                    let text = 
+                            (if length funcParams > 1 then 
+                                signature ++ "()"
+                            else
+                                signature) in
                     CompletionItem 3
-                        (let signature = (intercalate "() " (map snd ids)) in
-                         if length (V.funcDeclParams f) > 1 then 
-                            signature ++ "()"
-                         else
-                            signature)
+                        text
                         (rebuildSignature f)
+                        text
+                        1 -- TODO: change to 2 (snippet)
                 ) 
                 funcs
         _ -> 
@@ -93,3 +108,92 @@ stringifyFuncParam ((_,paramName), paramType) =
     
 bracketize :: String -> String
 bracketize str = "(" ++ str ++ ")"
+
+
+suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
+suggestCompletionItems decls =
+    let (errors,_,symbols) = analyzeDecls emptyKeliSymTab decls in
+    case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
+        Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
+            case thing of
+                First (V.Expr expr exprType) -> 
+                    case exprType of
+                        V.TypeTagConstructorPrefix _ tags ->
+                            map 
+                                (\t -> 
+                                    case t of
+                                        V.CarryfulTag (_,tagname) carryType _ ->
+                                            CompletionItem {
+                                                kind = 13, -- enum
+                                                label = tagname,
+                                                detail = "",
+                                                insertText = tagname ++ ".carry(${1:" ++ V.stringifyType carryType ++ "})",
+                                                insertTextFormat = 2
+                                            }
+                                        
+                                        V.CarrylessTag (_,tagname) _ ->
+                                            CompletionItem {
+                                                kind = 13, -- enum
+                                                label = tagname,
+                                                detail = "",
+                                                insertText = tagname,
+                                                insertTextFormat = 1
+                                            })
+                                tags 
+
+                        V.TypeRecordConstructor propTypePairs -> 
+                            let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
+                            [CompletionItem {
+                                kind = 4, -- constructor
+                                label = text,
+                                detail = "constructor",
+                                insertText = text,
+                                insertTextFormat = 1
+                            }]
+
+                        V.TypeTagUnion _ tags ->
+                            [CompletionItem {
+                                kind = 2, -- method
+                                label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
+                                detail = "tag matcher",
+                                insertText = concat (map (\t -> "\n\t" ++ snd (V.tagnameOf t) ++ "? ()") tags),
+                                insertTextFormat = 1
+                            }]
+
+                        -- TODO: record (getter/setter)
+
+                        -- TODO: lambda (apply)
+
+
+                        -- otherwise: scope related functions
+                        _ ->
+                            [CompletionItem {
+                                kind = 1,
+                                label = "Gotcha",
+                                detail = "Declare a carryful tag.",
+                                insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
+                                insertTextFormat = 1
+                            }]
+
+                Third tag ->
+                    [CompletionItem {
+                        kind = 14, -- keyword
+                        label = "or()",
+                        detail = "This function is used for constructing tagged unions.",
+                        insertText = "or(${1:tag})",
+                        insertTextFormat = 2 -- snippet
+                    }]
+
+                _ ->
+                    [CompletionItem {
+                        kind = 1,
+                        label = "Gotcha",
+                        detail = "Declare a carryful tag.",
+                        insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
+                        insertTextFormat = 1
+                    }]
+
+        _ ->
+            -- if not triggered by pressing the dot operator
+            -- then only return only non-functions identifiers
+            concat (map toCompletionItem (filter (\s -> case s of KeliSymFunc{} -> False; _ -> True) symbols))

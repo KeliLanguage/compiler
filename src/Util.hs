@@ -7,6 +7,8 @@ import qualified Ast.Raw as Raw
 import Data.Maybe
 import Data.Set hiding (map, (\\), foldl')
 
+data OneOf3 a b c = First a | Second b | Third c deriving (Show)
+
 data MatchResult 
     = GotDuplicates [Raw.StringToken]
     | ZeroIntersection

@@ -51,6 +51,9 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
+    KErrorIncompleteFuncCall _ positionOfDotOperator ->
+        [Diagnostic 1 (buildRange positionOfDotOperator 1) "Expecting function identifier after this dot operator."]
+        
     KErrorParseError sp messages ->
         let pos1 = toPosition sp in
         let pos2 = pos1 {character = character pos1 + 1} in
@@ -116,6 +119,7 @@ toDiagnostic err = case err of
 
     KErrorFuncCallTypeMismatch expectedType expr ->
         typeMismatchError expr expectedType
+
 
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]

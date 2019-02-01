@@ -39,6 +39,7 @@ keliConstDecl
 keliExpr :: Parser Raw.Expr
 keliExpr 
     =  try keliFuncCall
+   <|> try keliIncompleteFuncCall 
    <|> try keliLambda
    <|> try keliTypeAnnotatedExpr
    <|> keliAtomicExpr 
@@ -49,6 +50,14 @@ keliTypeAnnotatedExpr
     ->  reservedOp ":"  >>= \_
     ->  keliAtomicExpr  >>= \annotatedType
     -> return (Raw.AnnotatedExpr expr annotatedType)
+
+keliIncompleteFuncCall :: Parser Raw.Expr
+keliIncompleteFuncCall
+    =  keliAtomicExpr     >>= \param1
+    -> getPosition        >>= \pos
+    -> char '.' >> spaces >>= \_
+    -> return (Raw.IncompleteFuncCall param1 pos)
+ 
 
 keliFuncCall :: Parser Raw.Expr
 keliFuncCall 

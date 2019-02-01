@@ -15,8 +15,6 @@ import StaticError
 import Symbol
 import Util
 
-data OneOf3 a b c = First a | Second b | Third c deriving (Show)
-
 getType :: V.Expr -> V.Type
 getType (V.Expr _ type') = type'
 
@@ -26,6 +24,10 @@ data Assumption
 
 typeCheckExpr :: KeliSymTab -> Assumption -> Raw.Expr -> Either KeliError (OneOf3 V.Expr V.Type V.Tag)
 typeCheckExpr symtab assumption e = case e of 
+    Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
+        typeCheckedExpr <- typeCheckExpr symtab assumption expr 
+        Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
+
     Raw.NumberExpr(pos,n) -> 
         case n of 
             Left intValue ->

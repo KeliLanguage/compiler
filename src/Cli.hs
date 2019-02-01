@@ -4,6 +4,7 @@ module Cli where
 import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
+import Data.List
 import qualified Data.ByteString.Lazy.Char8 as Char8
 
 import Interpreter
@@ -13,6 +14,7 @@ import Analyzer(analyze, analyzeDecls)
 import Diagnostics(toDiagnostic)
 import Symbol(emptyKeliSymTab)
 import CompletionItems
+import StaticError
 
 
 
@@ -92,10 +94,9 @@ handleCliInput input =
         Suggest filename -> do
             contents <- readFile filename
             case keliParse filename contents of
-                Right ast ->
-                    let (_,_,symbols) = analyzeDecls emptyKeliSymTab ast in
-                    let completionItems = map toCompletionItem symbols in
-                    putStr (Char8.unpack (encode (concat completionItems)))
+                Right decls ->
+                    let completionItems = suggestCompletionItems decls in
+                    putStr (Char8.unpack (encode completionItems))
 
                 Left errs ->
                     putStr "[]"

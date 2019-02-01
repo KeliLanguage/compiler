@@ -12,6 +12,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import qualified Ast.Verified as Verified
 import qualified Ast.Raw as Raw
 import Symbol
+import Util
 
 data Messages = Messages [Message]
 
@@ -84,6 +85,10 @@ data KeliError
         Raw.StringToken -- tag that user wanted to use
         Raw.StringToken -- name of the tagged union
         [Verified.Tag]       -- list of possible tags
+
+    | KErrorIncompleteFuncCall -- for implementing Intellisense
+        (OneOf3 Verified.Expr Verified.Type Verified.Tag)
+        SourcePos -- position of the dot operator
     deriving (Show)
 
 instance Show Messages where
