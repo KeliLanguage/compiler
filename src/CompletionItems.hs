@@ -115,9 +115,27 @@ suggestCompletionItems decls =
     let (errors,_,symbols) = analyzeDecls emptyKeliSymTab decls in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
+                            
             case thing of
                 First (V.Expr expr exprType) -> 
+                    let relatedFuncs =
+                            map 
+                            (\s -> 
+                                case s of 
+                                    KeliSymFunc funcs -> 
+                                        filter 
+                                            (\f -> 
+                                                let (_,firstParamType) = V.funcDeclParams f !! 0 in
+                                                exprType `V.typeEquals` firstParamType) 
+                                            funcs
+                                    _ -> 
+                                        [])
+                            symbols in
+
+                    let relatedFuncsCompletionItems = concat (map toCompletionItem [KeliSymFunc (concat relatedFuncs)]) in
+
                     case exprType of
+                        -- tag constructor prefix
                         V.TypeTagConstructorPrefix _ tags ->
                             map 
                                 (\t -> 
@@ -141,6 +159,7 @@ suggestCompletionItems decls =
                                             })
                                 tags 
 
+                        -- record constructor
                         V.TypeRecordConstructor propTypePairs -> 
                             let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
                             [CompletionItem {
@@ -151,6 +170,7 @@ suggestCompletionItems decls =
                                 insertTextFormat = 1
                             }]
 
+                        -- tag matchers
                         V.TypeTagUnion _ tags ->
                             [CompletionItem {
                                 kind = 2, -- method
@@ -158,30 +178,27 @@ suggestCompletionItems decls =
                                 detail = "tag matcher",
                                 insertText = concat (map (\t -> "\n\t" ++ snd (V.tagnameOf t) ++ "? ()") tags),
                                 insertTextFormat = 1
-                            }]
+                            }] ++ relatedFuncsCompletionItems
 
-                        -- TODO: record (getter/setter)
+                        -- record (getter/setter)
+                        V.TypeRecord propTypePairs ->
+                            (map 
+                                (\((_,prop), expectedType') ->
+                                        CompletionItem {
+                                            kind = 10, -- property
+                                            label = prop,
+                                            detail = V.stringifyType expectedType',
+                                            insertText = prop,
+                                            insertTextFormat = 1
+                                        })
+                                propTypePairs) ++ relatedFuncsCompletionItems
 
                         -- TODO: lambda (apply)
 
 
                         -- otherwise: scope related functions
-                        otherType ->
-                            let relatedFuncs = 
-                                    map 
-                                    (\s -> 
-                                        case s of 
-                                            KeliSymFunc funcs -> 
-                                                filter 
-                                                    (\f -> 
-                                                        let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                        otherType `V.typeEquals` firstParamType) 
-                                                    funcs
-                                            _ -> 
-                                                [])
-                                    symbols in
-                            
-                            concat (map toCompletionItem [KeliSymFunc (concat relatedFuncs)])
+                        _ ->
+                            relatedFuncsCompletionItems
 
                 Third tag ->
                     [CompletionItem {
