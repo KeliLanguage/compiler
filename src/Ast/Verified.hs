@@ -51,7 +51,6 @@ data Type
         StringToken --name (name is compulsory, meaning that user cannot create anonymous tagged union)
         [Tag]       -- list of tags
 
-    | TypeSingleton StringToken
     | TypeUndefined
     | TypeCarryfulTagConstructor 
         StringToken  -- tag
@@ -78,7 +77,6 @@ instance Show Type where
     show TypeString                             = "str"
     show (TypeRecord kvs)                       = "record:" ++ show kvs
     show (TypeTagUnion name _)                  = show name
-    show (TypeSingleton name)                   = show name
     show (TypeUndefined)                        = "undefined"
     show (TypeCarryfulTagConstructor name _ _)  = show name
     show (TypeRecordConstructor kvs)            = show kvs
@@ -93,7 +91,6 @@ instance Eq Type where
     TypeInt                             == TypeInt                          = True
     TypeString                          == TypeString                       = True
     TypeTagUnion name1 _                == TypeTagUnion name2 _             = name1 == name2
-    TypeSingleton x                     == TypeSingleton y                  = x == y
     TypeCarryfulTagConstructor x _ _    == TypeCarryfulTagConstructor y _ _ = x == y
     TypeRecordConstructor kvs1          == TypeRecordConstructor kvs2       = kvs1 == kvs2
     TypeType                            == TypeType                         = True

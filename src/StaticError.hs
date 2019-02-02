@@ -89,6 +89,8 @@ data KeliError
     | KErrorIncompleteFuncCall -- for implementing Intellisense
         (OneOf3 Verified.Expr Verified.Type Verified.Tag)
         SourcePos -- position of the dot operator
+
+    | KErrorCannotRedefineReservedConstant Raw.StringToken
     deriving (Show)
 
 instance Show Messages where

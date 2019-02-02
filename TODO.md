@@ -1,11 +1,11 @@
-[] implement intellisense (refer Haskero)
+[x] implement intellisense (refer Haskero)
     - the intellisense should show every possible function for a type
     - For example, if I type `1.`, a list of functions that takes `int` as any parameter should show up
 
 
-- each function decl should be assign a uniq UID, to ease transpilation
+[] each function decl should be assign a uniq UID, to ease transpilation
 
-- error reporting does not contain accurate location
+[] error reporting does not contain accurate location
 
 [x] define factorial function
 
@@ -17,8 +17,14 @@
 
 [] import base code when starting repl
 
-[] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`
+[x] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`
 
 [] replace ":" with ".as" for type-annotated expressions
 
-[] remove singleton constant feature (can be emulated using tagged union)
+[x] remove singleton constant feature (can be emulated using tagged union)
+
+[] change primitive type to uppercase
+
+[] incomplete function expr does not capture function call chaining
+
+[] combine syntax highlighter with language server

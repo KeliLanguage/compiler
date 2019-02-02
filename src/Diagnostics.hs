@@ -120,6 +120,9 @@ toDiagnostic err = case err of
     KErrorFuncCallTypeMismatch expectedType expr ->
         typeMismatchError expr expectedType
 
+    KErrorCannotRedefineReservedConstant token ->
+        getDiagnostic [token] ("Cannot redefined reserved constant " ++ quote (snd token))
+
 
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]

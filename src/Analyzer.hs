@@ -101,9 +101,6 @@ insertSymbolIntoSymtab symbol symtab =
                 Nothing ->
                     Right (symtab |> ("@inline_exprs", KeliSymInlineExprs exprs))
 
-        KeliSymType (V.TypeAlias _ (V.TypeSingleton _ )) -> -- do nothing
-            Right symtab
-
         _ -> 
             let (key,ids) = V.getIdentifier symbol in
             if member key symtab then
@@ -119,22 +116,32 @@ analyzeDecl decl symtab = case decl of
     } -> 
         case expr of
             Raw.Id s@(_,id') -> 
-                if snd id == id' then 
-                    Right (KeliSymType (V.TypeAlias [s] (V.TypeSingleton s)))
-                else if id' == "_primitive_type" then
-                    case snd id of
-                        "int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
-                        "str"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
-                        "float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
-                        "type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
-                        other   -> error("Unkown primitive type: " ++ other)
-                else if id' == "_primitive_constraint" then
-                    case snd id of
-                        "any" -> Right (KeliSymTypeConstraint id V.ConstraintAny)
+                let reservedConstants = [
+                        "_primitive_type",
+                        "tag",
+                        "record",
+                        "interface",
+                        "ffi",
+                        "undefined"] in
+                case find (\x -> x == snd id) reservedConstants of
+                    Just _ ->
+                        Left (KErrorCannotRedefineReservedConstant id)
 
-                        other -> error ("Unknown primitive constraint type: " ++ other)
-                else 
-                    continueAnalyzeConstDecl
+                    Nothing ->
+                        if id' == "_primitive_type" then
+                            case snd id of
+                                "int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
+                                "str"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
+                                "float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
+                                "type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
+                                other   -> error("Unkown primitive type: " ++ other)
+                        else if id' == "_primitive_constraint" then
+                            case snd id of
+                                "any" -> Right (KeliSymTypeConstraint id V.ConstraintAny)
+
+                                other -> error ("Unknown primitive constraint type: " ++ other)
+                        else 
+                            continueAnalyzeConstDecl
             
             _ -> 
                 continueAnalyzeConstDecl
@@ -298,7 +305,7 @@ analyzeDecl decl symtab = case decl of
                                 else 
                                     case bodyType of
                                         -- if the body is `undefined`, bypass the type checking
-                                        V.TypeSingleton (_,"undefined") -> 
+                                        V.TypeUndefined -> 
                                             Right (KeliSymFunc [resultFunc])
 
                                         _ -> 
