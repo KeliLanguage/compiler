@@ -41,15 +41,7 @@ keliExpr
     =  try keliFuncCall
    <|> try keliIncompleteFuncCall 
    <|> try keliLambda
-   <|> try keliTypeAnnotatedExpr
    <|> keliAtomicExpr 
-
-keliTypeAnnotatedExpr :: Parser Raw.Expr
-keliTypeAnnotatedExpr 
-    =   keliAtomicExpr  >>= \expr
-    ->  reservedOp ":"  >>= \_
-    ->  keliAtomicExpr  >>= \annotatedType
-    -> return (Raw.AnnotatedExpr expr annotatedType)
 
 keliIncompleteFuncCall :: Parser Raw.Expr
 keliIncompleteFuncCall

@@ -97,7 +97,7 @@ typeCheckExpr symtab assumption e = case e of
                     tags <- mapM extractTag params
                     Right (Second (V.TypeTagUnion V.nullStringToken (concat tags)))
                 else  do
-                    continuePreprocessFuncCall
+                    continuePreprocessFuncCall1
 
             _ -> do  
                 case (head params') of
@@ -133,7 +133,7 @@ typeCheckExpr symtab assumption e = case e of
                                         _ ->
                                             Left (KErrorIncorrectUsageOfTag tagToken)
                             _ ->
-                                continuePreprocessFuncCall
+                                continuePreprocessFuncCall1
 
                         -- 2. Check if the user wants to create a record (type/value)
                         "record" ->  
@@ -192,14 +192,14 @@ typeCheckExpr symtab assumption e = case e of
                                         Left (KErrorFFIValueShouldBeString jsCode)
                             
                         _ -> 
-                            continuePreprocessFuncCall
+                            continuePreprocessFuncCall1
 
                     _ -> 
-                        continuePreprocessFuncCall
+                        continuePreprocessFuncCall1
 
         where 
-            continuePreprocessFuncCall :: Either KeliError (OneOf3 V.Expr V.Type V.Tag)
-            continuePreprocessFuncCall = do
+            continuePreprocessFuncCall1 :: Either KeliError (OneOf3 V.Expr V.Type V.Tag)
+            continuePreprocessFuncCall1 = do
                 firstParam <- typeCheckExpr symtab assumption (head params') >>= extractExpr
 
                 let typeOfFirstParam = getType firstParam in
@@ -213,7 +213,7 @@ typeCheckExpr symtab assumption e = case e of
                                 Left (KErrorDuplicatedProperties duplicates)
 
                             ZeroIntersection ->
-                                treatAsNormalFuncCall
+                                continuePreprocessFuncCall2
                             
                             GotExcessive excessiveProps ->
                                 Left (KErrorExcessiveProperties excessiveProps)
@@ -251,7 +251,7 @@ typeCheckExpr symtab assumption e = case e of
                             else
                                 Left (KErrorIncorrectCarryType carryType' carryExpr)
                         else
-                            treatAsNormalFuncCall
+                            continuePreprocessFuncCall2
                         
                     
                     -- (C) check if user is calling tag matchers
@@ -271,7 +271,7 @@ typeCheckExpr symtab assumption e = case e of
                                 Left (KErrorDuplicatedTags duplicates)
 
                             ZeroIntersection -> 
-                                treatAsNormalFuncCall
+                                continuePreprocessFuncCall2
                             
                             GotExcessive excessiveCases ->
                                 Left (KErrorExcessiveTags excessiveCases name)
@@ -350,7 +350,7 @@ typeCheckExpr symtab assumption e = case e of
                     -- (D) check if user is calling record getter/setter
                     recordType@(V.TypeRecord kvs) ->  
                         if length funcIds > 1 then
-                            treatAsNormalFuncCall
+                            continuePreprocessFuncCall2
                         else
                             let subject = firstParam in
                             case find (\((_,key),_) -> key == snd (funcIds !! 0)) kvs of
@@ -370,7 +370,7 @@ typeCheckExpr symtab assumption e = case e of
                                             Left (KErrorWrongTypeInSetter newValue expectedType)
 
                                 Nothing -> 
-                                    treatAsNormalFuncCall
+                                    continuePreprocessFuncCall2
 
 
                     -- (E) check if user is retrieving the carry of an identified tag branch
@@ -400,23 +400,34 @@ typeCheckExpr symtab assumption e = case e of
 
                     -- otherwise
                     _ ->
-                        treatAsNormalFuncCall
+                        continuePreprocessFuncCall2
 
                     
             
+            continuePreprocessFuncCall2 = 
+                case funcIds !! 0 of
+                    -- check if user is calling type casting
+                    (_, "as") ->
+                        if length funcIds == 1 && length params' == 2 then do
+                            subject <- typeCheckExpr symtab assumption (params' !! 0) >>= extractExpr
+                            castType <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 1) >>= extractType
+                            case subject of
+                                (V.Expr expr' V.TypeUndefined) ->
+                                    Right (First (V.Expr expr' castType))
+
+                                _ ->
+                                    undefined
+                        else
+                            treatAsNormalFuncCall
+                    
+                    -- otherwise
+                    _ -> 
+                        treatAsNormalFuncCall
+
+                        
             treatAsNormalFuncCall = do
                 params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
                 typeCheckFuncCall symtab params funcIds
-
-    Raw.AnnotatedExpr expr annotatedType -> do
-        verifiedExpr <- typeCheckExpr symtab assumption expr >>= extractExpr
-        verifiedType <- typeCheckExpr symtab StrictlyAnalyzingType annotatedType >>= extractType
-        case verifiedExpr of
-            (V.Expr expr' V.TypeUndefined) ->
-                Right (First (V.Expr expr' verifiedType))
-
-            _ ->
-                undefined
 
     other -> 
         undefined

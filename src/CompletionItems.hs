@@ -65,7 +65,7 @@ toCompletionItem symbol =
         
         KeliSymType (V.TypeAlias ids _) ->
             let text = intercalate " " (map snd ids) in
-            [CompletionItem 8 text "" text 1]
+            [CompletionItem 7 text "" text 1]
         
         KeliSymFunc funcs -> 
             map 

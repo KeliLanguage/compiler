@@ -1,9 +1,9 @@
-bool = (tag.#(true)).or(tag.#(false))
-(x Int).minus   (y Int) | Int  = (ffi.javascript("_x - _y"))  : Int
-(x Int).plus    (y Int) | Int  = (ffi.javascript("_x + _y"))  : Int
-(x Int).times   (y Int) | Int  = (ffi.javascript("_x * _y"))  : Int
-(x Int).moreThan(y Int) | bool = (ffi.javascript("_x > _y ? _bool._true : _bool._false"))   : bool
-(x Int).equals  (y Int) | bool = (ffi.javascript("_x === _y ? _bool._true : _bool._false")) : bool
+Bool = tag.#(true).or(tag.#(false))
+(x Int).minus   (y Int) | Int  = ffi.javascript("_x - _y").as(Int)
+(x Int).plus    (y Int) | Int  = ffi.javascript("_x + _y").as(Int)
+(x Int).times   (y Int) | Int  = ffi.javascript("_x * _y").as(Int)
+(x Int).moreThan(y Int) | Bool = ffi.javascript("_x > _y   ? _Bool._true : _Bool._false").as(Bool)
+(x Int).equals  (y Int) | Bool = ffi.javascript("_x === _y ? _Bool._true : _Bool._false").as(Bool)
 
 (x Int).factorial | Int =  
     x.equals(0).

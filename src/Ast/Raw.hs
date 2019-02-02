@@ -44,10 +44,6 @@ data Expr
         lambdaParams :: StringToken,
         lambdaBody   :: Expr
     }
-    | AnnotatedExpr 
-        Expr -- the expression on the left
-        Expr -- the type annotation on the right
-
     | IncompleteFuncCall -- for implementing Intellisense 
         Expr 
         SourcePos -- position of the dot operator

@@ -1,4 +1,4 @@
-(this Int).+(that Int) | Int = (ffi.javascript ("_this + _that")) : Int 
+(this Int).+(that Int) | Int = ffi.javascript("_this + _that").as(Int)
 
 = 1 .+(2)
 

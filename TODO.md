@@ -19,11 +19,13 @@
 
 [x] when using tag constructor, should be prefixed by the tagged union name, e.g. use `list.cons` instead of `cons`
 
-[] replace ":" with ".as" for type-annotated expressions
+[x] replace ":" with ".as" for type-annotated expressions
 
 [x] remove singleton constant feature (can be emulated using tagged union)
 
 [x] change primitive type to PascalCase
+
+[] implement generic tagged union
 
 [] incomplete function expr does not capture function call chaining
 
