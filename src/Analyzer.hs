@@ -131,10 +131,10 @@ analyzeDecl decl symtab = case decl of
                         if id' == "_primitive_type" then
                             case snd id of
                                 "Int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
-                                "String"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
+                                "String"-> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
                                 "Float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
                                 "Type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
-                                other   -> error("Unkown primitive type: " ++ other)
+                                _       -> Left (KErrorCannotDefineCustomPrimitiveType id)
                         else 
                             continueAnalyzeConstDecl
             

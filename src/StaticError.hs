@@ -91,6 +91,8 @@ data KeliError
         SourcePos -- position of the dot operator
 
     | KErrorCannotRedefineReservedConstant Raw.StringToken
+    | KErrorCannotDefineCustomPrimitiveType Raw.StringToken
+    
     deriving (Show)
 
 instance Show Messages where

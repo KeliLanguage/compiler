@@ -123,6 +123,8 @@ toDiagnostic err = case err of
     KErrorCannotRedefineReservedConstant token ->
         getDiagnostic [token] ("Cannot redefined reserved constant " ++ quote (snd token))
 
+    KErrorCannotDefineCustomPrimitiveType token ->
+        getDiagnostic [token] ("Cannot define custome primitive type: " ++ quote (snd token))
 
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]
