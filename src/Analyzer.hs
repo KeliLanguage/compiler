@@ -130,16 +130,11 @@ analyzeDecl decl symtab = case decl of
                     Nothing ->
                         if id' == "_primitive_type" then
                             case snd id of
-                                "int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
-                                "str"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
-                                "float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
-                                "type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
+                                "Int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
+                                "String"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
+                                "Float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
+                                "Type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
                                 other   -> error("Unkown primitive type: " ++ other)
-                        else if id' == "_primitive_constraint" then
-                            case snd id of
-                                "any" -> Right (KeliSymTypeConstraint id V.ConstraintAny)
-
-                                other -> error ("Unknown primitive constraint type: " ++ other)
                         else 
                             continueAnalyzeConstDecl
             

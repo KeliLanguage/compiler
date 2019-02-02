@@ -73,8 +73,8 @@ data Type
 instance Show Type where
     show TypeFloat                              = "float"
     show (TypeIdentifiedCarryfulBranch t)       = show t ++ " branch"
-    show TypeInt                                = "int"
-    show TypeString                             = "str"
+    show TypeInt                                = "Int"
+    show TypeString                             = "String"
     show (TypeRecord kvs)                       = "record:" ++ show kvs
     show (TypeTagUnion name _)                  = show name
     show (TypeUndefined)                        = "undefined"
@@ -214,9 +214,9 @@ instance Identifiable Decl where
 --  where <front part> is function names and <back part> is param types
 -- 
 -- Example:
---      this:str.replace old:str with new:str | str = undefined
+--      this:String.replace old:String with new:String | String = undefined
 -- Shall have id of
---      replace$with$$str$str$str 
+--      replace$with$$String$String$String 
 --
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
@@ -242,7 +242,7 @@ instance Identifiable Const where
 -- What is toString for?
 -- It is for generating the identifier for each particular functions
 -- For example, the following function:
---     this:str.reverse = undefined
+--     this:String.reverse = undefined
 -- Will have an id of something like _reverse_str
 -- So that the function lookup process can be fast (during analyzing function call)
 
@@ -252,8 +252,8 @@ class Stringifiable a where
 stringifyType :: Type -> String
 stringifyType t = case t of
         TypeFloat  -> "float"
-        TypeInt    -> "int"
-        TypeString -> "str"
+        TypeInt    -> "Int"
+        TypeString -> "String"
         TypeRecord kvs ->  error (show kvs)
         TypeTagUnion name _ -> snd name 
         TypeTypeParam _ _ -> ""

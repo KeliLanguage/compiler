@@ -1,16 +1,16 @@
-(x int).plus(y int) | int  = (ffi.javascript ("_x  + _y")) : int
+(x Int).plus(y Int) | Int  = (ffi.javascript ("_x  + _y")) : Int
 
-intlist = (tag.# ( nil )).or(tag.# ( cons ) carry (record.current ( int ) next ( intlist )))
+intlist = (tag.# ( nil )).or(tag.# ( cons ) carry (record.current ( Int ) next ( intlist )))
 
 myList=intlist.cons.carry(record.current ( 1 ) next (intlist.cons.carry(record.current ( 2 ) next (intlist.cons.carry(record.current ( 3 ) next (intlist.nil))))))
 
 
-(this intlist).length | int = 
+(this intlist).length | Int = 
     this.
         nil? ( 0 ) 
         cons? (1 .plus (this.carry.next.length))
 
-(this intlist).sum | int = 
+(this intlist).sum | Int = 
     this.
         nil? (0)
         cons? (this.carry.current.plus(this.carry.next.sum))

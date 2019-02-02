@@ -1,4 +1,4 @@
-fruit=record.taste(int)
+fruit=record.taste(Int)
 =fruit.taste(3)
 
 ====

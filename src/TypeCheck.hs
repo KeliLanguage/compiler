@@ -557,6 +557,7 @@ verifyTypeParam symtab expr = do
     --             _ ->
     --                 Left (KErrorExprIsNotATypeConstraint expr)
 
+
     --     _ ->
     --         undefined
 
@@ -569,8 +570,8 @@ typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) 
 --  a.list `haveShapeOf` b.list = True
 --  a.list.list `haveShapeOf` b.list.list = True
 --  a.list `haveShapeOf` a.tree = False
---  int `haveShapeOf` int = True
---  int `haveShapeOf` a = True
+--  Int `haveShapeOf` Int = True
+--  Int `haveShapeOf` a = True
 haveShapeOf :: V.Type -> V.Type -> Bool
 type1 `haveShapeOf` type2 = 
     case type1 of

@@ -1,4 +1,5 @@
-int  = _primitive_type
-str  = _primitive_type
-type = _primitive_type
+Int  = _primitive_type
+Float = _primitive_type
+String  = _primitive_type
+Type = _primitive_type
 _ = _

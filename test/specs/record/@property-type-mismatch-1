@@ -1,4 +1,4 @@
-people=record.name(str) age(int)
+people=record.name(String) age(Int)
 
 x = people.name(123) age(9)
 

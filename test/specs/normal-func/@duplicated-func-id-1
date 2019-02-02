@@ -1,5 +1,5 @@
-(i int) .plus (j int)|int=123
-(i int) .plus (j int)|int=123
+(i Int) .plus (j Int)|Int=123
+(i Int) .plus (j Int)|Int=123
 
 ====
 

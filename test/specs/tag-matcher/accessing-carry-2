@@ -1,7 +1,7 @@
 human = 
         (tag.# ( boy ))
-    .or (tag.# ( baby ) carry (record.cuteness ( int )))
-    .or (tag.# ( worker ) carry (record.salary ( int )))
+    .or (tag.# ( baby ) carry (record.cuteness ( Int )))
+    .or (tag.# ( worker ) carry (record.salary ( Int )))
 
 x=human.baby.carry(record.cuteness ( 2 ))
 

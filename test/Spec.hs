@@ -150,7 +150,7 @@ otherTest = hspec $ do
         it "polyfunc decl" $ do
             testParseKeli "(this string).splitby(that string)|string=undefined"
             testParseKeli "(this string).replace(that string) with (the string)|string=undefined"
-            testParseKeli "(this int). == (that int)|int=undefined"
+            testParseKeli "(this Int). == (that Int)|Int=undefined"
 
         it "monofunc call" $ do
             testParseKeli "=x.reverse" 

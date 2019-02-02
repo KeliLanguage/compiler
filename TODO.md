@@ -1,6 +1,6 @@
 [x] implement intellisense (refer Haskero)
     - the intellisense should show every possible function for a type
-    - For example, if I type `1.`, a list of functions that takes `int` as any parameter should show up
+    - For example, if I type `1.`, a list of functions that takes `Int` as any parameter should show up
 
 
 [] each function decl should be assign a uniq UID, to ease transpilation
@@ -23,7 +23,7 @@
 
 [x] remove singleton constant feature (can be emulated using tagged union)
 
-[] change primitive type to uppercase
+[x] change primitive type to PascalCase
 
 [] incomplete function expr does not capture function call chaining
 

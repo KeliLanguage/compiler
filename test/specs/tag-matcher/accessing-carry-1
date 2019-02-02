@@ -1,4 +1,4 @@
-color = (tag.# ( red )).or(tag.# ( green ) carry ( int ))
+color = (tag.# ( red )).or(tag.# ( green ) carry ( Int ))
 
 x=color.green.carry ( 2 )
 

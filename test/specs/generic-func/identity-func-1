@@ -1,6 +1,6 @@
-{a type} (x a).id | a = x
+{a Type} (x a).id | a = x
 
-(x int).returnSame | int = x
+(x Int).returnSame | Int = x
 
 z=99
 =z.id.returnSame
