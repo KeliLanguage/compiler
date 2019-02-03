@@ -510,54 +510,60 @@ typeCheckFuncCall symtab funcCallParams funcIds =
         Just (KeliSymFunc candidateFuncs) -> do
             case (foldl 
                     (\result f ->
-                        if length funcCallParams /= length (V.funcDeclParams f) then
-                            StillNoMatchingFunc
-                        else do
-                            let expectedParamTypes = map (\(_,paramType) -> paramType) (V.funcDeclParams f) 
-                            let actualParamTypes = map (getType) funcCallParams 
-                            let fisrtParamExpectedType = head expectedParamTypes
-                            let firstParamActualType = head actualParamTypes 
-                            -- if only have 1 param, then just check if the first param match the expected type
-                            if length funcCallParams == 1 then 
-                                case typeCompares symtab firstParamActualType fisrtParamExpectedType of
-                                    Applicable False ->
-                                        StillNoMatchingFunc
+                        case result of
+                        p@PerfectlyMatchedFuncFound{} -> p
 
-                                    Applicable True ->
-                                        PerfectlyMatchedFuncFound f symtab
+                        p@PartiallyMatchedFuncFound{} -> p
+                        
+                        StillNoMatchingFunc ->
+                            if length funcCallParams /= length (V.funcDeclParams f) then
+                                StillNoMatchingFunc
+                            else do
+                                let expectedParamTypes = map (\(_,paramType) -> paramType) (V.funcDeclParams f) 
+                                let actualParamTypes = map (getType) funcCallParams 
+                                let fisrtParamExpectedType = head expectedParamTypes
+                                let firstParamActualType = head actualParamTypes 
+                                -- if only have 1 param, then just check if the first param match the expected type
+                                if length funcCallParams == 1 then 
+                                    case typeCompares symtab firstParamActualType fisrtParamExpectedType of
+                                        Applicable False ->
+                                            StillNoMatchingFunc
 
-                                    NotApplicable updatedSymtab ->
-                                        PerfectlyMatchedFuncFound f updatedSymtab
+                                        Applicable True ->
+                                            PerfectlyMatchedFuncFound f symtab
 
-                            -- if more than 1 param, then we need to check if every param match every expected types
-                            -- why is this branching necessary? 
-                            --     so that we can report a better error message
-                            else 
-                                case typeCompares symtab firstParamActualType fisrtParamExpectedType of
-                                    -- if the first param does not match expected type
-                                    Applicable False ->
-                                        StillNoMatchingFunc
-                                    
-                                    -- if the first param match the expected type, check all subsequent params
-                                    _ -> 
-                                        case foldM
-                                                (\tempSymtab ((expr, actualType), expectedType) -> 
-                                                    case typeCompares tempSymtab actualType expectedType of
-                                                        Applicable False -> 
-                                                            Left (KErrorFuncCallTypeMismatch expectedType expr)
-                                                        
-                                                        Applicable True ->
-                                                            Right tempSymtab
-                                                        
-                                                        NotApplicable updatedSymtab ->
-                                                            Right updatedSymtab)
-                                                symtab
-                                                (zip (zip funcCallParams actualParamTypes) expectedParamTypes) of 
-                                            Right updatedSymtab ->
-                                                PerfectlyMatchedFuncFound f updatedSymtab
+                                        NotApplicable updatedSymtab ->
+                                            PerfectlyMatchedFuncFound f updatedSymtab
 
-                                            Left err ->
-                                                PartiallyMatchedFuncFound err)
+                                -- if more than 1 param, then we need to check if every param match every expected types
+                                -- why is this branching necessary? 
+                                --     so that we can report a better error message
+                                else 
+                                    case typeCompares symtab firstParamActualType fisrtParamExpectedType of
+                                        -- if the first param does not match expected type
+                                        Applicable False ->
+                                            StillNoMatchingFunc
+                                        
+                                        -- if the first param match the expected type, check all subsequent params
+                                        _ -> 
+                                            case foldM
+                                                    (\tempSymtab ((expr, actualType), expectedType) -> 
+                                                        case typeCompares tempSymtab actualType expectedType of
+                                                            Applicable False -> 
+                                                                Left (KErrorFuncCallTypeMismatch expectedType expr)
+                                                            
+                                                            Applicable True ->
+                                                                Right tempSymtab
+                                                            
+                                                            NotApplicable updatedSymtab ->
+                                                                Right updatedSymtab)
+                                                    symtab
+                                                    (zip (zip funcCallParams actualParamTypes) expectedParamTypes) of 
+                                                Right updatedSymtab ->
+                                                    PerfectlyMatchedFuncFound f updatedSymtab
+
+                                                Left err ->
+                                                    PartiallyMatchedFuncFound err)
                     
                         StillNoMatchingFunc
 
