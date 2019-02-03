@@ -6,6 +6,7 @@ import Data.List
 import Data.Char
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
+-- TODO: Continue from here
 type StringToken = (SourcePos, String)
 
 nullStringToken :: StringToken
@@ -31,7 +32,7 @@ type FuncDeclParam = (StringToken, Type)
 type FuncDeclConstraint = (StringToken, TypeParam)
 
 data Func = Func {
-    funcDeclGenericParams :: [FuncDeclConstraint],
+    funcDeclGenericParams :: [TypeParam],
     funcDeclParams        :: [FuncDeclParam],
     funcDeclIds           :: [StringToken],
     funcDeclReturnType    :: Type,
@@ -48,7 +49,7 @@ data Type
     | TypeString
     | TypeRecord [(StringToken, Type)]
     | TypeTagUnion 
-        StringToken --name (name is compulsory, meaning that user cannot create anonymous tagged union)
+        [StringToken] --name (name is compulsory, meaning that user cannot create anonymous tagged union)
         [Tag]       -- list of tags
 
     | TypeUndefined
@@ -58,7 +59,7 @@ data Type
         Type     -- belonging type
 
     | TypeRecordConstructor [(StringToken, Type)]
-    | TypeTagConstructorPrefix StringToken [Tag]
+    | TypeTagConstructorPrefix [StringToken] [Tag]
     | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
     | TypeCompound 
@@ -69,6 +70,16 @@ data Type
         Type -- carry type
 
     | TypeSelf -- for defining recursive type
+
+    | TypeTypeConstructor TypeConstructor
+
+data TypeConstructor =
+    TypeConstructor 
+        StringToken    -- name
+        [StringToken]  -- ids
+        [TypeParam]    -- type params
+        Type           -- type body
+    deriving (Show)
 
 instance Show Type where
     show TypeFloat                              = "float"
@@ -84,6 +95,7 @@ instance Show Type where
     show TypeType                               = "type"
     show (TypeCompound name params)             = show name ++ show params
     show TypeSelf                               = "$self"
+    show TypeTypeConstructor{}                  = "type constructor"
 
 
 instance Eq Type where
@@ -116,6 +128,7 @@ data TypeConstraint
 
 data TypeParam 
     = TypeParam 
+        StringToken -- name
         (Maybe TypeConstraint)  -- associated type constriant
     deriving (Show)
 
@@ -191,6 +204,8 @@ data Expr'
 
     | TagConstructorPrefix
 
+    | TypeConstructorPrefix
+
     | RetrieveCarryExpr Expr
 
     | FFIJavascript StringToken
@@ -255,7 +270,7 @@ stringifyType t = case t of
         TypeInt    -> "Int"
         TypeString -> "String"
         TypeRecord kvs ->  error (show kvs)
-        TypeTagUnion name _ -> snd name 
+        TypeTagUnion ids _ -> concat (map snd ids)
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
         _ -> error (show t)
@@ -265,8 +280,4 @@ instance Stringifiable TypeConstraint where
     toString c = case c of
         ConstraintAny -> "any"
         _ -> undefined
-
-
-typeEquals :: Type -> Type -> Bool
-x `typeEquals` y = x == y
     

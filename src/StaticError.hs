@@ -23,7 +23,7 @@ data KeliError
     | KErrorDuplicatedTags [Verified.StringToken]
     | KErrorExcessiveTags 
         [Verified.StringToken] -- excessive tags
-        Verified.StringToken -- name of tagged union
+        [Verified.StringToken] -- name of tagged union
     | KErrorExcessiveProperties [Verified.StringToken]
     | KErrorIncorrectCarryType 
         Verified.Type -- expected type
@@ -82,9 +82,9 @@ data KeliError
     | KErrorInvalidTypeParamDecl Raw.Expr
     | KErrorIncorrectUsageOfTagConstructorPrefix Raw.Expr
     | KErrorTagNotFound 
-        Raw.StringToken -- tag that user wanted to use
-        Raw.StringToken -- name of the tagged union
-        [Verified.Tag]       -- list of possible tags
+        [Raw.StringToken] -- tag that user wanted to use
+        [Raw.StringToken] -- name of the tagged union
+        [Verified.Tag]    -- list of possible tags
 
     | KErrorIncompleteFuncCall -- for implementing Intellisense
         (OneOf3 Verified.Expr Verified.Type Verified.Tag)
@@ -92,6 +92,7 @@ data KeliError
 
     | KErrorCannotRedefineReservedConstant Raw.StringToken
     | KErrorCannotDefineCustomPrimitiveType Raw.StringToken
+    | KErrorTypeConstructorIdsMismatch [Raw.StringToken]
     
     deriving (Show)
 

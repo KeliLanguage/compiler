@@ -1,12 +1,10 @@
-(a Type).list | Type = (tag.# nil).or(tag.# cons carry (record.current a next (a.list)))
-
-x = nil
-
-y = cons.carry(record.current 1 next nil)
-
-z = cons.carry(record.current 1 next (cons.carry(record.current 2 next nil)))
+List.of(A Type) 
+    =   tag.#(new)
+    .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
+    
+= List.new
+= List.cons.carry(record.current (1) next(List.new))
 
 ====
 
-hi
-
+{ __tag: 'new' }

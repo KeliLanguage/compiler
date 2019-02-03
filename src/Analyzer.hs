@@ -25,7 +25,8 @@ analyze decls =
     let sortedSymbols = sortOn (
             \x -> case x of 
                 KeliSymTag _             -> 1
-                KeliSymType _            -> 2
+                KeliSymType{}            -> 2
+                KeliSymTypeConstructor{} -> 2
                 KeliSymFunc _            -> 3
                 KeliSymConst _ _         -> 4
                 KeliSymImplicitTypeParam {}      -> 5
@@ -40,6 +41,11 @@ analyze decls =
 
 extractSymbols :: KeliSymTab -> [KeliSymbol]
 extractSymbols symtab = map snd (assocs symtab)
+
+data TypeDecl = 
+    TypeDecl 
+        [V.StringToken] -- type signature
+        V.Type          -- type body
 
 analyzeDecls 
     :: KeliSymTab -- previous symtab
@@ -76,13 +82,14 @@ insertSymbolIntoSymtab symbol symtab =
             let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
             case funcsWithSameName of
                 Just (KeliSymFunc fs) ->
-                    if any 
-                        (\func -> 
-                            all (\(t1,t2) -> t1 `V.typeEquals` t2) 
-                            (zip (funcParamTypes f) (funcParamTypes func))) fs then
-                        Left (KErrorDuplicatedFunc f)
-                    else
-                        Right (symtab |> (funcid, KeliSymFunc (f:fs)))
+                    -- TODO: check for duplicated function (not only same ids, but also same type for each params)
+                    -- if any 
+                    --     (\func -> 
+                    --         all (\(t1,t2) -> t1 `V.typeCompares` t2) 
+                    --         (zip (funcParamTypes f) (funcParamTypes func))) fs then
+                    --     Left (KErrorDuplicatedFunc f)
+                    -- else
+                    Right (symtab |> (funcid, KeliSymFunc (f:fs)))
                 
                 Just _ ->
                     Left (KErrorDuplicatedId (V.funcDeclIds f))
@@ -130,10 +137,10 @@ analyzeDecl decl symtab = case decl of
                     Nothing ->
                         if id' == "_primitive_type" then
                             case snd id of
-                                "Int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt))
-                                "String"-> Right (KeliSymType (V.TypeAlias [id] V.TypeString))
-                                "Float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat))
-                                "Type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType))
+                                "Int"   -> Right (KeliSymType (V.TypeAlias [id] V.TypeInt) [])
+                                "String"-> Right (KeliSymType (V.TypeAlias [id] V.TypeString) [])
+                                "Float" -> Right (KeliSymType (V.TypeAlias [id] V.TypeFloat) [])
+                                "Type"  -> Right (KeliSymType (V.TypeAlias [id] V.TypeType) [])
                                 _       -> Left (KErrorCannotDefineCustomPrimitiveType id)
                         else 
                             continueAnalyzeConstDecl
@@ -144,50 +151,19 @@ analyzeDecl decl symtab = case decl of
         where 
             continueAnalyzeConstDecl = do
                 -- insert temporary types into symtab to allow declaraion of recursive types
-                let updatedSymtab = symtab |> (snd id, KeliSymType (V.TypeAlias [id] V.TypeSelf)) 
+                let updatedSymtab = symtab |> (snd id, KeliSymType (V.TypeAlias [id] V.TypeSelf) []) 
                 result <- typeCheckExpr updatedSymtab CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right (KeliSymConst id typeCheckedExpr)
 
-                    -- if is tag union types, need to insert tags into symbol table
-                    Second (V.TypeTagUnion _ tags) ->
-                        let tagnames = map V.tagnameOf tags in
-                        case findDuplicates tagnames of
-                            Just duplicates -> 
-                                Left (KErrorDuplicatedTags duplicates)
-                            Nothing ->
-                                let 
-                                    -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
-                                    tagUnionType = (V.TypeTagUnion id tags')
-                                    tags' =
-                                        map 
-                                            (\x -> case x of
-                                                V.CarrylessTag tag _          -> 
-                                                    (V.CarrylessTag tag tagUnionType)
-                                                V.CarryfulTag tag carryType _ -> 
-                                                    let carryType' = substituteSelfType tagUnionType carryType in
-                                                    (V.CarryfulTag tag carryType' tagUnionType)) 
-                                            tags
-                                            in
-                                    Right (KeliSymType (V.TypeAlias [id] tagUnionType))
-                        
-                    -- other types
-                    Second type' ->
-                        Right (KeliSymType (V.TypeAlias [id] type'))
+                    Second type' -> do
+                        tiedType <- tieType [id] type'
+                        Right (KeliSymType (V.TypeAlias [id] tiedType) [])
 
-                    Third tag ->
-                        let
-                            tagUnionType =(V.TypeTagUnion id [tag'])
-                            tag' = case tag of
-                                        V.CarrylessTag tagname _          -> 
-                                            (V.CarrylessTag tagname tagUnionType)
-                                        V.CarryfulTag tagname carryType _ -> 
-                                            let carryType' = substituteSelfType tagUnionType carryType in
-                                            (V.CarryfulTag tagname carryType' tagUnionType)
-                                in
-                            Right (KeliSymType (V.TypeAlias [id] tagUnionType))
-
+                    Third tag -> do
+                        tiedType <- tieType [id] (V.TypeTagUnion [] [tag])
+                        Right (KeliSymType (V.TypeAlias [id] tiedType) [])
 
     Raw.FuncDecl(Raw.Func {
         Raw.funcDeclGenericParams = genericParams,
@@ -205,16 +181,16 @@ analyzeDecl decl symtab = case decl of
                             params)
 
             -- 0.1 Verify implicit type params
-            verifiedGenericParams <- verifyParamType symtab genericParams verifyTypeParam
+            verifiedGenericParams <- mapM (verifyTypeParam symtab) genericParams 
 
             -- 0.2 populate symbol table with implicit type params
             symtab2 <- 
                 foldM 
-                    (\acc (id, typeparam) -> 
+                    (\acc t@(V.TypeParam id _) -> 
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else 
-                            Right (acc |> (snd id, KeliSymImplicitTypeParam id typeparam)))
+                            Right (acc |> (snd id, KeliSymImplicitTypeParam t)))
                     symtab 
                     verifiedGenericParams
 
@@ -241,63 +217,46 @@ analyzeDecl decl symtab = case decl of
                         Right V.TypeUndefined)
 
 
-            -- 3. check if user is declaring generic type (a.k.a type constructor)
-            if (case verifiedReturnType of V.TypeUndefined -> False; _ -> True;) && verifiedReturnType `V.typeEquals` V.TypeType then
-                -- 3.1 make sure every param has the type of type
-                case find (\(_,paramType) -> not (case paramType of V.TypeType -> True; _ -> False)) verifiedFuncParams of
-                    Just p -> 
-                        Left (KErrorInvalidTypeConstructorParam p)
-                    Nothing ->
-                        -- insert the name of this user-defined type into the symbol table, this is necessary for recursive types to be analyzed properly
-                        let typeId = concat (map snd funcIds) in
-                        undefined
-                        -- let symtab''' = symtab'' |> (typeId, KeliSymType (V.TypeTemporaryAliasForRecursiveType funcIds (length funcParams))) in
-                        -- case convertExprToSymbol symtab''' funcBody funcIds of
-                        --     Right (Right symbols) ->
-                        --         Right symbols
-                                
-                        --     Right (Left expr) ->
-                        --         Left (KErrorBodyOfGenericTypeIsNotTypeDeclaration expr)
+            -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
+            let tempFunc = KeliSymFunc 
+                    [V.Func {
+                        V.funcDeclIds = funcIds,
+                        V.funcDeclGenericParams = verifiedGenericParams,
+                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) V.TypeUndefined, -- temporary body (useless)
+                        V.funcDeclParams = verifiedFuncParams,
+                        V.funcDeclReturnType = verifiedReturnType
+                    }] 
 
-                        --     Left err ->
-                        --         Left err
-            else do
-                -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
-                let tempFunc = KeliSymFunc 
-                        [V.Func {
-                            V.funcDeclIds = funcIds,
-                            V.funcDeclGenericParams = verifiedGenericParams,
-                            V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) V.TypeUndefined, -- temporary body (useless)
-                            V.funcDeclParams = verifiedFuncParams,
-                            V.funcDeclReturnType = verifiedReturnType
-                        }] 
-
-                symtab4 <- insertSymbolIntoSymtab tempFunc symtab3
+            symtab4 <- insertSymbolIntoSymtab tempFunc symtab3
 
 
-                -- 4. type check the function body
-                result <- typeCheckExpr symtab4 CanBeAnything funcBody
-                case result of
-                    First typeCheckedBody ->
-                        let bodyType = getType typeCheckedBody in
-                        let resultFunc = V.Func {
-                                        V.funcDeclIds = funcIds,
-                                        V.funcDeclGenericParams = verifiedGenericParams,
-                                        V.funcDeclBody = typeCheckedBody,
-                                        V.funcDeclParams = verifiedFuncParams,
-                                        V.funcDeclReturnType = verifiedReturnType
-                                    } in
+            -- 4. type check the function body
+            result <- typeCheckExpr symtab4 CanBeAnything funcBody
+            case result of
+                First typeCheckedBody ->
+                    let bodyType = getType typeCheckedBody in
+                    let resultFunc = V.Func {
+                                    V.funcDeclIds = funcIds,
+                                    V.funcDeclGenericParams = verifiedGenericParams,
+                                    V.funcDeclBody = typeCheckedBody,
+                                    V.funcDeclParams = verifiedFuncParams,
+                                    V.funcDeclReturnType = verifiedReturnType
+                                } in
 
-                        -- 4. ensure body type adheres to return type
-                        case verifiedReturnType of
-                            -- if return type is not declared, the return type of this function is inferred as the type of the body
-                            V.TypeUndefined ->
-                                Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
+                    -- 4. ensure body type adheres to return type
+                    case verifiedReturnType of
+                        -- if return type is not declared, the return type of this function is inferred as the type of the body
+                        V.TypeUndefined ->
+                            Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
 
-                            _ ->
-                                if bodyType `V.typeEquals` verifiedReturnType then
+                        _ ->
+                            case typeCompares symtab4 bodyType verifiedReturnType of
+                                -- if body type match expected return types
+                                Applicable True ->
                                     Right (KeliSymFunc [resultFunc])
-                                else 
+                                
+                                -- else
+                                _ ->
                                     case bodyType of
                                         -- if the body is `undefined`, bypass the type checking
                                         V.TypeUndefined -> 
@@ -305,8 +264,8 @@ analyzeDecl decl symtab = case decl of
 
                                         _ -> 
                                             Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
-                    
-                    _ -> undefined
+                
+                _ -> undefined
     
     Raw.IdlessDecl expr -> do
         result <- typeCheckExpr symtab CanBeAnything expr
@@ -320,8 +279,111 @@ analyzeDecl decl symtab = case decl of
             Third tag ->
                 Left (KErrorCannotDeclareTagAsAnonymousConstant tag)
         
+    r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
+        -- 1. verify all type params
+        verifiedTypeParams <- mapM (verifyTypeParam symtab) typeParams 
+
+        -- 2. populate symbol table with type params
+        symtab2 <- 
+            foldM 
+                (\acc t@(V.TypeParam id _) -> 
+                    if member (snd id) acc then
+                        Left (KErrorDuplicatedId [id])
+                    else 
+                        Right (acc |> (snd id, KeliSymExplicitTypeParam t)))
+                symtab 
+                verifiedTypeParams
+
+        -- 3. populate symbol table with this type constructor (to allow recursve definition)
+        symtab3 <-
+            if member (snd typeConstructorName) symtab2 then
+                Left (KErrorDuplicatedId [typeConstructorName])
+            else
+                Right (symtab2 |> (snd typeConstructorName, 
+                    KeliSymTypeConstructor (V.TypeConstructor typeConstructorName ids verifiedTypeParams V.TypeUndefined)))
+
+        -- 4. type check the body
+        typeCheckedBody <- (typeCheckExpr symtab3 StrictlyAnalyzingType typeBody) >>= extractType >>= tieType [typeConstructorName]
+
+        Right (KeliSymTypeConstructor (V.TypeConstructor typeConstructorName ids verifiedTypeParams typeCheckedBody))
+
+
+        -- error (pTraceShow r $ "hello")
+            -- -- 3. check if user is declaring generic type (a.k.a type constructor)
+            -- if (case verifiedReturnType of V.TypeUndefined -> False; _ -> True;) && verifiedReturnType `V.typeCompares` V.TypeType then
+            --     -- 3.1 make sure every param has the type of type
+            --     case find (\(_,paramType) -> not (case paramType of V.TypeType -> True; _ -> False)) verifiedFuncParams of
+            --         Just p -> 
+            --             Left (KErrorInvalidTypeConstructorParam p)
+
+            --         Nothing -> do
+            --             let ids = funcIds
+
+            --             verifiedTypeParams <- mapM (verifyTypeParam symtab) funcParams
+
+            --             -- insert self name to allow recursive type definition 
+            --             let updatedSymtab1 = symtab |> (intercalate "$" (map snd ids), KeliSymType (V.TypeAlias ids V.TypeSelf) verifiedTypeParams) 
+
+            --             -- insert explicit type params into symtab
+            --             let updatedSymtab2 =
+            --                     foldl' 
+            --                     (\tempSymtab t@(V.TypeParam (_,name) _) -> 
+            --                         -- TODO: check for duplicates
+            --                         tempSymtab |> (name, KeliSymExplicitTypeParam t))
+            --                     updatedSymtab1
+            --                     verifiedTypeParams
+
+            --             typeBody <- typeCheckExpr updatedSymtab2 StrictlyAnalyzingType funcBody >>= extractType
+
+
+            --             tieType (TypeDecl funcIds typeBody)
+            --             -- insert the name of this user-defined type into the symbol table, this is necessary for recursive types to be analyzed properly
+            --             -- let typeId = concat (map snd funcIds) in
+            --             -- undefined
+            --             -- let symtab''' = symtab'' |> (typeId, KeliSymType (V.TypeTemporaryAliasForRecursiveType funcIds (length funcParams))) in
+            --             -- case convertExprToSymbol symtab''' funcBody funcIds of
+            --             --     Right (Right symbols) ->
+            --             --         Right symbols
+                                
+            --             --     Right (Left expr) ->
+            --             --         Left (KErrorBodyOfGenericTypeIsNotTypeDeclaration expr)
+
+            --             --     Left err ->
+            --             --         Left err
+            -- else do
 
     other -> undefined
+
+
+-- this function is for performing tying the knots (for tagged union types)
+tieType :: [V.StringToken] -> V.Type -> Either KeliError V.Type
+tieType typeName typeBody = 
+    case typeBody of
+        -- if is tag union types, need to insert tags into symbol table
+        (V.TypeTagUnion _ tags) ->
+            let tagnames = map V.tagnameOf tags in
+            case findDuplicates tagnames of
+                Just duplicates -> 
+                    Left (KErrorDuplicatedTags duplicates)
+                Nothing ->
+                    let 
+                        -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
+                        tagUnionType = (V.TypeTagUnion typeName tags')
+                        tags' =
+                            map 
+                                (\x -> case x of
+                                    V.CarrylessTag tag _          -> 
+                                        (V.CarrylessTag tag tagUnionType)
+                                    V.CarryfulTag tag carryType _ -> 
+                                        let carryType' = substituteSelfType tagUnionType carryType in
+                                        (V.CarryfulTag tag carryType' tagUnionType)) 
+                                tags
+                    in
+                    Right tagUnionType
+            
+        -- other types
+        other ->
+            Right other
 
 substituteSelfType :: V.Type -> V.Type -> V.Type
 substituteSelfType source target =

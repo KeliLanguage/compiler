@@ -2,4 +2,3 @@ Int  = _primitive_type
 Float = _primitive_type
 String  = _primitive_type
 Type = _primitive_type
-_ = _

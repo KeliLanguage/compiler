@@ -13,6 +13,11 @@ data Decl
     = ConstDecl Const
     | FuncDecl Func
     | IdlessDecl Expr
+    | GenericTypeDecl 
+        StringToken     -- name
+        [StringToken]   -- trailing ids
+        [FuncDeclParam] -- type params
+        Expr            -- type body
     deriving (Show, Eq)
 
 data Const = Const { 

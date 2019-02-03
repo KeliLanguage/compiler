@@ -30,3 +30,7 @@
 [] incomplete function expr does not capture function call chaining
 
 [] combine syntax highlighter with language server
+
+[] change keyword `carry` to `load`
+
+[] location of error regarding (expected expr not type) is inaccurate

@@ -35,10 +35,16 @@ instance Transpilable KeliSymbol where
         KeliSymConst (_,id) expr ->
             "const " ++ idPrefix ++ id ++ "=" ++ transpile expr
 
-        KeliSymType (V.TypeAlias _ (V.TypeTagUnion (_,id) tags)) ->
-            "const " ++ idPrefix ++ id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+        KeliSymType (V.TypeAlias _ (V.TypeTagUnion ids tags)) _ ->
+            "const " ++ idPrefix ++ joinIds ids ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
-        KeliSymType _ -> 
+        KeliSymTypeConstructor (V.TypeConstructor name _ _ (V.TypeTagUnion _ tags)) ->
+            "const " ++ idPrefix ++ snd name ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+
+        KeliSymTypeConstructor {} ->
+            ""
+
+        KeliSymType {} -> 
             ""
 
         KeliSymTypeConstraint {} ->
@@ -50,6 +56,8 @@ instance Transpilable KeliSymbol where
         other ->
             error (show other)
 
+joinIds :: [V.StringToken] -> String
+joinIds ids = intercalate "_" (map snd ids)
 
 instance Transpilable V.Decl where
     transpile x = case x of 
@@ -115,13 +123,13 @@ instance Transpilable V.Expr where
 
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
-            (V.TypeTagUnion (_,name) _)          
-                -> idPrefix ++ name ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
+            (V.TypeTagUnion ids _)          
+                -> idPrefix ++ joinIds ids ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
 
         V.Expr 
             (V.CarrylessTagConstructor(_,tag))
-            (V.TypeTagUnion (_,name) _)          
-                -> idPrefix ++ name ++ "." ++ idPrefix ++ tag
+            (V.TypeTagUnion ids _)          
+                -> idPrefix ++ joinIds ids ++ "." ++ idPrefix ++ tag
 
     
 

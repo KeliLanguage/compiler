@@ -25,6 +25,7 @@ keliDecl = do
 keliDecl' :: Parser Raw.Decl
 keliDecl' 
     =  try keliFuncDecl
+   <|> try keliGenericTypeDecl 
    <|> keliConstDecl
 
 keliConstDecl :: Parser Raw.Decl
@@ -137,6 +138,17 @@ keliPolyFuncDecl
     -> reservedOp "="     >>= \_
     -> keliExpr           >>= \expr
     -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr))
+
+keliGenericTypeDecl :: Parser Raw.Decl
+keliGenericTypeDecl
+    =  getPosition        >>= \typenamePos
+    -> identifier         >>= \typename
+    -> char '.' >> spaces >>= \_ 
+    -> keliIdParamPair    >>= \idParamPairs
+    -> keliFuncReturnType >>= \typeExpr
+    -> reservedOp "="     >>= \_
+    -> keliExpr           >>= \expr
+    -> return (Raw.GenericTypeDecl (typenamePos, typename) (map fst idParamPairs) (map snd idParamPairs) expr)
 
 keliFuncReturnType :: Parser (Maybe Raw.Expr)
 keliFuncReturnType = 

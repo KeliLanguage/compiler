@@ -1,0 +1,33 @@
+List.of(A Type) 
+    =   tag.#(new)
+    .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
+
+y = List.cons.carry(record.current(1) next(List.new))
+
+z = List.cons.carry(record.current(1) next(List.cons.carry(record.current(2) next(List.new))))
+
+{A Type}
+(this List.of(A)).length | Int = 
+    this.
+        new?
+            (0)
+        cons?
+            (1.+(this.carry.next.length))
+
+{A Type}
+(xs List.of(A)).:(x A) | List.of(A) = 
+    xs.
+        new? 
+            (List.cons.carry(record.current(x) next(List.new)))
+        cons? 
+            (xs.carry.next.
+                new?  
+                    (xs.carry.next(x))
+                cons? 
+                    (xs.carry.next.:(x)))
+    
+=List.new.:(1).:(2).:(3).:(4)
+
+====
+
+hi

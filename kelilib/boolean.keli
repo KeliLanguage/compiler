@@ -1,9 +1,12 @@
-bool = (tag.#(true)).or(tag.#(true))
+Boolean = (tag.#(true)).or(tag.#(true))
 
-x:bool.not | bool = x.true? false false? true
+(this Boolean).not | Boolean = 
+    this.true? (Boolean.false) false? (Boolean.true)
 
-x:bool.and y:bool | bool = x.true? y false? false
+(this Boolean).and(that Boolean) | Boolean = 
+    this.true? (that) false? (Boolean.false)
 
-x:bool.or y:bool | bool = x.true? true false? y
+(this Boolean).or(that Boolean) | Boolean = 
+    this.true? (Boolean.true) false? (that)
 
 answer = true.or false

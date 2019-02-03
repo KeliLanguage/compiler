@@ -52,7 +52,7 @@ typeCheckExpr symtab assumption e = case e of
                 --  Don't need to explicitly check it, the type system will handle it
                 (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.TypeCarryfulTagConstructor tag carryType belongingType))))
             
-            Just (KeliSymType (V.TypeAlias _ t@(V.TypeRecord propTypePairs))) -> 
+            Just (KeliSymType (V.TypeAlias _ t@(V.TypeRecord propTypePairs)) _) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
                 -- Answer: Using assumptions
 
@@ -62,18 +62,33 @@ typeCheckExpr symtab assumption e = case e of
                     CanBeAnything ->
                         (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.TypeRecordConstructor propTypePairs))))
 
-            Just (KeliSymType (V.TypeAlias _ t@(V.TypeTagUnion name tags))) ->
+            Just (KeliSymType (V.TypeAlias _ t@(V.TypeTagUnion name tags)) _) ->
                 case assumption of
                     StrictlyAnalyzingType -> 
                         (Right (Second t))
                     CanBeAnything ->
                         (Right (First (V.Expr (V.TagConstructorPrefix) (V.TypeTagConstructorPrefix name tags))))
             
-            Just (KeliSymType (V.TypeAlias _ t)) ->
+            Just (KeliSymType (V.TypeAlias _ t) _) ->
                 (Right (Second t))
             
-            Just (KeliSymImplicitTypeParam id' (V.TypeParam constraint)) ->
+            Just (KeliSymImplicitTypeParam (V.TypeParam id' constraint)) ->
                 Right (Second (V.TypeTypeParam id' constraint))
+
+            Just (KeliSymExplicitTypeParam (V.TypeParam id' constraint)) ->
+                Right (Second (V.TypeTypeParam id' constraint))
+
+            Just (KeliSymTypeConstructor t@(V.TypeConstructor _ _ _ type')) ->
+                case assumption of
+                    StrictlyAnalyzingType ->
+                        Right (First (V.Expr (V.TypeConstructorPrefix) (V.TypeTypeConstructor t)))
+
+                    CanBeAnything -> 
+                        case type' of
+                            V.TypeTagUnion name tags ->
+                                (Right (First (V.Expr (V.TagConstructorPrefix) (V.TypeTagConstructorPrefix name tags))))
+                            _ ->
+                                undefined
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -81,7 +96,6 @@ typeCheckExpr symtab assumption e = case e of
             other -> 
                 error (show other)
                 undefined
-
 
     Raw.FuncCall params' funcIds -> do
         case head funcIds of 
@@ -95,7 +109,7 @@ typeCheckExpr symtab assumption e = case e of
                 params <- mapM (typeCheckExpr symtab assumption) params';
                 if isTagOrUnion (head params) then do
                     tags <- mapM extractTag params
-                    Right (Second (V.TypeTagUnion V.nullStringToken (concat tags)))
+                    Right (Second (V.TypeTagUnion [] (concat tags)))
                 else  do
                     continuePreprocessFuncCall1
 
@@ -228,28 +242,54 @@ typeCheckExpr symtab assumption e = case e of
 
                                 let expectedPropTypePairs' = sortBy (\((_,a),_) ((_,b),_) -> compare a b) expectedPropTypePairs 
                                 let actualPropValuePairs = sortBy (\((_,a),_) ((_,b),_) -> compare a b) verifiedPropValuePairs 
-                                case find (\(expected, actual) -> 
-                                        let expectedType = snd expected in
-                                        let actualType = getType (snd actual) in
-                                        not (expectedType `V.typeEquals` actualType)
-                                    ) (zip expectedPropTypePairs' actualPropValuePairs) of
+                                case foldl' 
+                                    -- reducer
+                                    (\prevResult (expected, actual) -> 
+                                        case prevResult of
+                                            Right updatedSymtab ->
+                                                let expectedType = snd expected in
+                                                let actualType = getType (snd actual) in
+                                                case typeCompares symtab actualType expectedType of
+                                                    Applicable expectedTypeEqualsActualType ->
+                                                        if expectedTypeEqualsActualType then
+                                                            Right updatedSymtab
+                                                        else
+                                                            Left (KErrorPropertyTypeMismatch (fst expected) (snd expected) (snd actual))
 
-                                    Just (expected, actual) -> 
-                                        Left (KErrorPropertyTypeMismatch (fst expected) (snd expected) (snd actual))
-                                    Nothing -> 
-                                        Right (First (V.Expr (V.Record actualPropValuePairs) (V.TypeRecord expectedPropTypePairs')))
+                                                    NotApplicable newSymtab ->
+                                                        Right newSymtab
+
+                                            Left err ->
+                                                Left err) 
+
+                                    -- initial value
+                                    (Right symtab)
+
+                                    --foldee
+                                    (zip expectedPropTypePairs' actualPropValuePairs) of
+
+                                        Right _ ->
+                                            Right (First (V.Expr (V.Record actualPropValuePairs) (V.TypeRecord expectedPropTypePairs')))
+                                        
+                                        Left err ->
+                                            Left err
 
                                     
                     -- (B) check if user is invoking carryful tag constructor
-                    V.TypeCarryfulTagConstructor tag carryType belongingType -> 
+                    V.TypeCarryfulTagConstructor tag expectedCarryType belongingType -> 
                         if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then do
                             carryExpr  <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
-                            let carryExprType = getType carryExpr 
-                            let carryType'    = carryType 
-                            if carryExprType `V.typeEquals` carryType' then
-                                Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) belongingType))
-                            else
-                                Left (KErrorIncorrectCarryType carryType' carryExpr)
+                            let actualType = getType carryExpr 
+                            case typeCompares symtab actualType (pTraceShowId expectedCarryType) of
+                                Applicable actualTypeEqualsExpectedType ->
+                                    if actualTypeEqualsExpectedType then
+                                        Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) belongingType))
+                                    else
+                                        Left (KErrorIncorrectCarryType expectedCarryType carryExpr)
+                                
+                                NotApplicable updatedSymtab ->
+                                    undefined
+
                         else
                             continuePreprocessFuncCall2
                         
@@ -283,14 +323,18 @@ typeCheckExpr symtab assumption e = case e of
                                 if "else?" `elem` (map snd funcIds) then
                                     let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
                                     let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
-                                    if any (\x -> not (getType x `V.typeEquals` getType firstBranch)) branches then
+                                    let expectedTypeOfEachBranches = getType firstBranch in
+                                    if any 
+                                        (\branch -> 
+                                            case typeCompares symtab (getType branch) expectedTypeOfEachBranches of
+                                                Applicable True ->
+                                                    False
+                                                _ ->
+                                                    True) branches then
                                         Left (KErrorNotAllBranchHaveTheSameType branches)
                                     else
                                         Right (First (V.Expr 
-                                            (V.TagMatcher 
-                                                subject 
-                                                otherBranches 
-                                                (Just (snd elseBranch)))
+                                            (V.TagMatcher subject otherBranches (Just (snd elseBranch)))
                                             (getType (head branches))))
 
 
@@ -303,14 +347,18 @@ typeCheckExpr symtab assumption e = case e of
                                 let firstBranch = head branches 
 
                                 -- check if all branch have the same type
-                                if any (\x -> not (getType x `V.typeEquals` getType firstBranch)) branches then
+                                let expectedTypeOfEachBranches = getType firstBranch 
+                                if any 
+                                    (\branch -> 
+                                        case typeCompares symtab (getType branch) expectedTypeOfEachBranches of
+                                            Applicable True ->
+                                                False
+                                            _ ->
+                                                True) branches then
                                     Left (KErrorNotAllBranchHaveTheSameType branches)
                                 else
                                     Right (First (V.Expr 
-                                        (V.TagMatcher 
-                                            subject 
-                                            tagBranches
-                                            Nothing) 
+                                        (V.TagMatcher subject tagBranches Nothing) 
                                         (getType (head branches))))
                         where
                             -- update the symtab for each branch
@@ -359,15 +407,16 @@ typeCheckExpr symtab assumption e = case e of
                                     if length (tail params') == 0
                                     then -- is getter
                                         Right (First (V.Expr (V.RecordGetter subject propertyName) expectedType))
-                                    else do -- is setterhi
+                                    else do -- is setter
                                         newValue <- typeCheckExpr symtab assumption ((tail params') !! 0) >>= extractExpr
-                                        if getType newValue `V.typeEquals` expectedType then
-                                            Right 
-                                                (First 
-                                                    (V.Expr 
-                                                        (V.RecordSetter subject propertyName newValue) recordType))
-                                        else
-                                            Left (KErrorWrongTypeInSetter newValue expectedType)
+                                        let actualType = getType newValue
+                                        case typeCompares symtab actualType expectedType of
+                                            Applicable True ->
+                                                Right (First (V.Expr 
+                                                    (V.RecordSetter subject propertyName newValue) recordType))
+                                            
+                                            _ -> 
+                                                Left (KErrorWrongTypeInSetter newValue expectedType)
 
                                 Nothing -> 
                                     continuePreprocessFuncCall2
@@ -394,9 +443,19 @@ typeCheckExpr symtab assumption e = case e of
                                     (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.TypeCarryfulTagConstructor tag carryType belongingType))))
 
                                 Nothing ->
-                                    Left (KErrorTagNotFound tagname taggedUnionName tags)
+                                    Left (KErrorTagNotFound [tagname] taggedUnionName tags)
+
                         else
                             Left (KErrorIncorrectUsageOfTagConstructorPrefix e)
+
+                    -- (G) check if user is invoking type constructor
+                    V.TypeTypeConstructor (V.TypeConstructor name ids expectedTypeParams _) ->
+                        if map snd funcIds /= map snd ids then
+                            Left (KErrorTypeConstructorIdsMismatch funcIds)
+                        else do
+                            -- TODO: check if type param conforms to type constraint
+                            types <- typeCheckExprs symtab StrictlyAnalyzingType (tail params') >>= mapM extractType 
+                            Right (Second (V.TypeCompound name types))
 
                     -- otherwise
                     _ ->
@@ -427,99 +486,172 @@ typeCheckExpr symtab assumption e = case e of
                         
             treatAsNormalFuncCall = do
                 params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
-                typeCheckFuncCall symtab params funcIds
+                result <- typeCheckFuncCall symtab params funcIds
+                Right (First result)
 
     other -> 
         undefined
 
-    where 
+data MatchFuncResult 
+    = PerfectlyMatchedFuncFound 
+        V.Func   -- matching function
+        KeliSymTab -- corresponding environment
+
+    | PartiallyMatchedFuncFound -- means the 2nd params onward does not match expected types
+        KeliError  -- corresponding error (should be type mismatch error)
+
+    | StillNoMatchingFunc
 
 -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
-typeCheckFuncCall :: KeliSymTab -> [V.Expr] -> [Raw.StringToken] -> Either KeliError (OneOf3 V.Expr V.Type V.Tag)
+typeCheckFuncCall :: KeliSymTab -> [V.Expr] -> [Raw.StringToken] -> Either KeliError V.Expr
 typeCheckFuncCall symtab funcCallParams funcIds = 
     let funcId = intercalate "$" (map snd funcIds) in
-    let actualParamTypes = map (getType) funcCallParams in
     case lookup funcId symtab of
         Just (KeliSymFunc candidateFuncs) -> do
-            case (find 
-                    (\f ->
+            case (foldl 
+                    (\result f ->
                         if length funcCallParams /= length (V.funcDeclParams f) then
-                            False
-                        else
-                            let expectedParamTypes = map (\(_,paramType) -> paramType) (V.funcDeclParams f) in
-                            all 
-                                (\(actualType, expectedType) -> actualType `haveShapeOf` expectedType) 
-                                (zip actualParamTypes expectedParamTypes))
+                            StillNoMatchingFunc
+                        else do
+                            let expectedParamTypes = map (\(_,paramType) -> paramType) (V.funcDeclParams f) 
+                            let actualParamTypes = map (getType) funcCallParams 
+                            let fisrtParamExpectedType = head expectedParamTypes
+                            let firstParamActualType = head actualParamTypes 
+                            -- if only have 1 param, then just check if the first param match the expected type
+                            if length funcCallParams == 1 then 
+                                case typeCompares symtab firstParamActualType fisrtParamExpectedType of
+                                    Applicable False ->
+                                        StillNoMatchingFunc
 
-                    -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
-                    (sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
+                                    Applicable True ->
+                                        PerfectlyMatchedFuncFound f symtab
 
-                Just matchingFunc -> do
-                    let genericParams = V.funcDeclGenericParams matchingFunc
+                                    NotApplicable updatedSymtab ->
+                                        PerfectlyMatchedFuncFound f updatedSymtab
 
-                    -- 1. Create empty binding table
-                    let initialBindingTable = (fromList (map (\((_,id),_) -> (id, Nothing)) genericParams)) :: GenericBindingTable
+                            -- if more than 1 param, then we need to check if every param match every expected types
+                            -- why is this branching necessary? 
+                            --     so that we can report a better error message
+                            else 
+                                case typeCompares symtab firstParamActualType fisrtParamExpectedType of
+                                    -- if the first param does not match expected type
+                                    Applicable False ->
+                                        StillNoMatchingFunc
+                                    
+                                    -- if the first param match the expected type, check all subsequent params
+                                    _ -> 
+                                        case foldM
+                                                (\tempSymtab ((expr, actualType), expectedType) -> 
+                                                    case typeCompares tempSymtab actualType expectedType of
+                                                        Applicable False -> 
+                                                            Left (KErrorFuncCallTypeMismatch expectedType expr)
+                                                        
+                                                        Applicable True ->
+                                                            Right tempSymtab
+                                                        
+                                                        NotApplicable updatedSymtab ->
+                                                            Right updatedSymtab)
+                                                symtab
+                                                (zip (zip funcCallParams actualParamTypes) expectedParamTypes) of 
+                                            Right updatedSymtab ->
+                                                PerfectlyMatchedFuncFound f updatedSymtab
 
-                    -- 1.1 Populate binding table
-                    let expectedParamTypes = map snd (V.funcDeclParams matchingFunc)
-
-                    populatedBindingTable <- 
-                            ((foldM 
-                                ((\bindingTable2 (expectedType, actualType) -> 
-                                    let genericParamLocations = whereAreGenericParams expectedType in
-                                    case findCorrespondingType genericParamLocations actualType of
-                                        Right (CorrespondingTypeNotFound) -> 
-                                            Right bindingTable2
-
-                                        Right (CorrespondingTypeFound bindings) -> 
-                                            Right $
-                                                (foldl'
-                                                ((\bindingTable3 ((_,id), bindingType) -> 
-                                                    case lookup id bindingTable3 of
-                                                        Just Nothing -> 
-                                                            (bindingTable3 |> (id, Just bindingType)) 
-
-                                                        Just (Just _) -> 
-                                                            -- if already binded, don't insert the new type binding
-                                                            bindingTable3
-
-                                                        Nothing -> 
-                                                            error "shouldn't be possible") :: GenericBindingTable -> (Raw.StringToken, V.Type) -> GenericBindingTable)
-
-                                                (bindingTable2 :: GenericBindingTable)
-                                                bindings)
-
-                                        Left err -> Left err
-                                    ) :: GenericBindingTable -> (V.Type, V.Type) -> Either KeliError GenericBindingTable)
-                                initialBindingTable
-                                (zip expectedParamTypes actualParamTypes)))
-
+                                            Left err ->
+                                                PartiallyMatchedFuncFound err)
                     
-                    -- 2. Subsitute type param bindings
-                    let specializedFunc = substituteGeneric populatedBindingTable matchingFunc 
+                        StillNoMatchingFunc
 
-                    -- 3. Check if each func call param type match with param types of specializedFunc
-                    let typeMismatchError = 
-                            find
-                            (\(expectedType, actualExpr) -> not (getType actualExpr `V.typeEquals` expectedType))
-                            (zip (map snd (V.funcDeclParams specializedFunc)) funcCallParams)
-                    
-                    case typeMismatchError of
-                        Just (expectedType, actualExpr) -> 
-                            Left (KErrorFuncCallTypeMismatch expectedType actualExpr)
+                        -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
+                        (sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
 
-                        Nothing ->
-                            let funcCall = V.FuncCall funcCallParams funcIds matchingFunc in
-                            Right (First (V.Expr funcCall (V.funcDeclReturnType specializedFunc)))
+                PerfectlyMatchedFuncFound f updatedSymtab ->
+                    let funcCall = V.FuncCall funcCallParams funcIds f in
+                    let funcCallReturnType = resolveType updatedSymtab (V.funcDeclReturnType f) in
+                    Right (V.Expr funcCall funcCallReturnType)
 
-                Nothing ->
+                PartiallyMatchedFuncFound err ->
+                    Left err
+
+                StillNoMatchingFunc ->
                     Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
+                -- Just matchingFunc -> do
+                --     let genericParams = V.funcDeclGenericParams matchingFunc
+
+                --     -- 1. Create empty binding table
+                --     let initialBindingTable = (fromList (map (\(V.TypeParam (_,id) _) -> (id, Nothing)) genericParams)) :: GenericBindingTable
+
+                --     -- 1.1 Populate binding table
+                --     let expectedParamTypes = map snd (V.funcDeclParams matchingFunc)
+
+                --     populatedBindingTable <- 
+                --             ((foldM 
+                --                 ((\bindingTable2 (expectedType, actualType) -> 
+                --                     let genericParamLocations = whereAreGenericParams expectedType in
+                --                     case findCorrespondingType genericParamLocations actualType of
+                --                         Right (CorrespondingTypeNotFound) -> 
+                --                             Right bindingTable2
+
+                --                         Right (CorrespondingTypeFound bindings) -> 
+                --                             Right $
+                --                                 (foldl'
+                --                                 ((\bindingTable3 ((_,id), bindingType) -> 
+                --                                     case lookup id bindingTable3 of
+                --                                         Just Nothing -> 
+                --                                             (bindingTable3 |> (id, Just bindingType)) 
+
+                --                                         Just (Just _) -> 
+                --                                             -- if already binded, don't insert the new type binding
+                --                                             bindingTable3
+
+                --                                         Nothing -> 
+                --                                             error "shouldn't be possible") :: GenericBindingTable -> (Raw.StringToken, V.Type) -> GenericBindingTable)
+
+                --                                 (bindingTable2 :: GenericBindingTable)
+                --                                 bindings)
+
+                --                         Left err -> Left err
+                --                     ) :: GenericBindingTable -> (V.Type, V.Type) -> Either KeliError GenericBindingTable)
+                --                 initialBindingTable
+                --                 (zip expectedParamTypes actualParamTypes)))
+
+                    
+                --     -- 2. Subsitute type param bindings
+                --     let specializedFunc = substituteGeneric populatedBindingTable matchingFunc 
+
+                --     -- 3. Check if each func call param type match with param types of specializedFunc
+                --     let typeMismatchError = 
+                --             find
+                --             (\(expectedType, actualExpr) -> not (getType actualExpr `typeCompares` expectedType))
+                --             (zip (map snd (V.funcDeclParams specializedFunc)) funcCallParams)
+                    
+                --     case typeMismatchError of
+                --         Just (expectedType, actualExpr) -> 
+                --             Left (KErrorFuncCallTypeMismatch expectedType actualExpr)
+
+                --         Nothing ->
+                --             let funcCall = V.FuncCall funcCallParams funcIds matchingFunc in
+                --             Right (First (V.Expr funcCall (V.funcDeclReturnType specializedFunc)))
+
         
         Just other ->
             Left (KErrorNotAFunction funcIds)
 
         _ -> 
             Left (KErrorUsingUndefinedFunc funcIds [])
+
+resolveType :: KeliSymTab -> V.Type -> V.Type
+resolveType symtab t =
+    case t of
+        V.TypeTypeParam name _ ->
+            case lookup (snd name) symtab of
+                Just (KeliSymType (V.TypeAlias _ boundedType) []) ->
+                    boundedType
+
+                _ ->
+                    error "should be impossible"
+        
+        other ->
+            t
 
 substituteGeneric :: GenericBindingTable -> V.Func -> V.Func
 substituteGeneric bindingTable matchingFunc = 
@@ -551,12 +683,12 @@ substituteGeneric' bindingTable type' =
 verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
 verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
 
-verifyTypeParam :: KeliSymTab -> Raw.Expr -> Either KeliError V.TypeParam
-verifyTypeParam symtab expr = do
+verifyTypeParam :: KeliSymTab -> (Raw.StringToken, Raw.Expr) -> Either KeliError V.TypeParam
+verifyTypeParam symtab (paramName, expr) = do
     result <- typeCheckExpr symtab StrictlyAnalyzingType expr
     case result of
         Second V.TypeType ->
-            Right (V.TypeParam Nothing)
+            Right (V.TypeParam paramName Nothing)
         _ ->
             Left (KErrorInvalidTypeParamDecl expr)
     -- case expr of
@@ -583,19 +715,19 @@ typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) 
 --  a.list `haveShapeOf` a.tree = False
 --  Int `haveShapeOf` Int = True
 --  Int `haveShapeOf` a = True
-haveShapeOf :: V.Type -> V.Type -> Bool
-type1 `haveShapeOf` type2 = 
-    case type1 of
-        V.TypeCompound _ _ -> 
-            undefined
+-- haveShapeOf :: V.Type -> V.Type -> Bool
+-- type1 `haveShapeOf` type2 = 
+--     case type1 of
+--         V.TypeCompound _ _ -> 
+--             undefined
         
-        _ -> 
-            case type2 of
-                V.TypeTypeParam _ _ -> 
-                    True
+--         _ -> 
+--             case type2 of
+--                 V.TypeTypeParam _ _ -> 
+--                     True
                 
-                _ ->
-                    type1 `V.typeEquals` type2
+--                 _ ->
+--                     type1 `typeCompares` type2
 
 hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
 type' `hardConformsTo` Nothing = True
@@ -674,3 +806,41 @@ extractExpr x =
         First expr -> Right expr
         Second type' -> Left (KErrorExpectedExprButGotType type')
         Third tag -> Left (KErrorExpectedExprButGotTag tag)
+
+data TypeCompareResult
+    = Applicable -- if both operands are not type parameters OR both operands are type parameters (with the same name)
+        Bool
+
+    | NotApplicable -- if one of the operand is a type parameter
+        KeliSymTab  --  an updated environment, which binds the type parameter to the comparer type
+
+typeCompares :: 
+    KeliSymTab 
+    -> V.Type -- actual type
+    -> V.Type -- expected type
+    -> TypeCompareResult
+
+typeCompares symtab actualType expectedType =
+    case expectedType of 
+        V.TypeTypeParam name1 constraint1 ->
+            case actualType of
+                -- if both actualType and expectedType are type params, just compare their name
+                V.TypeTypeParam name2 constraint2 ->
+                    Applicable (snd name1 == snd name2)
+                    -- TODO: should I check if actualType is also bounded?
+
+                -- if expectedType is a bounded type param AND actualType is a concrete type
+                _ ->
+                    -- lookup symtab to check if this type parameter is already bounded to a type 
+                    case lookup (snd name1) symtab of
+                        -- if bounded, compare actualType to boundedType
+                        Just (KeliSymType (V.TypeAlias _ boundedType) []) ->
+                            Applicable (actualType == boundedType)
+
+                        -- if not bounded, update the environment (bound actualType to the type param)
+                        Nothing ->
+                            NotApplicable (symtab |> (snd name1, KeliSymType (V.TypeAlias [name1] actualType) []))
+
+        -- if both are concrete types, just do direct comparison
+        _ ->
+            Applicable (actualType == expectedType)

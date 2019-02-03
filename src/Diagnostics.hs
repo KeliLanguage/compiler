@@ -68,8 +68,8 @@ toDiagnostic err = case err of
     KErrorDuplicatedTags ids ->
         getDiagnostic ids "Duplicated tags."
 
-    KErrorExcessiveTags tags (_,tagUnionName) ->
-        map (\t -> Diagnostic 1 (getRange t) ("Excessive tag: " ++ tagUnionName ++ " does not have the tag " ++ init (snd t))) tags
+    KErrorExcessiveTags tags tagUnionName ->
+        map (\t -> Diagnostic 1 (getRange t) ("Excessive tag: " ++ intercalate " " (map snd tagUnionName) ++ " does not have the tag " ++ init (snd t))) tags
 
     KErrorExcessiveProperties props ->
         getDiagnostic props "Excessive property."

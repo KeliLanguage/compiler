@@ -10,6 +10,7 @@ import Util
 import Data.List
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
+import TypeCheck
 import StaticError(KeliError(KErrorIncompleteFuncCall))
 
 
@@ -63,7 +64,7 @@ toCompletionItem symbol =
         KeliSymConst (_, id) _ -> 
             [CompletionItem  6 id  "" id 1]
         
-        KeliSymType (V.TypeAlias ids _) ->
+        KeliSymType (V.TypeAlias ids _) _ ->
             let text = intercalate " " (map snd ids) in
             [CompletionItem 7 text "" text 1]
         
@@ -126,7 +127,11 @@ suggestCompletionItems decls =
                                         filter 
                                             (\f -> 
                                                 let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                exprType `V.typeEquals` firstParamType) 
+                                                case typeCompares emptyKeliSymTab exprType firstParamType of
+                                                    Applicable False ->
+                                                        False
+                                                    _ ->
+                                                        True) 
                                             funcs
                                     _ -> 
                                         [])
