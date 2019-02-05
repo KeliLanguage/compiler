@@ -97,18 +97,20 @@ data TaggedUnion =
     
 
 instance Show Type' where
-    show TypeFloat                              = "*float"
-    show (TypeIdentifiedCarryfulBranch t)       = show t ++ " branch"
-    show TypeInt                                = "*Int"
-    show TypeString                             = "*String"
-    show (TypeRecord kvs)                       = "*record:" ++ show kvs
-    show (TypeUndefined)                        = "undefined"
-    show (TypeCarryfulTagConstructor name _ _ _)= "*carryful tag constructor:" ++ show name
-    show (TypeRecordConstructor kvs)            = "*record constructorshow:" ++ show kvs
-    show (TypeTypeParam name _)                 = "*type param:" ++ show name
-    show TypeType                               = "*type type"
-    show TypeSelf                               = "*self"
-    show TypeTypeConstructor{}                  = "*type constructor"
+    show TypeFloat                                           = "*float"
+    show (TypeIdentifiedCarryfulBranch t)                    = show t ++ " branch"
+    show TypeInt                                             = "*Int"
+    show TypeString                                          = "*String"
+    show (TypeRecord kvs)                                    = "*record:" ++ show kvs
+    show (TypeUndefined)                                     = "undefined"
+    show (TypeCarryfulTagConstructor name _ _ _)             = "*carryful tag constructor:" ++ show name
+    show (TypeRecordConstructor kvs)                         = "*record constructorshow:" ++ show kvs
+    show (TypeTypeParam name _)                              = "*type param:" ++ show name
+    show TypeType                                            = "*type type"
+    show TypeSelf                                            = "*self"
+    show TypeTypeConstructor{}                               = "*type constructor"
+    show (TypeTaggedUnion (TaggedUnion name _ _ (Just typeParams))) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
+    show (TypeTaggedUnion (TaggedUnion name _ _ Nothing)) = "*tagged union{"++snd name++"}"
 
 
 data TypeConstraint
@@ -276,6 +278,7 @@ stringifyType' t = case t of
         TypeRecord kvs ->  error (show kvs)
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
+        TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name
         _ -> error (show t)
 
 -- For constraint type, we just return an empty string

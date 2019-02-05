@@ -282,7 +282,9 @@ analyzeDecl decl symtab = case decl of
         
     r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
         -- 1. verify all type params
-        verifiedTypeParams <- mapM (verifyTypeParam symtab) typeParams 
+        verifiedTypeParams' <- mapM (verifyTypeParam symtab) typeParams 
+        let verifiedTypeParams = map (\(V.TypeParam name c) -> V.TypeVariable name c) verifiedTypeParams'
+
 
         -- 2. populate symbol table with type params
         symtab2 <- 
@@ -293,7 +295,7 @@ analyzeDecl decl symtab = case decl of
                     else 
                         Right (acc |> (snd id, KeliSymExplicitTypeParam t)))
                 symtab 
-                verifiedTypeParams
+                verifiedTypeParams'
 
         -- 3. populate symbol table with this type constructor (to allow recursve definition)
         symtab3 <-
@@ -301,7 +303,7 @@ analyzeDecl decl symtab = case decl of
                 Left (KErrorDuplicatedId [typeConstructorName])
             else
                 Right (symtab2 |> (snd typeConstructorName, 
-                    KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] Nothing)))
+                    KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] (Just verifiedTypeParams))))
 
         -- 4. type check the body
         typeCheckedBody <- (typeCheckExpr symtab3 StrictlyAnalyzingType typeBody) 
@@ -309,7 +311,7 @@ analyzeDecl decl symtab = case decl of
 
         case typeCheckedBody of
             Third tag -> do
-                taggedUnionType <- linkTagsTogether typeConstructorName ids tag (Just (map (\(V.TypeParam name c) -> V.TypeVariable name c)verifiedTypeParams))
+                taggedUnionType <- linkTagsTogether typeConstructorName ids tag (Just verifiedTypeParams)
                 Right (KeliSymTypeConstructor taggedUnionType)
 
             _ ->
@@ -364,5 +366,8 @@ substituteSelfType source target =
                                 propTypePairs
                     in V.ConcreteType (V.TypeRecord updatedPropTypePairs)
 
+                _ ->
+                    target
+
         _ ->
-            target 
+            target

@@ -44,14 +44,14 @@ typeCheckExpr symtab assumption e = case e of
             Just (KeliSymConst _ expr) -> 
                 Right (First (V.Expr (V.Id token) (getType expr)))
         
-            Just (KeliSymTag (V.CarrylessTag tag belongingType)) -> 
-                (Right (First (V.Expr (V.CarrylessTagConstructor tag) (V.ConcreteType (V.TypeTaggedUnion belongingType)))))
+            Just (KeliSymTag (V.CarrylessTag tag belongingUnion)) -> 
+                (Right (First (V.Expr (V.CarrylessTagConstructor tag) (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
 
-            Just (KeliSymTag (V.CarryfulTag tag carryType belongingType)) ->
+            Just (KeliSymTag (V.CarryfulTag tag carryType belongingUnion)) ->
                 -- How to check if user forgot to put .carry ?
                 --  Don't need to explicitly check it, the type system will handle it
 
-                (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.ConcreteType (V.TypeCarryfulTagConstructor tag carryType belongingType Nothing)))))
+                (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.ConcreteType (V.TypeCarryfulTagConstructor tag carryType belongingUnion Nothing)))))
             
             Just (KeliSymType (V.TypeAlias _ t@(V.ConcreteType (V.TypeRecord propTypePairs)))) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
@@ -279,13 +279,13 @@ typeCheckExpr symtab assumption e = case e of
 
                                             
                             -- (B) check if user is invoking carryful tag constructor
-                            V.TypeCarryfulTagConstructor tag expectedCarryType belongingType typeParams -> 
+                            V.TypeCarryfulTagConstructor tag expectedCarryType belongingUnion@(V.TaggedUnion name ids tags _) typeParams -> 
                                 if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then do
                                     carryExpr  <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
                                     let actualType = getType carryExpr 
                                     case typeCompares symtab actualType expectedCarryType of
                                         ApplicableOk ->
-                                            Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType (V.TypeTaggedUnion belongingType))))
+                                            Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType (V.TypeTaggedUnion belongingUnion))))
                                         
                                         ApplicableFailed err ->
                                             Left err
@@ -293,10 +293,11 @@ typeCheckExpr symtab assumption e = case e of
                                         
                                         NotApplicable updatedSymtab ->
                                             case typeParams of
-                                                Just _ ->
-                                                    let types = resolveType in
-                                                    undefined
-                                                    -- Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) compoundType))
+                                                Just typeParams' ->
+                                                    let resolvedTypeParams = map (resolveType updatedSymtab) typeParams' in
+                                                    Right (First (V.Expr 
+                                                        (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
+                                                        (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just resolvedTypeParams))))))
                                                 _ ->
                                                     undefined
 
@@ -461,22 +462,22 @@ typeCheckExpr symtab assumption e = case e of
                                 if length funcIds == 1 then
                                     let tagname = head funcIds in
                                     case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
-                                        Just (V.CarrylessTag tag belongingType) -> 
+                                        Just (V.CarrylessTag tag belongingUnion) -> 
                                             case typeParams of
                                                 Just typeParams' ->
                                                     (Right (First (V.Expr 
                                                         (V.CarrylessTagConstructor tag) 
-                                                        (V.ConcreteType (V.TypeTaggedUnion belongingType)))))
+                                                        (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
 
                                                 Nothing ->
                                                     (Right (First (V.Expr 
                                                         (V.CarrylessTagConstructor tag) 
-                                                        (V.ConcreteType (V.TypeTaggedUnion belongingType)))))
+                                                        (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
 
-                                        Just (V.CarryfulTag tag carryType belongingType) ->
+                                        Just (V.CarryfulTag tag carryType belongingUnion) ->
                                             (Right (First (V.Expr 
                                                 (V.CarryfulTagConstructor tag carryType) 
-                                                (V.ConcreteType (V.TypeCarryfulTagConstructor tag carryType belongingType typeParams)))))
+                                                (V.ConcreteType (V.TypeCarryfulTagConstructor tag carryType belongingUnion typeParams)))))
 
                                         Nothing ->
                                             Left (KErrorTagNotFound tagname taggedUnionName tags)
@@ -640,30 +641,6 @@ resolveType symtab t =
         _ ->
             t
 
--- substituteGeneric :: GenericBindingTable -> V.Func -> V.Func
--- substituteGeneric bindingTable matchingFunc = 
---     let expectedFuncParams = V.funcDeclParams matchingFunc in
---     let substitutedFuncParams = 
---             map (\(paramId, paramType) -> (paramId, substituteGeneric' bindingTable paramType)) expectedFuncParams in
-
---     let substitutedReturnType = substituteGeneric' bindingTable (V.funcDeclReturnType matchingFunc) in
-
---     (matchingFunc {
---         V.funcDeclParams = substitutedFuncParams, 
---         V.funcDeclReturnType = substitutedReturnType})
-    
--- substituteGeneric' :: GenericBindingTable -> V.Type -> V.Type
--- substituteGeneric' bindingTable type' =
---     case type' of
---         V.TypeTypeParam (_,id) _ -> 
---             case lookup id bindingTable of 
---                 Just (Just bindingType) -> bindingType
---                 _ -> error "possibly due to binding table is not populated properly"
-
---         _ -> 
---             type'
-
-
 verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
 verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
 
@@ -676,43 +653,10 @@ verifyTypeParam symtab (paramName, expr) = do
 
         _ ->
             Left (KErrorInvalidTypeParamDecl expr)
-    -- case expr of
-    --     Raw.Id (_,name) ->
-    --         case lookup name symtab of
-    --             Just (KeliSymTypeConstraint _ constraint) -> 
-    --                 Right constraint
-                
-    --             _ ->
-    --                 Left (KErrorExprIsNotATypeConstraint expr)
-
-
-    --     _ ->
-    --         undefined
 
 typeCheckExprs :: KeliSymTab -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type [V.UnlinkedTag]]
 typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) exprs
 
-
-    
--- Example
---  a.list `haveShapeOf` b.list = True
---  a.list.list `haveShapeOf` b.list.list = True
---  a.list `haveShapeOf` a.tree = False
---  Int `haveShapeOf` Int = True
---  Int `haveShapeOf` a = True
--- haveShapeOf :: V.Type -> V.Type -> Bool
--- type1 `haveShapeOf` type2 = 
---     case type1 of
---         V.TypeCompound _ _ -> 
---             undefined
-        
---         _ -> 
---             case type2 of
---                 V.TypeTypeParam _ _ -> 
---                     True
-                
---                 _ ->
---                     type1 `typeCompares` type2
 
 hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
 type' `hardConformsTo` Nothing = True
@@ -811,8 +755,25 @@ typeCompares symtab actualType expectedType =
         typeCompares' _ t1@(V.TypeRecordConstructor kvs1      ) t2@(V.TypeRecordConstructor kvs2      ) = undefined
         typeCompares' _ (V.TypeType                        ) (V.TypeType                        ) = ApplicableOk
 
-        -- type check tagged union
-        typeCompares' _ t1@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ _))    t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ _ ))     = if name1 == name2 then ApplicableOk else ApplicableFailed (KErrorTypeMismatch t1 t2)
+        -- type check generic tagged union
+        typeCompares' symtab
+            t1@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ (Just actualTypeParams)))    
+            t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ (Just expectedTypeParams))) = 
+            if name1 == name2 then 
+                -- TODO: we need to also compares 2nd and 3rd type params
+                typeCompares symtab (head actualTypeParams) (head expectedTypeParams)
+                 
+            else 
+                ApplicableFailed (KErrorTypeMismatch t1 t2)
+
+        -- type check non-generic tagged union
+        typeCompares' symtab
+            t1@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ Nothing))    
+            t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ Nothing)) =
+                if name1 == name2 then 
+                    ApplicableOk
+                else 
+                    ApplicableFailed (KErrorTypeMismatch t1 t2)
 
         -- record type is handled differently, because we want to have structural typing
         -- NOTE: kts means "key-type pairs"

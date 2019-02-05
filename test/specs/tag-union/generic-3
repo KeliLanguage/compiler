@@ -1,2 +1,6 @@
 Tuple.fst(A Type) snd(B Type) = record.first (A) second (B)
 = Tuple.fst(1) snd("hello")
+
+====
+
+hi
