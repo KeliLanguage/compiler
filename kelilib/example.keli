@@ -18,3 +18,9 @@ ans = 10./x
 this:int.even? | bool = this.%2.==0
 
 x = ans.left? (left.carry.zeroDivisionError? undefined) right? (ans.carry.*10)
+
+
+(this Point).distanceTo(that Point) | Float =
+    x.as(this.x.-(that.x)) in(
+    y.as(this.y.-(that.y)) in(
+    x.square.-(y.square).squareRoot))

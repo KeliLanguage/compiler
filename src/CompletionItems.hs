@@ -64,9 +64,8 @@ toCompletionItem symbol =
         KeliSymConst (_, id) _ -> 
             [CompletionItem  6 id  "" id 1]
         
-        KeliSymType (V.TypeAlias ids _) _ ->
-            let text = intercalate " " (map snd ids) in
-            [CompletionItem 7 text "" text 1]
+        KeliSymType (V.TypeAlias (_,id) _) ->
+            [CompletionItem 7 id "" id 1]
         
         KeliSymFunc funcs -> 
             map 
@@ -128,7 +127,7 @@ suggestCompletionItems decls =
                                             (\f -> 
                                                 let (_,firstParamType) = V.funcDeclParams f !! 0 in
                                                 case typeCompares emptyKeliSymTab exprType firstParamType of
-                                                    Applicable False ->
+                                                    ApplicableFailed _ ->
                                                         False
                                                     _ ->
                                                         True) 
@@ -141,7 +140,7 @@ suggestCompletionItems decls =
 
                     case exprType of
                         -- tag constructor prefix
-                        V.TypeTagConstructorPrefix _ tags ->
+                        V.ConcreteType (V.TypeTagConstructorPrefix _ tags typeParams) ->
                             map 
                                 (\t -> 
                                     case t of
@@ -165,7 +164,7 @@ suggestCompletionItems decls =
                                 tags 
 
                         -- record constructor
-                        V.TypeRecordConstructor propTypePairs -> 
+                        V.ConcreteType (V.TypeRecordConstructor propTypePairs) -> 
                             let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
                             [CompletionItem {
                                 kind = 4, -- constructor
@@ -176,7 +175,7 @@ suggestCompletionItems decls =
                             }]
 
                         -- tag matchers
-                        V.TypeTagUnion _ tags ->
+                        V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
                             [CompletionItem {
                                 kind = 2, -- method
                                 label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
@@ -186,7 +185,7 @@ suggestCompletionItems decls =
                             }] ++ relatedFuncsCompletionItems
 
                         -- record (getter/setter)
-                        V.TypeRecord propTypePairs ->
+                        V.ConcreteType (V.TypeRecord propTypePairs) ->
                             (map 
                                 (\((_,prop), expectedType') ->
                                         CompletionItem {

@@ -23,7 +23,7 @@ data KeliError
     | KErrorDuplicatedTags [Verified.StringToken]
     | KErrorExcessiveTags 
         [Verified.StringToken] -- excessive tags
-        [Verified.StringToken] -- name of tagged union
+        Verified.StringToken -- name of tagged union
     | KErrorExcessiveProperties [Verified.StringToken]
     | KErrorIncorrectCarryType 
         Verified.Type -- expected type
@@ -66,15 +66,15 @@ data KeliError
     | KErrorBodyOfGenericTypeIsNotTypeDeclaration
         Verified.Expr -- actual body
     | KErrorCannotDeclareTypeAsAnonymousConstant Verified.Type
-    | KErrorCannotDeclareTagAsAnonymousConstant Verified.Tag
+    | KErrorCannotDeclareTagAsAnonymousConstant [Verified.UnlinkedTag]
 
     | KErrorExpectedTypeButGotExpr      Verified.Expr
     | KErrorExpectedTagButGotExpr       Verified.Expr
     | KErrorExpectedTagButGotType       Verified.Type
     | KErrorExpectedExprButGotType      Verified.Type
-    | KErrorExpectedTypeButGotTag       Verified.Tag
-    | KErrorExpectedExprButGotTag       Verified.Tag
-    | KErrorExpectedExprOrTypeButGotTag Verified.Tag
+    | KErrorExpectedTypeButGotTag       [Verified.UnlinkedTag]
+    | KErrorExpectedExprButGotTag       [Verified.UnlinkedTag]
+    | KErrorExpectedExprOrTypeButGotTag [Verified.UnlinkedTag]
     | KErrorUnknownFFITarget Verified.StringToken
     | KErrorFFIValueShouldBeString Verified.Expr
     | KErrorExprIsNotATypeConstraint    Raw.Expr
@@ -82,17 +82,24 @@ data KeliError
     | KErrorInvalidTypeParamDecl Raw.Expr
     | KErrorIncorrectUsageOfTagConstructorPrefix Raw.Expr
     | KErrorTagNotFound 
-        [Raw.StringToken] -- tag that user wanted to use
-        [Raw.StringToken] -- name of the tagged union
+        Raw.StringToken -- tag that user wanted to use
+        Raw.StringToken -- name of the tagged union
         [Verified.Tag]    -- list of possible tags
 
     | KErrorIncompleteFuncCall -- for implementing Intellisense
-        (OneOf3 Verified.Expr Verified.Type Verified.Tag)
+        (OneOf3 Verified.Expr Verified.Type [Verified.UnlinkedTag])
         SourcePos -- position of the dot operator
 
     | KErrorCannotRedefineReservedConstant Raw.StringToken
     | KErrorCannotDefineCustomPrimitiveType Raw.StringToken
     | KErrorTypeConstructorIdsMismatch [Raw.StringToken]
+    | KErrorCannotMatchConcreteTypeWithRigidTypeVariable 
+        Verified.Expr -- actual expr
+        Verified.Type   -- expected type
+
+    | KErrorTypeMismatch 
+        Verified.Type' -- actual type
+        Verified.Type' -- expected type
     
     deriving (Show)
 

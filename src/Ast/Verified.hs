@@ -6,7 +6,6 @@ import Data.List
 import Data.Char
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
--- TODO: Continue from here
 type StringToken = (SourcePos, String)
 
 nullStringToken :: StringToken
@@ -39,88 +38,78 @@ data Func = Func {
     funcDeclBody          :: Expr
 } deriving (Show)
 
-data TypeAlias =  TypeAlias [StringToken] Type deriving (Show)
-
-
+data TypeAlias =  TypeAlias StringToken Type deriving (Show)
 
 data Type
+    = TypeVariable 
+        StringToken -- name
+        (Maybe TypeConstraint) -- associated type constraint
+
+    | ConcreteType
+        Type'
+    deriving (Show)
+
+data Type'
     = TypeFloat
     | TypeInt
     | TypeString
-    | TypeRecord [(StringToken, Type)]
-    | TypeTagUnion 
-        [StringToken] --name (name is compulsory, meaning that user cannot create anonymous tagged union)
-        [Tag]       -- list of tags
+    | TypeRecord 
+        [(StringToken, Type)] -- key-type pairs
+        -- TODO: implement generic record 
+        -- (Maybe TypeParams) -- type params
+
+
+    | TypeTaggedUnion TaggedUnion
 
     | TypeUndefined
     | TypeCarryfulTagConstructor 
         StringToken  -- tag
-        Type     -- carry type
-        Type     -- belonging type
+        Type         -- carry type
+        TaggedUnion  -- belongingType
+        (Maybe [Type]) -- type params
 
-    | TypeRecordConstructor [(StringToken, Type)]
-    | TypeTagConstructorPrefix [StringToken] [Tag]
+    | TypeRecordConstructor 
+        [(StringToken, Type)] -- expected key-type pairs
+
+    | TypeTagConstructorPrefix 
+        StringToken -- name
+        [Tag]       -- available tags
+        (Maybe [Type]) -- type params
+
     | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
-    | TypeCompound 
-        StringToken -- name
-        [Type] -- type params
 
     | TypeIdentifiedCarryfulBranch
         Type -- carry type
 
     | TypeSelf -- for defining recursive type
 
-    | TypeTypeConstructor TypeConstructor
+    | TypeTypeConstructor TaggedUnion
 
-data TypeConstructor =
-    TypeConstructor 
-        StringToken    -- name
+
+data TaggedUnion = 
+    TaggedUnion
+        StringToken    -- name (name is compulsory, meaning that user cannot create anonymous tagged union)
         [StringToken]  -- ids
-        [TypeParam]    -- type params
-        Type           -- type body
+        [Tag]          -- list of tags
+        (Maybe [Type])   -- type params
     deriving (Show)
+    
 
-instance Show Type where
-    show TypeFloat                              = "float"
+instance Show Type' where
+    show TypeFloat                              = "*float"
     show (TypeIdentifiedCarryfulBranch t)       = show t ++ " branch"
-    show TypeInt                                = "Int"
-    show TypeString                             = "String"
-    show (TypeRecord kvs)                       = "record:" ++ show kvs
-    show (TypeTagUnion name _)                  = show name
+    show TypeInt                                = "*Int"
+    show TypeString                             = "*String"
+    show (TypeRecord kvs)                       = "*record:" ++ show kvs
     show (TypeUndefined)                        = "undefined"
-    show (TypeCarryfulTagConstructor name _ _)  = show name
-    show (TypeRecordConstructor kvs)            = show kvs
-    show (TypeTypeParam name _)                     = show name
-    show TypeType                               = "type"
-    show (TypeCompound name params)             = show name ++ show params
-    show TypeSelf                               = "$self"
-    show TypeTypeConstructor{}                  = "type constructor"
+    show (TypeCarryfulTagConstructor name _ _ _)= "*carryful tag constructor:" ++ show name
+    show (TypeRecordConstructor kvs)            = "*record constructorshow:" ++ show kvs
+    show (TypeTypeParam name _)                 = "*type param:" ++ show name
+    show TypeType                               = "*type type"
+    show TypeSelf                               = "*self"
+    show TypeTypeConstructor{}                  = "*type constructor"
 
-
-instance Eq Type where
-    TypeFloat                           == TypeFloat                        = True
-    TypeInt                             == TypeInt                          = True
-    TypeString                          == TypeString                       = True
-    TypeTagUnion name1 _                == TypeTagUnion name2 _             = name1 == name2
-    TypeCarryfulTagConstructor x _ _    == TypeCarryfulTagConstructor y _ _ = x == y
-    TypeRecordConstructor kvs1          == TypeRecordConstructor kvs2       = kvs1 == kvs2
-    TypeType                            == TypeType                         = True
-    TypeCompound name1 params1          == TypeCompound name2 params2       = name1 == name2 && params1 == params2
-    TypeTypeParam name1 _               == TypeTypeParam name2 _            = name1 == name2
-    TypeUndefined                       == _                                = error "Cannot compare type of undefined"
-    _                                   == TypeUndefined                    = error "Cannot compare type of undefined"
-
-    -- record type is handled differently, because we want to have structural typing
-    -- NOTE: kts means "key-type pairs"
-    TypeRecord kts1 == TypeRecord kts2 = 
-        let removeSourcePos kts = map (\((_,key),t) -> (key, t)) kts in
-        let sortedKvs1 = sortOn fst (removeSourcePos kts1) in
-        let sortedKvs2 = sortOn fst (removeSourcePos kts2) in
-        sortedKvs1 == sortedKvs2
-
-    -- anything other pattern should be false
-    _ == _ = False
 
 data TypeConstraint
     = ConstraintAny
@@ -132,15 +121,25 @@ data TypeParam
         (Maybe TypeConstraint)  -- associated type constriant
     deriving (Show)
 
+data UnlinkedTag
+    = UnlinkedCarrylessTag 
+        StringToken -- tag
+
+    | UnlinkedCarryfulTag
+        StringToken -- tag
+        Type        -- expected carry type
+
+    deriving (Show)
+
 data Tag
     = CarrylessTag 
         StringToken -- tag
-        Type    -- belonging type
+        TaggedUnion -- belonging type
 
     | CarryfulTag
         StringToken -- tag
-        Type    -- carry type
-        Type    -- beloging type
+        Type        -- expected carry type
+        TaggedUnion -- beloging type
             deriving (Show)
 
 tagnameOf :: Tag -> StringToken
@@ -191,6 +190,7 @@ data Expr'
     } 
     | CarrylessTagConstructor 
         StringToken -- tag name
+
 
     | CarryfulTagConstructor 
         StringToken -- tag name
@@ -265,12 +265,15 @@ class Stringifiable a where
     toString :: a -> String
 
 stringifyType :: Type -> String
-stringifyType t = case t of
+stringifyType (ConcreteType t) = stringifyType' t
+stringifyType (TypeVariable {}) = ""
+
+stringifyType' :: Type' -> String
+stringifyType' t = case t of
         TypeFloat  -> "float"
         TypeInt    -> "Int"
         TypeString -> "String"
         TypeRecord kvs ->  error (show kvs)
-        TypeTagUnion ids _ -> concat (map snd ids)
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
         _ -> error (show t)

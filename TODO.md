@@ -34,3 +34,10 @@
 [] change keyword `carry` to `load`
 
 [] location of error regarding (expected expr not type) is inaccurate
+
+[] make Type into GenericType and ConcreteType (to ease the process of unification)
+
+[] join child error with parent error
+
+[] update syntax of tagged union
+

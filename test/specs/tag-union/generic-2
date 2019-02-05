@@ -4,7 +4,15 @@ List.of(A Type)
 
 y = List.cons.carry(record.current(1) next(List.new))
 
-z = List.cons.carry(record.current(1) next(List.cons.carry(record.current(2) next(List.new))))
+= List.new
+
+= List.cons.carry(record.current(1) next(List.new))
+
+= List.cons.carry(record.
+    current (1) 
+    next    (List.cons.carry(record.
+        current (2) 
+        next    (List.new))))
 
 {A Type}
 (this List.of(A)).length | Int = 

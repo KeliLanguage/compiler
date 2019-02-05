@@ -1,0 +1,12 @@
+List.of(A Type) 
+    =   tag.#(new)
+    .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
+
+= List.new
+
+= List.cons.carry(record.current(1) next(List.new))
+====
+
+{ __tag: 'new' }
+{ __tag: 'cons',
+  _carry: { current: 1, next: { __tag: 'new' } } }

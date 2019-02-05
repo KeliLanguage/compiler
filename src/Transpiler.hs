@@ -5,6 +5,7 @@ import Prelude hiding (id)
 import Data.List
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
+
 import qualified Ast.Verified as V
 import Symbol
 
@@ -35,10 +36,10 @@ instance Transpilable KeliSymbol where
         KeliSymConst (_,id) expr ->
             "const " ++ idPrefix ++ id ++ "=" ++ transpile expr
 
-        KeliSymType (V.TypeAlias _ (V.TypeTagUnion ids tags)) _ ->
-            "const " ++ idPrefix ++ joinIds ids ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+        KeliSymType (V.TypeAlias _ (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)))) ->
+            "const " ++ idPrefix ++ id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
-        KeliSymTypeConstructor (V.TypeConstructor name _ _ (V.TypeTagUnion _ tags)) ->
+        KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
             "const " ++ idPrefix ++ snd name ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
         KeliSymTypeConstructor {} ->
@@ -123,13 +124,16 @@ instance Transpilable V.Expr where
 
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
-            (V.TypeTagUnion ids _)          
-                -> idPrefix ++ joinIds ids ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
+            (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
+                -> idPrefix ++ id ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
 
         V.Expr 
             (V.CarrylessTagConstructor(_,tag))
-            (V.TypeTagUnion ids _)          
-                -> idPrefix ++ joinIds ids ++ "." ++ idPrefix ++ tag
+            (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
+                -> idPrefix ++ id ++ "." ++ idPrefix ++ tag
+
+        other -> 
+            error (show other)
 
     
 

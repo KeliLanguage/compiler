@@ -22,8 +22,8 @@ data MatchResult
 --  target also means expected elements
 match :: [Raw.StringToken] -> [Raw.StringToken] -> MatchResult
 match source target =
-    let source' = map snd source in
-    let target' = map snd target in
+    let source' = sort (map snd source) in
+    let target' = sort (map snd target) in
     let intersection' = intersect source' target' in
     let intersectionLength = length intersection' in
     case findDuplicates source of
