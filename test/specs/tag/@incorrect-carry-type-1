@@ -4,4 +4,4 @@ x=color.green.carry("123")
 ====
 
 
-KErrorIncorrectCarryType
+KErrorTypeMismatch

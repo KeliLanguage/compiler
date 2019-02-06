@@ -250,7 +250,7 @@ analyzeDecl decl symtab = case decl of
                             Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
 
                         _ ->
-                            case typeCompares symtab4 bodyType verifiedReturnType of
+                            case typeCompares symtab4 typeCheckedBody verifiedReturnType of
                                 -- if body type match expected return types
                                 ApplicableOk ->
                                     Right (KeliSymFunc [resultFunc])
@@ -336,6 +336,7 @@ linkTagsTogether taggedUnionName ids tags typeParams =
             let 
                 -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
                 tagUnionType = (V.TaggedUnion taggedUnionName ids tags' typeParams)
+
 
                 tags' =
                     map 

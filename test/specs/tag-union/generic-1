@@ -13,8 +13,8 @@ List.of(A Type)
             (1.+(this.carry.next.length))
 
 z = List.cons.carry(record.current(1) next(List.cons.carry(record.current(2) next(List.new))))
-=z.length
 
+= z.length
 ====
 
 2

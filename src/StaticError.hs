@@ -98,7 +98,7 @@ data KeliError
         Verified.Type   -- expected type
 
     | KErrorTypeMismatch 
-        Verified.Type' -- actual type
+        (Verified.Expr', Verified.Type') -- actual expr
         Verified.Type' -- expected type
     
     deriving (Show)

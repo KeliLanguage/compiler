@@ -2,17 +2,12 @@ List.of(A Type)
     =   tag.#(new)
     .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
 
-y = List.cons.carry(record.current(1) next(List.new))
-
-= List.new
-
-= List.cons.carry(record.current(1) next(List.new))
-
 = List.cons.carry(record.
     current (1) 
     next    (List.cons.carry(record.
         current (2) 
         next    (List.new))))
+(this Int).+(that Int) = ffi.javascript("_this + _that").as(Int)
 
 {A Type}
 (this List.of(A)).length | Int = 

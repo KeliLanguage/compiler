@@ -128,7 +128,7 @@ instance Transpilable V.Expr where
                 -> idPrefix ++ id ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
 
         V.Expr 
-            (V.CarrylessTagConstructor(_,tag))
+            (V.CarrylessTagConstructor(_,tag) _)
             (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
                 -> idPrefix ++ id ++ "." ++ idPrefix ++ tag
 

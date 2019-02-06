@@ -5,4 +5,5 @@ b=a.yes? ( 2 ) no? ("hi")
 
 ====
 
-KErrorNotAllBranchHaveTheSameType
+KErrorTypeMismatch
+

@@ -117,7 +117,7 @@ suggestCompletionItems decls =
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
                             
             case thing of
-                First (V.Expr expr exprType) -> 
+                First expr -> 
                     let relatedFuncs =
                             map 
                             (\s -> 
@@ -126,7 +126,7 @@ suggestCompletionItems decls =
                                         filter 
                                             (\f -> 
                                                 let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                case typeCompares emptyKeliSymTab exprType firstParamType of
+                                                case typeCompares emptyKeliSymTab expr firstParamType of
                                                     ApplicableFailed _ ->
                                                         False
                                                     _ ->
@@ -138,7 +138,7 @@ suggestCompletionItems decls =
 
                     let relatedFuncsCompletionItems = concat (map toCompletionItem [KeliSymFunc (concat relatedFuncs)]) in
 
-                    case exprType of
+                    case getType expr of
                         -- tag constructor prefix
                         V.ConcreteType (V.TypeTagConstructorPrefix _ tags typeParams) ->
                             map 

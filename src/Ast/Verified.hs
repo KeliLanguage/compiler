@@ -191,7 +191,8 @@ data Expr'
         tagMatcherElseBranch :: Maybe Expr
     } 
     | CarrylessTagConstructor 
-        StringToken -- tag name
+        StringToken -- where is it defined?
+        StringToken -- where is it used?
 
 
     | CarryfulTagConstructor 
