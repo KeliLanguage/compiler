@@ -1,0 +1,15 @@
+Equatable = interface
+
+Boolean = (tag.true).or(tag.false)
+
+(this Boolean).not = this.true? (Boolean.false) false? (Boolean.true)
+
+{A Equatable}
+(this A).equals(that A) | Boolean = tobedefined
+
+{A Equatable}
+(this A).notEquals(that A) = this.equals(that).not
+
+====
+
+hi

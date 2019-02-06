@@ -1,4 +1,4 @@
-color=tag.#(red).or(tag.#(green) carry(Int))
+color=tag.red.or(tag.green(Int))
 x=color.green.carry("123")
 
 ====

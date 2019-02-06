@@ -121,35 +121,19 @@ typeCheckExpr symtab assumption e = case e of
                         case firstParamId of
                         -- 1. Check if user wants to create a tag
                         "tag" ->
-                            case funcIds !! 0 of 
-                            tagToken@(pos,"#") ->
-                                if length params' < 2 then
-                                    Left (KErrorIncorrectUsageOfTag tagToken)
-                                else
-                                    case params' !! 1 of
-                                        Raw.Id tag ->
-                                            -- 1.1 Check if user wants to create carryless/carryful tag
-                                            if length funcIds < 2 then -- carryless tag
-                                                Right (Third [V.UnlinkedCarrylessTag tag])
+                                let tag = funcIds !! 0 in
+                                -- 1.1 Check if user wants to create carryless tag
+                                (if length params' == 1 then
+                                    Right (Third [V.UnlinkedCarrylessTag tag])
 
-                                            else if snd (funcIds !! 1) == "carry" then do -- carryful tag
-                                                if length params' < 3 then
-                                                    Left (KErrorIncorrectUsageOfTag tagToken)
-                                                else do
-                                                    thirdParam <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 2)
-                                                    case thirdParam of
-                                                        Second carryType ->
-                                                            Right (Third [V.UnlinkedCarryfulTag tag carryType])
-                                                        
-                                                        _ ->
-                                                            Left (KErrorIncorrectUsageOfTag tagToken)
-                                            else
-                                                Left (KErrorIncorrectUsageOfTag tagToken)
+                                
+                                -- 1.2 Check if user wants to create carryful tag
+                                else if length params' == 2 then do
+                                    carryType <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 1) >>= extractType
+                                    Right (Third [V.UnlinkedCarryfulTag tag carryType])
                                         
-                                        _ ->
-                                            Left (KErrorIncorrectUsageOfTag tagToken)
-                            _ ->
-                                continuePreprocessFuncCall1
+                                else 
+                                    Left (KErrorIncorrectUsageOfTag firstParamToken))
 
                         -- 2. Check if the user wants to create a record (type/value)
                         "record" ->  

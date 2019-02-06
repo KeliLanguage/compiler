@@ -1,4 +1,4 @@
-Boolean = (tag.#(true)).or(tag.#(true))
+Boolean = (tag.true).or(tag.true)
 
 (this Boolean).not | Boolean = 
     this.true? (Boolean.false) false? (Boolean.true)
@@ -9,4 +9,4 @@ Boolean = (tag.#(true)).or(tag.#(true))
 (this Boolean).or(that Boolean) | Boolean = 
     this.true? (Boolean.true) false? (that)
 
-answer = true.or false
+answer = Boolean.true.or(Boolean.false)

@@ -1,6 +1,6 @@
 List.of(A Type) 
-    =   tag.#(new)
-    .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
+    =   tag.new
+    .or(tag.cons(record.current(A) next(List.of(A))))
 
 
 z = List.cons.carry(record.

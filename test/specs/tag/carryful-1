@@ -1,4 +1,4 @@
-intlist= tag.#(nothing) .or (tag.# (cons) carry (Int))
+intlist= tag.nothing.or (tag.cons(Int))
 =intlist.cons.carry (2)
 
 ====

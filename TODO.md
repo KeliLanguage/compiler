@@ -25,15 +25,13 @@
 
 [x] change primitive type to PascalCase
 
-[] implement generic tagged union
+[x] implement generic tagged union
 
 [] incomplete function expr does not capture function call chaining
 
 [] combine syntax highlighter with language server
 
-[] change keyword `carry` to `load`
-
-[] location of error regarding (expected expr not type) is inaccurate
+[x] location of error regarding (expected expr not type) is inaccurate
 
 [] make Type into GenericType and ConcreteType (to ease the process of unification)
 
@@ -41,3 +39,6 @@
 
 [] update syntax of tagged union
 
+[] implement generic record
+
+[] implement interface

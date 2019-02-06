@@ -1,6 +1,8 @@
-boolean=(tag.# ( true )).or(tag.# ( false ))
-a=boolean.true
-b=boolean.false
+Boolean = (tag.true).or(tag.false)
+    
+
+a=Boolean.true
+b=Boolean.false
 =a
 =b
 

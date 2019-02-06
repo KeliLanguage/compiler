@@ -1,6 +1,6 @@
 (x Int).plus(y Int) | Int  = ffi.javascript("_x  + _y").as(Int)
 
-IntList = (tag.# ( nil )).or(tag.# ( cons ) carry (record.current ( Int ) next ( IntList )))
+IntList = (tag.nil).or(tag.cons(record.current ( Int ) next ( IntList )))
 
 myList=IntList.cons.carry(record.current ( 1 ) next (IntList.cons.carry(record.current ( 2 ) next (IntList.cons.carry(record.current ( 3 ) next (IntList.nil))))))
 
