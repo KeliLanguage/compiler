@@ -1,0 +1,18 @@
+List.of(A Type) 
+    =   tag.#(new)
+    .or(tag.#(cons) carry(record.current(A) next(List.of(A))))
+
+{A Type}
+(this List.of(A)).add(element A) | List.of(A) = 
+    this.
+        new? 
+            (List.cons.carry(record.current(element) next(List.new)))
+
+        cons? 
+            (List.cons.carry(record.current(this.carry.current) next(this.carry.next.add(element))))
+    
+=List.new.add(1).add("4")
+
+====
+
+KErrorTypeMismatch

@@ -44,8 +44,16 @@ typeCheckExpr symtab assumption e = case e of
             Just (KeliSymConst _ expr) -> 
                 Right (First (V.Expr (V.Id token) (getType expr)))
         
-            Just (KeliSymTag (V.CarrylessTag tag belongingUnion)) -> 
-                (Right (First (V.Expr (V.CarrylessTagConstructor tag token) (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
+            Just (KeliSymTag (V.CarrylessTag tag (V.TaggedUnion name ids tags typeParams))) -> 
+                let belongingUnion = 
+                        V.TaggedUnion 
+                        name 
+                        ids 
+                        tags 
+                        (case typeParams of Just typeParams' -> Just (map derigidify typeParams'); _ -> typeParams) in
+                (Right (First (V.Expr 
+                    (V.CarrylessTagConstructor tag token) 
+                    (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
 
             Just (KeliSymTag (V.CarryfulTag tag carryType belongingUnion)) ->
                 -- How to check if user forgot to put .carry ?
@@ -73,11 +81,8 @@ typeCheckExpr symtab assumption e = case e of
             Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
             
-            Just (KeliSymImplicitTypeParam (V.TypeParam name constraint)) ->
-                Right (Second (V.TypeVariable name constraint))
-
-            Just (KeliSymExplicitTypeParam (V.TypeParam name constraint)) ->
-                Right (Second (V.TypeVariable name constraint))
+            Just (KeliSymType (V.TypeAlias _ (V.TypeVariable name constraint isRigid))) ->
+                Right (Second (V.TypeVariable name constraint isRigid))
 
             Just (KeliSymTypeConstructor t@(V.TaggedUnion name _ tags typeParams)) ->
                 case assumption of
@@ -215,7 +220,7 @@ typeCheckExpr symtab assumption e = case e of
 
                 let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
-                        V.TypeVariable _ _ ->
+                        V.TypeVariable _ _ _ ->
                             undefined
 
                         V.ConcreteType typeOfFirstParam' ->
@@ -628,13 +633,18 @@ typeCheckFuncCall symtab funcCallParams funcIds =
 resolveType :: KeliSymTab -> V.Type -> V.Type
 resolveType symtab t =
     case t of
-        V.TypeVariable name _ ->
+        V.TypeVariable name _ isRigid ->
             case lookup (snd name) symtab of
                 Just (KeliSymType (V.TypeAlias _ boundedType)) ->
                     boundedType
 
-                _ ->
-                    error "should be impossible"
+                other ->
+                    error (show other)
+                    -- error "should be impossible"
+
+        V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just typeParams))) ->
+            let resolvedTypeParams = map (resolveType symtab) typeParams in
+            V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just resolvedTypeParams)))
         
         _ ->
             t
@@ -706,6 +716,11 @@ data TypeCompareResult
     | NotApplicable
         KeliSymTab  --  an updated environment, which binds the type parameter to the comparer type
 
+instance Show TypeCompareResult where
+    show ApplicableOk = "ApplicableOk"
+    show ApplicableFailed{} = "ApplicableFailed"
+    show NotApplicable{} = "NotApplicable"
+
 typeCompares :: 
     KeliSymTab 
     -> V.Expr -- actual expr
@@ -714,10 +729,10 @@ typeCompares ::
 
 typeCompares symtab (V.Expr expr actualType) expectedType =
     case expectedType of 
-        V.TypeVariable name1 constraint1 ->
+        V.TypeVariable name1 constraint1 isRigid1 ->
             case actualType of
                 -- if both actualType and expectedType are type params, just compare their name
-                V.TypeVariable name2 constraint2 ->
+                typeVar2@(V.TypeVariable name2 constraint2 isRigid2) ->
                     if snd name1 == snd name2 then
                         ApplicableOk
                     else
@@ -732,7 +747,7 @@ typeCompares symtab (V.Expr expr actualType) expectedType =
                         Just (KeliSymType (V.TypeAlias _ (V.ConcreteType boundedType))) ->
                             typeCompares' symtab (expr, actualType') boundedType
 
-                        -- if not bounded, update the environment (bound actualType to the type param)
+                        -- if not bounded, update the environment (bound actualType to the type variable)
                         Nothing ->
                             NotApplicable (symtab |> (snd name1, KeliSymType (V.TypeAlias name1 actualType)))
 
@@ -741,14 +756,17 @@ typeCompares symtab (V.Expr expr actualType) expectedType =
                             ++ ";\nActual expr:"   ++ show expr
                             ++ ";\nExpected type:" ++ show expectedType)
 
-        -- if both are concrete types, just do direct comparison
         V.ConcreteType expectedType' ->
             case actualType of
-                V.TypeVariable name constraint ->
-                    error (show actualType)
-                    error (show expectedType')
-                    undefined
+                -- if expectedType is concrete but actualType is type variable
+                V.TypeVariable name constraint isRigid ->
+                    error (show expr ++ show expectedType')
+                    -- if isRigid then
+                    --     undefined
+                    -- else
+                    --     undefined
 
+                -- if both are concrete types, just do direct comparison
                 V.ConcreteType actualType' ->
                     typeCompares' symtab (expr, actualType') expectedType'
 typeCompares' :: 
@@ -846,3 +864,12 @@ typeCompares' symtab (V.Record kvs, V.TypeRecord kts1) (V.TypeRecord kts2) =
 
 typeCompares' _ actualType expectedType =  ApplicableFailed (KErrorTypeMismatch actualType expectedType)
 
+-- derigidify will turn the isRigid property of a TypeVariable to False
+derigidify :: V.Type -> V.Type
+derigidify t = 
+    case t of
+        V.TypeVariable name constraint _ ->
+            V.TypeVariable name constraint False
+
+        _ ->
+            t

@@ -12,8 +12,6 @@ data KeliSymbol
     | KeliSymConst          Raw.StringToken     Verified.Expr
     | KeliSymTag            Verified.Tag
     | KeliSymType           Verified.TypeAlias 
-    | KeliSymImplicitTypeParam Verified.TypeParam
-    | KeliSymExplicitTypeParam Verified.TypeParam
     | KeliSymTypeConstraint Raw.StringToken     Verified.TypeConstraint
     | KeliSymInlineExprs    [Verified.Expr] -- for storing expr from Raw.IdlessConst
     | KeliSymTypeConstructor Verified.TaggedUnion

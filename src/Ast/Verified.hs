@@ -44,6 +44,7 @@ data Type
     = TypeVariable 
         StringToken -- name
         (Maybe TypeConstraint) -- associated type constraint
+        Bool -- is rigid or not? For more info, refer: https://mail.haskell.org/pipermail/haskell-cafe/2008-June/044622.html
 
     | ConcreteType
         Type'

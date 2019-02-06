@@ -30,7 +30,6 @@ analyze decls =
                 KeliSymTypeConstructor{} -> 2
                 KeliSymFunc _            -> 3
                 KeliSymConst _ _         -> 4
-                KeliSymImplicitTypeParam {}      -> 5
                 KeliSymTypeConstraint {} -> 6
                 KeliSymInlineExprs _     -> 7
             ) analyzedSymbols in
@@ -186,11 +185,11 @@ analyzeDecl decl symtab = case decl of
             -- 0.2 populate symbol table with implicit type params
             symtab2 <- 
                 foldM 
-                    (\acc t@(V.TypeParam id _) -> 
+                    (\acc t@(V.TypeParam id constraint) -> 
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else 
-                            Right (acc |> (snd id, KeliSymImplicitTypeParam t)))
+                            Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
                     symtab 
                     verifiedGenericParams
 
@@ -283,17 +282,17 @@ analyzeDecl decl symtab = case decl of
     r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
         -- 1. verify all type params
         verifiedTypeParams' <- mapM (verifyTypeParam symtab) typeParams 
-        let verifiedTypeParams = map (\(V.TypeParam name c) -> V.TypeVariable name c) verifiedTypeParams'
+        let verifiedTypeParams = map (\(V.TypeParam name c) -> V.TypeVariable name c True) verifiedTypeParams'
 
 
         -- 2. populate symbol table with type params
         symtab2 <- 
             foldM 
-                (\acc t@(V.TypeParam id _) -> 
+                (\acc (V.TypeParam id constraint) -> 
                     if member (snd id) acc then
                         Left (KErrorDuplicatedId [id])
                     else 
-                        Right (acc |> (snd id, KeliSymExplicitTypeParam t)))
+                        Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
                 symtab 
                 verifiedTypeParams'
 
