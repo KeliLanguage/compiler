@@ -6,7 +6,7 @@ List.of(A Type)
 z = List.cons.carry(record.
     current (1) 
     next    (List.cons.carry(record.
-        current ("this one should be int") 
+        current ("123") 
         next    (List.new))))
 
 ==== 

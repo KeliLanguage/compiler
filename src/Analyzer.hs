@@ -251,18 +251,17 @@ analyzeDecl decl symtab = case decl of
                         _ ->
                             case typeCompares symtab4 typeCheckedBody verifiedReturnType of
                                 -- if body type match expected return types
-                                ApplicableOk ->
+                                ApplicableOk _ ->
                                     Right (KeliSymFunc [resultFunc])
-                                
-                                -- else
-                                _ ->
-                                    case bodyType of
-                                        -- if the body is `undefined`, bypass the type checking
-                                        V.ConcreteType V.TypeUndefined -> 
-                                            Right (KeliSymFunc [resultFunc])
 
-                                        _ -> 
-                                            Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
+                                ApplicableFailed err ->
+                                    Left err
+                                    -- Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
+                                
+                                NotApplicable _ ->
+                                    Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable
+                                        typeCheckedBody
+                                        verifiedReturnType)
                 
                 _ -> undefined
     

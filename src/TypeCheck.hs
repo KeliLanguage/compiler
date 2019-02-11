@@ -44,23 +44,6 @@ typeCheckExpr symtab assumption e = case e of
             Just (KeliSymConst _ expr) -> 
                 Right (First (V.Expr (V.Id token) (getType expr)))
         
-            Just (KeliSymTag (V.CarrylessTag tag (V.TaggedUnion name ids tags typeParams))) -> 
-                let belongingUnion = 
-                        V.TaggedUnion 
-                        name 
-                        ids 
-                        tags 
-                        (case typeParams of Just typeParams' -> Just (map derigidify typeParams'); _ -> typeParams) in
-                (Right (First (V.Expr 
-                    (V.CarrylessTagConstructor tag token) 
-                    (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
-
-            Just (KeliSymTag (V.CarryfulTag tag carryType belongingUnion)) ->
-                -- How to check if user forgot to put .carry ?
-                --  Don't need to explicitly check it, the type system will handle it
-
-                (Right (First (V.Expr (V.CarryfulTagConstructor tag carryType) (V.ConcreteType (V.TypeCarryfulTagConstructor tag carryType belongingUnion Nothing)))))
-            
             Just (KeliSymType (V.TypeAlias _ t@(V.ConcreteType (V.TypeRecord propTypePairs)))) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
                 -- Answer: Using assumptions
@@ -240,7 +223,7 @@ typeCheckExpr symtab assumption e = case e of
                                                     Right updatedSymtab ->
                                                         let expectedType = snd expected in
                                                         case typeCompares symtab (snd actual) expectedType of
-                                                            ApplicableOk  ->
+                                                            ApplicableOk _  ->
                                                                 Right updatedSymtab
                                                             
                                                             ApplicableFailed err ->
@@ -271,24 +254,41 @@ typeCheckExpr symtab assumption e = case e of
                                 if length funcIds == 1 && (snd (funcIds !! 0)) == "carry" then do
                                     carryExpr  <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
                                     case typeCompares symtab carryExpr expectedCarryType of
-                                        ApplicableOk ->
-                                            Right (First (V.Expr (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType (V.TypeTaggedUnion belongingUnion))))
-                                        
                                         ApplicableFailed err ->
                                             Left err
                                             -- Left (KErrorIncorrectCarryType expectedCarryType carryExpr)
+
+                                        ApplicableOk updatedSymtab ->
+                                            -- TODO: reduce code duplication
+                                            let x =
+                                                    case typeParams of
+                                                        Just typeParams' ->
+                                                            let resolvedTypeParams = map (resolveType updatedSymtab) typeParams' in
+                                                            Just resolvedTypeParams
+
+                                                        Nothing ->
+                                                            Nothing
+                                            in
+                                                Right (First (V.Expr 
+                                                    (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
+                                                    (V.TypeTaggedUnion (V.TaggedUnion name ids tags x)))))
                                         
                                         NotApplicable updatedSymtab ->
-                                            case typeParams of
-                                                Just typeParams' ->
-                                                    let resolvedTypeParams = map (resolveType updatedSymtab) typeParams' in
-                                                    Right (First (V.Expr 
-                                                        (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
-                                                        (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just resolvedTypeParams))))))
-                                                _ ->
-                                                    Right (First (V.Expr 
-                                                        (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
-                                                        (V.TypeTaggedUnion (V.TaggedUnion name ids tags typeParams)))))
+                                            -- TODO: reduce code duplication
+                                            let x =
+                                                    case typeParams of
+                                                        Just typeParams' ->
+                                                            let resolvedTypeParams = map (resolveType updatedSymtab) typeParams' in
+                                                            Just resolvedTypeParams
+
+                                                        Nothing ->
+                                                            Nothing
+                                            in
+                                                Right (First (V.Expr 
+                                                    (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
+                                                    (V.TypeTaggedUnion (V.TaggedUnion name ids tags x)))))
+
+                                    
 
                                 else
                                     continuePreprocessFuncCall2
@@ -333,7 +333,7 @@ typeCheckExpr symtab assumption e = case e of
                                                         NotApplicable _ ->
                                                             Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable branch expectedTypeOfEachBranches)
                                                         
-                                                        ApplicableOk ->
+                                                        ApplicableOk _ ->
                                                             Right ()) () branches) :: Either KeliError ()  of
 
                                                 Left err ->
@@ -364,7 +364,7 @@ typeCheckExpr symtab assumption e = case e of
                                                     NotApplicable _ ->
                                                         Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable branch expectedTypeOfEachBranches)
                                                     
-                                                    ApplicableOk ->
+                                                    ApplicableOk _ ->
                                                         Right ()) () branches) :: Either KeliError ()  of
                                             
                                             Left err ->
@@ -450,17 +450,17 @@ typeCheckExpr symtab assumption e = case e of
                                 if length funcIds == 1 then
                                     let tagname = head funcIds in
                                     case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
-                                        Just (V.CarrylessTag tag belongingUnion) -> 
-                                            case typeParams of
-                                                Just typeParams' ->
-                                                    (Right (First (V.Expr 
-                                                        (V.CarrylessTagConstructor tag tagname) 
-                                                        (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
+                                        Just (V.CarrylessTag tag (V.TaggedUnion name ids tags typeParams)) -> 
+                                            let belongingUnion = 
+                                                    V.TaggedUnion 
+                                                    name 
+                                                    ids 
+                                                    tags 
+                                                    (case typeParams of Just typeParams' -> Just (map derigidify typeParams'); _ -> typeParams) in
 
-                                                Nothing ->
-                                                    (Right (First (V.Expr 
-                                                        (V.CarrylessTagConstructor tag tagname) 
-                                                        (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
+                                            (Right (First (V.Expr 
+                                                (V.CarrylessTagConstructor tag tagname) 
+                                                (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
 
                                         Just (V.CarryfulTag tag carryType belongingUnion) ->
                                             (Right (First (V.Expr 
@@ -554,7 +554,7 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                                         ApplicableFailed {} ->
                                             StillNoMatchingFunc
 
-                                        ApplicableOk ->
+                                        ApplicableOk _ ->
                                             PerfectlyMatchedFuncFound f symtab
 
                                         NotApplicable updatedSymtab ->
@@ -578,7 +578,7 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                                                                 Left err
                                                                 -- Left (KErrorFuncCallTypeMismatch expectedType expr)
                                                             
-                                                            ApplicableOk ->
+                                                            ApplicableOk _ ->
                                                                 Right tempSymtab
                                                             
                                                             NotApplicable updatedSymtab ->
@@ -622,9 +622,8 @@ resolveType symtab t =
                 Just (KeliSymType (V.TypeAlias _ boundedType)) ->
                     boundedType
 
-                other ->
-                    error (show other)
-                    -- error "should be impossible"
+                Nothing ->
+                    t
 
         V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just typeParams))) ->
             let resolvedTypeParams = map (resolveType symtab) typeParams in
@@ -678,7 +677,7 @@ extractType x =
 extractExpr :: OneOf3 V.Expr V.Type [V.UnlinkedTag] -> Either KeliError V.Expr
 extractExpr x = 
     case x of 
-        First expr   -> Right expr
+        First expr -> Right expr
         Second type' -> Left (KErrorExpectedExprButGotType type')
         Third tag    -> Left (KErrorExpectedExprButGotTag tag)
 
@@ -693,6 +692,7 @@ data TypeCompareResult
             one of the operand is a type parameter
     -}
     = ApplicableOk -- ok means actual type equals to expected type
+        KeliSymTab -- this is only needed for type checking record types
     
     | ApplicableFailed -- failed means actual type does not equals expected type
         KeliError
@@ -701,7 +701,7 @@ data TypeCompareResult
         KeliSymTab  --  an updated environment, which binds the type parameter to the comparer type
 
 instance Show TypeCompareResult where
-    show ApplicableOk = "ApplicableOk"
+    show ApplicableOk{} = "ApplicableOk"
     show ApplicableFailed{} = "ApplicableFailed"
     show NotApplicable{} = "NotApplicable"
 
@@ -710,15 +710,23 @@ typeCompares ::
     -> V.Expr -- actual expr
     -> V.Type -- expected type
     -> TypeCompareResult
-
 typeCompares symtab (V.Expr expr actualType) expectedType =
+    typeCompares' symtab (V.Expr expr actualType) (resolveType symtab expectedType)
+
+typeCompares' :: 
+    KeliSymTab 
+    -> V.Expr -- actual expr
+    -> V.Type -- expected type
+    -> TypeCompareResult
+typeCompares' symtab actualExpr@(V.Expr expr actualType) expectedType =
     case expectedType of 
+        -- if expected type is a type variable, check if it is bounded
         V.TypeVariable name1 constraint1 isRigid1 ->
             case actualType of
                 -- if both actualType and expectedType are type params, just compare their name
                 typeVar2@(V.TypeVariable name2 constraint2 isRigid2) ->
                     if snd name1 == snd name2 then
-                        ApplicableOk
+                        ApplicableOk symtab
                     else
                         undefined
                     -- TODO: should I check if actualType is also bounded?
@@ -729,7 +737,7 @@ typeCompares symtab (V.Expr expr actualType) expectedType =
                     case lookup (snd name1) symtab of
                         -- if bounded, compare actualType to boundedType
                         Just (KeliSymType (V.TypeAlias _ (V.ConcreteType boundedType))) ->
-                            typeCompares' symtab (expr, actualType') boundedType
+                            typeCompares'' symtab (expr, actualType') boundedType
 
                         -- if not bounded, update the environment (bound actualType to the type variable)
                         Nothing ->
@@ -744,45 +752,49 @@ typeCompares symtab (V.Expr expr actualType) expectedType =
             case actualType of
                 -- if expectedType is concrete but actualType is type variable
                 V.TypeVariable name constraint isRigid ->
-                    error (show expr ++ show expectedType')
-                    -- if isRigid then
-                    --     undefined
-                    -- else
-                    --     undefined
+                    if isRigid then
+                        error ("Actual type"   ++ show actualType
+                        ++ ";\nActual expr:"   ++ show expr
+                        ++ ";\nExpected type:" ++ show expectedType)
+                        ApplicableFailed (KErrorCannotMatchRigidTypeVariableWithConcreteType
+                            actualExpr
+                            expectedType)
+                    else
+                        ApplicableOk symtab
 
                 -- if both are concrete types, just do direct comparison
                 V.ConcreteType actualType' ->
-                    typeCompares' symtab (expr, actualType') expectedType'
-typeCompares' :: 
+                    typeCompares'' symtab (expr, actualType') expectedType'
+typeCompares'' :: 
     KeliSymTab 
     -> (V.Expr', V.Type') -- actual expr
     -> V.Type' -- expected type
     -> TypeCompareResult
 
-typeCompares' _ (_, (V.TypeFloat)) (V.TypeFloat) = 
-    ApplicableOk
+typeCompares'' symtab (_, (V.TypeFloat)) (V.TypeFloat) = 
+    ApplicableOk symtab
 
-typeCompares' _ (_, (V.TypeInt)) (V.TypeInt) = 
-    ApplicableOk
+typeCompares'' symtab (_, (V.TypeInt)) (V.TypeInt) = 
+    ApplicableOk symtab
 
-typeCompares' _ (_, (V.TypeString)) (V.TypeString) = 
-    ApplicableOk
+typeCompares'' symtab (_, (V.TypeString)) (V.TypeString) = 
+    ApplicableOk symtab
 
-typeCompares' _ 
+typeCompares'' symtab 
     actualExpr@(_, (V.TypeCarryfulTagConstructor x _ _ _)) 
     expectedType@(V.TypeCarryfulTagConstructor y _ _ _) = 
-    if x == y then ApplicableOk else ApplicableFailed (KErrorTypeMismatch actualExpr expectedType)
+    if x == y then ApplicableOk symtab else ApplicableFailed (KErrorTypeMismatch actualExpr expectedType)
 
-typeCompares' _ 
+typeCompares'' _ 
     t1@(_, V.TypeRecordConstructor kvs1) 
     t2@(V.TypeRecordConstructor kvs2) = 
     undefined
 
-typeCompares' _ (_, V.TypeType) (V.TypeType) = 
+typeCompares'' _ (_, V.TypeType) (V.TypeType) = 
     undefined
 
 -- type check generic tagged union
-typeCompares' symtab
+typeCompares'' symtab
     (actualExpr, actualType@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ (Just actualTypeParams))))
     t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ (Just expectedTypeParams))) = 
     if name1 == name2 then 
@@ -792,47 +804,39 @@ typeCompares' symtab
         ApplicableFailed (KErrorTypeMismatch (actualExpr, actualType) t2)
 
 -- type check non-generic tagged union
-typeCompares' symtab
+typeCompares'' symtab
     t1@(_, V.TypeTaggedUnion (V.TaggedUnion name1 _ _ Nothing))    
     t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ Nothing)) =
         if name1 == name2 then 
-            ApplicableOk
+            ApplicableOk symtab
         else 
             ApplicableFailed (KErrorTypeMismatch t1 t2)
 
 -- record type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
-typeCompares' symtab (V.Record kvs, V.TypeRecord kts1) (V.TypeRecord kts2) = 
+typeCompares'' symtab (V.Record kvs, V.TypeRecord kts1) (V.TypeRecord kts2) = 
     let actualKeys = map fst kts1 in
     let expectedKeys = map fst kts2 in
     let expectedTypes = map snd kts2 in
     let actualValues = map snd kvs in 
-    let actualTypes = map snd kts1 in
+    -- TODO: get the set difference of expectedKeys with actualKeys
     case match actualKeys expectedKeys of
         PerfectMatch ->
-            case foldM
-                (\tempSymtab (key, actualExpr, expectedType) ->
-                    case typeCompares tempSymtab actualExpr expectedType of
+            foldl'
+                (\result (key, actualExpr, expectedType) ->
+                    case result of 
                         ApplicableFailed err ->
                             -- TODO:(KErrorPropertyTypeMismatch key expectedType actualType)
-                            Left err
+                            ApplicableFailed err
 
-                        ApplicableOk ->
-                            Right tempSymtab
-                        
-                        NotApplicable updatedSymtab ->
-                            Right updatedSymtab)
-                symtab 
-                (zip3 expectedKeys actualValues expectedTypes) of
+                        ApplicableOk tempSymtab ->
+                            typeCompares tempSymtab actualExpr expectedType
 
-            Left err ->
-                ApplicableFailed err
+                        NotApplicable tempSymtab ->
+                            typeCompares tempSymtab actualExpr expectedType)
 
-            Right updatedSymtab -> 
-                -- TODO: refactor is needed
-                --  should recude 3 cases to 2 cases 
-                NotApplicable updatedSymtab
-            
+                (NotApplicable symtab) -- initial value
+                (zip3 expectedKeys actualValues expectedTypes)
         
         GotDuplicates duplicates ->
             undefined
@@ -846,7 +850,7 @@ typeCompares' symtab (V.Record kvs, V.TypeRecord kts1) (V.TypeRecord kts2) =
         Missing property ->
             undefined
 
-typeCompares' _ actualType expectedType =  ApplicableFailed (KErrorTypeMismatch actualType expectedType)
+typeCompares'' _ actualType expectedType =  ApplicableFailed (KErrorTypeMismatch actualType expectedType)
 
 -- derigidify will turn the isRigid property of a TypeVariable to False
 derigidify :: V.Type -> V.Type

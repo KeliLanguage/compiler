@@ -97,6 +97,10 @@ data KeliError
         Verified.Expr -- actual expr
         Verified.Type   -- expected type
 
+    | KErrorCannotMatchRigidTypeVariableWithConcreteType
+        Verified.Expr -- actual expr
+        Verified.Type   -- expected type
+
     | KErrorTypeMismatch 
         (Verified.Expr', Verified.Type') -- actual expr
         Verified.Type' -- expected type

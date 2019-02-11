@@ -37,7 +37,7 @@
 
 [] join child error with parent error
 
-[] update syntax of tagged union
+[] update syntax of carryful tag and tag matcher
 
 [] implement generic record
 

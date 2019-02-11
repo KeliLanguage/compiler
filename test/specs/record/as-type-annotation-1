@@ -1,6 +1,6 @@
-fruit = record.name(String)
+Fruit = record.name(String)
 
-(this String).asFruit | fruit = fruit.name(this)
+(this String).asFruit | Fruit = Fruit.name(this)
 
 ="pineapple".asFruit
 
