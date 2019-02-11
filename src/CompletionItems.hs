@@ -149,7 +149,7 @@ suggestCompletionItems decls =
                                                 kind = 13, -- enum
                                                 label = tagname,
                                                 detail = "",
-                                                insertText = tagname ++ ".carry(${1:" ++ V.stringifyType carryType ++ "})",
+                                                insertText = tagname ++ "(${1:" ++ V.stringifyType carryType ++ "})",
                                                 insertTextFormat = 2
                                             }
                                         
@@ -180,7 +180,13 @@ suggestCompletionItems decls =
                                 kind = 2, -- method
                                 label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
                                 detail = "tag matcher",
-                                insertText = concat (map (\t -> "\n\t" ++ snd (V.tagnameOf t) ++ "? ()") tags),
+                                insertText = concat (map (\t -> "\n\t" ++ 
+                                    (case t of 
+                                        V.CarryfulTag (_,tagname) _ _ ->
+                                            tagname ++ "(x)?\n\t\t()"
+
+                                        V.CarrylessTag (_,tagname) _ ->
+                                            tagname ++ "?\n\t\t()")) tags),
                                 insertTextFormat = 1
                             }] ++ relatedFuncsCompletionItems
 

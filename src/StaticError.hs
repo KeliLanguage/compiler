@@ -55,16 +55,10 @@ data KeliError
         Verified.Expr    -- actual expr (type-checked)
     | KErrorNotAFunction [Verified.StringToken]
     | KErrorDuplicatedFunc Verified.Func
-    | KErrorTypeNotConformingConstraint Verified.Type Verified.TypeConstraint
     | KErrorFuncCallTypeMismatch
         Verified.Type -- expected type
         Verified.Expr -- actual expr (type-checked)
-    | KErrorInvalidTypeConstructorParam Verified.FuncDeclParam
-    | KErrorInvalidParamLengthForGenericType 
-        [Verified.Expr] -- applied params
-        Int -- expected param length
-    | KErrorBodyOfGenericTypeIsNotTypeDeclaration
-        Verified.Expr -- actual body
+
     | KErrorCannotDeclareTypeAsAnonymousConstant Verified.Type
     | KErrorCannotDeclareTagAsAnonymousConstant [Verified.UnlinkedTag]
 

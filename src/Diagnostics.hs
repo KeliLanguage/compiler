@@ -126,6 +126,9 @@ toDiagnostic err = case err of
     KErrorCannotDefineCustomPrimitiveType token ->
         getDiagnostic [token] ("Cannot define custome primitive type: " ++ quote (snd token))
 
+    KErrorTypeMismatch (actualExpr, actualType) expectedType ->
+        typeMismatchError (V.Expr actualExpr (V.ConcreteType actualType)) (V.ConcreteType expectedType)
+
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]
         typeMismatchError expr expectedType = 
