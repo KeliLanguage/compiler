@@ -270,41 +270,56 @@ typeCheckExpr symtab assumption e = case e of
                                         Left (KErrorExcessiveTags excessiveCases name)
                                     
                                     Missing cases -> do
-                                        undefined
-                                        -- tagBranches <- getTagBranches subject
-                                        -- let branches = map snd tagBranches
-                                        -- let firstBranch = head branches 
-                                        -- if "else?" `elem` (map snd funcIds) then
-                                        --     let elseBranch = fromJust (find (\((_,id),_) -> id == "else?") tagBranches) in
-                                        --     let otherBranches = filter (\((_,id),_) -> id /= "else?") tagBranches in
-                                        --     let expectedTypeOfEachBranches = getType firstBranch in
-                                        --     case (foldM 
-                                        --         (\() branch -> 
-                                        --             case typeCompares symtab branch expectedTypeOfEachBranches of
-                                        --                 ApplicableFailed err ->
-                                        --                     Left err
+                                        -- 1) preprocess tag branches
+                                        let rawTagBranches = zip funcIds (tail params')
 
-                                        --                 NotApplicable _ ->
-                                        --                     Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable branch expectedTypeOfEachBranches)
-                                                        
-                                        --                 ApplicableOk _ ->
-                                        --                     Right ()) () branches) :: Either KeliError ()  of
+                                        typeCheckedElseExpr <- case find (\((_,id),_) -> id == "else?") rawTagBranches of
+                                            Just (tagname, expr) -> 
+                                                typeCheckExpr symtab assumption expr >>= extractExpr
 
-                                        --         Left err ->
-                                        --             Left err
-                                        --         -- Left (KErrorNotAllBranchHaveTheSameType branches)
-                                        --         Right () ->
-                                        --             Right (First (V.Expr 
-                                        --                 (V.TagMatcher subject otherBranches (Just (snd elseBranch)))
-                                        --                 (getType (head branches))))
+                                            Nothing ->
+                                                Left (KErrorMissingTags subject cases)
+
+                                        let rawNonElseBranches = filter (\((_,tagname),_) -> tagname /= "else?") rawTagBranches
 
 
-                                        -- else -- missing tags
-                                        --     Left (KErrorMissingTags subject cases)
+                                        preprocessedTagBranches <- preprocessTagBranches rawNonElseBranches
+
+                                        -- 2. type check preprocessed tag branches
+                                        typeCheckedTagBranches <- mapM typeCheckTagBranch preprocessedTagBranches
+
+                                        -- 3. check if each branch have the same type with the first branch
+                                        case allBranchTypeAreSame (typeCheckedTagBranches ++ [V.CarrylessBranch V.nullStringToken typeCheckedElseExpr]) of
+                                            Left err ->
+                                                Left err
+                                                -- Left (KErrorNotAllBranchHaveTheSameType branches)
+
+                                            Right branchType ->
+                                                Right (First (V.Expr 
+                                                    (V.TagMatcher subject typeCheckedTagBranches (Just typeCheckedElseExpr))
+                                                    branchType))
+
 
                                     PerfectMatch -> do
                                         -- 1) preprocess tag branches
-                                        tagBranches <-
+                                        preprocessedTagBranches <- preprocessTagBranches (zip funcIds (tail params'))
+
+                                        -- 2. type check preprocessed tag branches
+                                        typeCheckedTagBranches <- mapM typeCheckTagBranch preprocessedTagBranches
+
+                                        -- 3. check if each branch have the same type with the first branch
+                                        case allBranchTypeAreSame typeCheckedTagBranches of
+                                            Left err ->
+                                                Left err
+                                                -- Left (KErrorNotAllBranchHaveTheSameType branches)
+
+                                            Right branchType ->
+                                                Right (First (V.Expr 
+                                                    (V.TagMatcher subject typeCheckedTagBranches Nothing) 
+                                                    branchType))
+                                where
+                                    preprocessTagBranches :: [(V.StringToken, Raw.Expr)] -> Either KeliError [UnverifiedBranch]
+                                    preprocessTagBranches rawTagBranches =
                                             foldM 
                                                 (\branches (tagname, branchExpr) -> do
                                                     currentBranch <-
@@ -337,43 +352,41 @@ typeCheckExpr symtab assumption e = case e of
                                                         result)
 
                                                 []
-                                                (zip funcIds (tail params'))
+                                                rawTagBranches
 
-                                        -- 2. type check preprocessed tag branches
-                                        typeCheckedTagBranches <- 
-                                            mapM 
-                                                (\b -> 
-                                                    case b of
-                                                        UnverifiedCarrylessBranch tagname expr -> do
-                                                            typeCheckedBranch <- typeCheckExpr symtab assumption expr >>= extractExpr
-                                                            Right (V.CarrylessBranch tagname typeCheckedBranch)
+                                    typeCheckTagBranch :: UnverifiedBranch -> Either KeliError V.Branch
+                                    typeCheckTagBranch tagBranch =
+                                        case tagBranch of
+                                            UnverifiedCarrylessBranch tagname expr -> do
+                                                typeCheckedBranch <- typeCheckExpr symtab assumption expr >>= extractExpr
+                                                Right (V.CarrylessBranch tagname typeCheckedBranch)
 
 
-                                                        UnverifiedCarryfulBranch tagname bindingVar expr ->
-                                                            case find (\t -> snd (V.tagnameOf t) == snd tagname) expectedTags of
-                                                                Just (V.CarryfulTag _ carryType _) -> do
-                                                                    -- insert bindingVar into symtab
-                                                                    updatedSymtab <- insertSymbolIntoSymtab (KeliSymConst bindingVar (V.Expr (V.Id bindingVar) carryType)) symtab
-                                                                    typeCheckedBranch <- typeCheckExpr updatedSymtab assumption expr >>= extractExpr
-                                                                    Right (V.CarryfulBranch tagname bindingVar typeCheckedBranch)
+                                            UnverifiedCarryfulBranch tagname bindingVar expr ->
+                                                case find (\t -> snd (V.tagnameOf t) == snd tagname) expectedTags of
+                                                    Just (V.CarryfulTag _ carryType _) -> do
+                                                        -- insert bindingVar into symtab
+                                                        updatedSymtab <- insertSymbolIntoSymtab (KeliSymConst bindingVar (V.Expr (V.Id bindingVar) carryType)) symtab
+                                                        typeCheckedBranch <- typeCheckExpr updatedSymtab assumption expr >>= extractExpr
+                                                        Right (V.CarryfulBranch tagname bindingVar typeCheckedBranch)
 
 
-                                                                _ ->
-                                                                    error "impossible"
+                                                    _ ->
+                                                        error "impossible"
 
-                                                        UnverifiedPartialCarryfulBranch tagname _ ->
-                                                            Left (KErrorMissingCarryfulBranch tagname))
-                                                tagBranches
+                                            UnverifiedPartialCarryfulBranch tagname _ ->
+                                                Left (KErrorMissingCarryfulBranch tagname)
 
-                                        -- 3. check if each branch have the same type with the first branch
+                                    allBranchTypeAreSame typeCheckedTagBranches = do
                                         let branches = map (\b -> case b of 
                                                 V.CarryfulBranch _ _ expr -> expr
                                                 V.CarrylessBranch _ expr -> expr
                                                 ) typeCheckedTagBranches
+
                                         let firstBranch = head branches 
                                         let expectedTypeOfEachBranches = getType firstBranch 
-                                        case (foldM 
-                                            (\() branch -> 
+                                        (foldM 
+                                            (\t branch -> 
                                                 case typeCompares symtab branch expectedTypeOfEachBranches of
                                                     ApplicableFailed err ->
                                                         Left err
@@ -382,50 +395,11 @@ typeCheckExpr symtab assumption e = case e of
                                                         Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable branch expectedTypeOfEachBranches)
                                                     
                                                     ApplicableOk _ ->
-                                                        Right ()) () branches) :: Either KeliError ()  of
+                                                        Right t) 
+
+                                            expectedTypeOfEachBranches 
+                                            branches) :: Either KeliError V.Type
                                             
-                                            Left err ->
-                                                Left err
-                                                -- Left (KErrorNotAllBranchHaveTheSameType branches)
-
-                                            Right () ->
-                                                Right (First (V.Expr 
-                                                    (V.TagMatcher subject typeCheckedTagBranches Nothing) 
-                                                    (getType (head branches))))
-                                -- where
-                                --     -- update the symtab for each branch
-                                --     -- because each branch will have a different carry type
-                                --     getTagBranches subject =
-                                --         mapM 
-                                --             (\(tag, branch) ->  
-                                --                 let updatedSymtab = 
-                                --                         case subject of 
-                                --                         -- we only update the symtab if the subject is an identifier
-                                --                         V.Expr (V.Id id) _ -> 
-                                --                             case find 
-                                --                                 (\t -> case t of 
-                                --                                     V.CarryfulTag tagname _ _ -> snd tag == (snd tagname ++ "?")
-                                --                                     V.CarrylessTag {} -> False) 
-                                --                                 expectedTags of
-
-                                --                                 -- if the current branch indiciates a carryful tag
-                                --                                 -- update the symtab 
-                                --                                 Just (V.CarryfulTag _ carryType _) -> 
-                                --                                     symtab |> (snd id, KeliSymConst id (V.Expr (V.Id id) (V.ConcreteType (V.TypeIdentifiedCarryfulBranch carryType))))
-
-                                --                                 -- else just return back the same symtab
-                                --                                 _ ->
-                                --                                     symtab
-
-                                --                         -- else just return back the same symtab
-                                --                         _ ->
-                                --                             symtab 
-                                --                 in do
-                                --                     typeCheckedBranch <- typeCheckExpr updatedSymtab assumption branch >>= extractExpr
-                                --                     return (tag, typeCheckedBranch)) 
-                                --             (zip funcIds (tail params')) 
-
-
 
                             -- (C) check if user is calling record getter/setter
                             recordType@(V.TypeRecord kvs) ->  

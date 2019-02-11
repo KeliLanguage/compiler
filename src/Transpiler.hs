@@ -108,10 +108,10 @@ instance Transpilable V.Expr where
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
-            "($$=>({" ++ intercalate "," (map transpile branches) ++ "})[$$.__tag]())(" ++ transpile subject ++ ")" ++
+            "(($$=>({" ++ intercalate "," (map transpile branches) ++ "})[$$.__tag])(" ++ transpile subject ++ ")" ++
                 (case elseBranch of
                     Just expr -> " || " ++ "(" ++ (lazify (transpile expr)) ++ ")"
-                    Nothing   -> "")
+                    Nothing   -> "") ++ ")()"
 
         V.Expr(V.FuncCall params _ ref) _ -> 
             fst (V.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
