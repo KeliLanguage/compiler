@@ -52,5 +52,6 @@ data Expr
     | IncompleteFuncCall -- for implementing Intellisense 
         Expr 
         SourcePos -- position of the dot operator
+
     deriving (Show,Eq)
 

@@ -16,16 +16,16 @@ keliTranspile symbols = (intercalate ";\n" (map transpile symbols)) ++ ";\n"
 class Transpilable a where
     transpile :: a -> String
 
-idPrefix :: String
-idPrefix = "_"
+prefix :: String -> String
+prefix s = "$" ++ s
 
 instance Transpilable V.Tag where
     transpile tag = case tag of 
         V.CarrylessTag (_,id) _ -> 
-            idPrefix ++ id ++ ":({__tag:\"" ++ id ++ "\"})"
+            prefix id ++ ":({__tag:\"" ++ id ++ "\"})"
 
         V.CarryfulTag (_,id) _ _ -> 
-            idPrefix ++ id ++ ":(_carry)=>({__tag:\"" ++ id ++ "\",_carry})"
+            prefix id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
 
 
 instance Transpilable KeliSymbol where
@@ -34,13 +34,13 @@ instance Transpilable KeliSymbol where
             intercalate ";" (map transpile fs)
 
         KeliSymConst (_,id) expr ->
-            "const " ++ idPrefix ++ id ++ "=" ++ transpile expr
+            "const " ++ prefix id ++ "=" ++ transpile expr
 
         KeliSymType (V.TypeAlias _ (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)))) ->
-            "const " ++ idPrefix ++ id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+            "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
         KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
-            "const " ++ idPrefix ++ snd name ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+            "const " ++ prefix (snd name) ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
         KeliSymTypeConstructor {} ->
             ""
@@ -69,14 +69,14 @@ instance Transpilable V.Decl where
 
 instance Transpilable V.Func where
     transpile f@(V.Func _ params _ _ body) 
-        = let params' = intercalate "," (map ((idPrefix ++ ) . snd . fst) params) in
+        = let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
         "function " ++ fst (V.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 
 
 instance Transpilable V.Const where
     transpile (V.Const (_,id) expr)
-        = "const " ++ idPrefix ++ id ++ "=" ++ (transpile expr)
+        = "const " ++ prefix id ++ "=" ++ (transpile expr)
 
 instance Transpilable V.Expr where
     transpile expr = case expr of 
@@ -90,7 +90,7 @@ instance Transpilable V.Expr where
             -> show value
 
         V.Expr(V.Id     (_,value)) _
-            -> idPrefix ++ value
+            -> prefix value
 
         V.Expr(V.Lambda params body) _                      
             -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
@@ -108,10 +108,10 @@ instance Transpilable V.Expr where
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
-            "((" ++ transpileKeyValuePairs True branches ++ "[" ++ transpile subject ++ ".__tag + '?'])" ++ 
+            "($$=>({" ++ intercalate "," (map transpile branches) ++ "})[$$.__tag]())(" ++ transpile subject ++ ")" ++
                 (case elseBranch of
                     Just expr -> " || " ++ "(" ++ (lazify (transpile expr)) ++ ")"
-                    Nothing   -> "") ++ ")()"
+                    Nothing   -> "")
 
         V.Expr(V.FuncCall params _ ref) _ -> 
             fst (V.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
@@ -120,22 +120,29 @@ instance Transpilable V.Expr where
             code
 
         V.Expr(V.RetrieveCarryExpr expr) _ ->
-            "((" ++ transpile expr ++ ")._carry)"
+            "((" ++ transpile expr ++ ").__carry)"
 
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
             (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
-                -> idPrefix ++ id ++ "." ++ idPrefix ++ tag ++ "("++ transpile carry ++")"
+                -> prefix id ++ "." ++ prefix tag ++ "("++ transpile carry ++")"
 
         V.Expr 
             (V.CarrylessTagConstructor(_,tag) _)
             (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
-                -> idPrefix ++ id ++ "." ++ idPrefix ++ tag
+                -> prefix id ++ "." ++ prefix tag
 
         other -> 
             error (show other)
 
-    
+instance Transpilable V.Branch where
+    transpile b = case b of
+        V.CarrylessBranch (_,tagname) expr ->
+            tagname ++ ":" ++ lazify (transpile expr)
+
+        V.CarryfulBranch (_,tagname) (_,bindingVar) expr ->
+            tagname ++ ":" ++ lazify ("(" ++ prefix bindingVar ++ "=>" ++ transpile expr ++ ")($$.__carry)")
+
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String
 transpileKeyValuePairs lazifyExpr kvs 

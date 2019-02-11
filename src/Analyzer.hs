@@ -73,47 +73,6 @@ analyzeDecls symtab decls =
             decls in
     (finalErrors, finalSymtab, finalSymbols)
 
-insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
-insertSymbolIntoSymtab symbol symtab =
-    case symbol of 
-        KeliSymFunc [f] -> 
-            let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
-            let funcsWithSameName = lookup funcid symtab in
-            let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
-            case funcsWithSameName of
-                Just (KeliSymFunc fs) ->
-                    -- TODO: check for duplicated function (not only same ids, but also same type for each params)
-                    -- if any 
-                    --     (\func -> 
-                    --         all (\(t1,t2) -> t1 `V.typeCompares` t2) 
-                    --         (zip (funcParamTypes f) (funcParamTypes func))) fs then
-                    --     Left (KErrorDuplicatedFunc f)
-                    -- else
-                    Right (symtab |> (funcid, KeliSymFunc (f:fs)))
-                
-                Just _ ->
-                    Left (KErrorDuplicatedId (V.funcDeclIds f))
-
-                Nothing ->
-                    Right (symtab |> (funcid, symbol))
-
-        KeliSymInlineExprs exprs ->
-            case lookup "@inline_exprs" symtab of
-                Just (KeliSymInlineExprs exprs') ->
-                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
-
-                Just _ ->
-                    error "shouldn't reach here"
-                
-                Nothing ->
-                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs exprs))
-
-        _ -> 
-            let (key,ids) = V.getIdentifier symbol in
-            if member key symtab then
-                Left (KErrorDuplicatedId ids)
-            else 
-                Right (symtab |> (key, symbol))
 
 analyzeDecl :: Raw.Decl -> KeliSymTab -> Either KeliError KeliSymbol
 analyzeDecl decl symtab = case decl of

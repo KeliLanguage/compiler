@@ -2,7 +2,7 @@ List.of(A Type)
     =   tag.new
     .or(tag.cons(record.current(A) next(List.of(A))))
 
-(this Int).+(that Int) = ffi.javascript("_this + _that").as(Int)
+(this Int).+(that Int) = ffi.javascript("$this + $that").as(Int)
 
 {A Type}
 (this List.of(A)).length | Int = 

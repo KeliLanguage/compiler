@@ -15,7 +15,7 @@ keliInterpret filename contents = do
     -- baseCode is loaded automaticall by default
     case (keliCompile filename $ baseCode ++ contents) of 
         Right code -> do 
-            -- pPrint code
+            -- putStrLn code
             output <- keliExecute code
             return (Right output)
 

@@ -188,7 +188,7 @@ data Expr'
     }
     | TagMatcher {
         tagMatcherSubject    :: Expr,
-        tagMatcherBranches   :: [(StringToken, Expr)], -- [(Tag, Expr)]
+        tagMatcherBranches   :: [Branch],
         tagMatcherElseBranch :: Maybe Expr
     } 
     | CarrylessTagConstructor 
@@ -216,6 +216,16 @@ data Expr'
 
     deriving (Show)
 
+data Branch 
+    = CarrylessBranch 
+        StringToken -- tag name
+        Expr 
+    
+    | CarryfulBranch
+        StringToken -- tag name
+        StringToken -- carry binding  
+        Expr 
+    deriving (Show)
 
 class Identifiable a where
     getIdentifier :: a -> (String, [StringToken])

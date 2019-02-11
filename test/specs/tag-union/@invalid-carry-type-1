@@ -3,9 +3,9 @@ List.of(A Type)
     .or(tag.cons(record.current(A) next(List.of(A))))
 
 
-z = List.cons.carry(record.
+z = List.cons(record.
     current (1) 
-    next    (List.cons.carry(record.
+    next    (List.cons(record.
         current ("123") 
         next    (List.new))))
 

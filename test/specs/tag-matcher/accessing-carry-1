@@ -1,9 +1,21 @@
-color = (tag.red).or(tag.green(Int))
+(this Int).+(that Int) | Int = ffi.javascript("$this + $that").as(Int)
 
-x=color.green.carry ( 2 )
+Color = (tag.red).or(tag.green(Int))
 
-=x.red? ( 10 ) green? (x.carry)
+x = Color.green(2)
+y = Color.green(5)
+
+=x.
+    red?
+        (10) 
+        
+    green(value1)? 
+        (y.
+            red?
+                (99)
+            green(value2)?
+                (value1.+(value2)))
 
 ====
 
-2
+7

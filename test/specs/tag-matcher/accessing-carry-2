@@ -3,9 +3,9 @@ human =
     .or (tag.baby(record.cuteness ( Int )))
     .or (tag.worker(record.salary ( Int )))
 
-x=human.baby.carry(record.cuteness ( 2 ))
+julia=human.baby(record.cuteness ( 2 ))
 
-=x.boy? ( 0 ) baby? (x.carry.cuteness) worker? (x.carry.salary)
+=julia.boy? ( 0 ) baby(x)? (x.cuteness) worker(x)? (x.salary)
 
 ====
 

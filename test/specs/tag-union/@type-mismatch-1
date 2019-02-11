@@ -6,10 +6,10 @@ List.of(A Type)
 (this List.of(A)).add(element A) | List.of(A) = 
     this.
         new? 
-            (List.cons.carry(record.current(element) next(List.new)))
+            (List.cons(record.current(element) next(List.new)))
 
-        cons? 
-            (List.cons.carry(record.current(this.carry.current) next(this.carry.next.add(element))))
+        cons(x)? 
+            (List.cons(record.current(x.current) next(x.next.add(element))))
     
 =List.new.add(1).add("4")
 

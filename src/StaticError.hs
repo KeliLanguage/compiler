@@ -104,6 +104,15 @@ data KeliError
     | KErrorTypeMismatch 
         (Verified.Expr', Verified.Type') -- actual expr
         Verified.Type' -- expected type
+
+    | KErrorExpectedACarry
+        Raw.StringToken -- carryful tag name
+
+    | KErrorMissingCarryfulBranch
+        Raw.StringToken -- `?` should appear after this token
+
+    | KErrorExpectedId
+        Raw.Expr
     
     deriving (Show)
 
