@@ -301,10 +301,13 @@ linkTagsTogether taggedUnionName ids tags typeParams =
                             V.UnlinkedCarrylessTag tag          -> 
                                 (V.CarrylessTag tag tagUnionType)
                             V.UnlinkedCarryfulTag tag carryType -> 
-                                let carryType' = substituteSelfType (V.ConcreteType (V.TypeTaggedUnion tagUnionType)) carryType in
+                                let carryType' = map (\(key, type') ->
+                                        (key, substituteSelfType (V.ConcreteType (V.TypeTaggedUnion tagUnionType)) type')) 
+                                        carryType in
                                 (V.CarryfulTag tag carryType' tagUnionType)) 
                         tags
             in
+
             Right tagUnionType
             
 

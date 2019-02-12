@@ -1,20 +1,22 @@
 (this Int).+(that Int) | Int = ffi.javascript("$this + $that").as(Int)
 
-Color = (tag.red).or(tag.green(Int))
+Color = tags.
+    #(red)
+    #(green.value(Int))
 
-x = Color.green(2)
-y = Color.green(5)
+x = Color.green.value(2)
+y = Color.green.value(5)
 
 =x.
-    red?
+    if(red):
         (10) 
         
-    green(value1)? 
+    if(green.value(v1)):
         (y.
-            red?
+            if(red):
                 (99)
-            green(value2)?
-                (value1.+(value2)))
+            if(green.value(v2)):
+                (v1.+(v2)))
 
 ====
 

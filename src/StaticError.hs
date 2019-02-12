@@ -107,6 +107,33 @@ data KeliError
 
     | KErrorExpectedId
         Raw.Expr
+
+    | KErrorExpectedHashTag 
+        Raw.StringToken
+
+    | KErrorExpectedFuncCallOrId
+        Raw.Expr
+
+    | KErrorExpectedTypeAnnotationAfterThis
+        Raw.StringToken
+
+    | KErrorExpectedIfOrElse
+        Raw.StringToken
+
+    | KErrorExpectedColon
+        Raw.StringToken
+
+    | KErrorUnknownTag
+        Raw.StringToken
+
+    | KErrorBindingCarrylessTag
+        Raw.StringToken
+
+    | KErrorExpectedTagBindings
+        Raw.Expr
+
+    | KErrorUnknownProp
+        Raw.StringToken
     
     deriving (Show)
 

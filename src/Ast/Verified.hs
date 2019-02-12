@@ -55,7 +55,7 @@ data Type'
     | TypeInt
     | TypeString
     | TypeRecord 
-        [(StringToken, Type)] -- key-type pairs
+        [(StringToken, Type)] -- prop-type pairs
         -- TODO: implement generic record 
         -- (Maybe TypeParams) -- type params
 
@@ -64,10 +64,10 @@ data Type'
 
     | TypeUndefined
     | TypeCarryfulTagConstructor 
-        StringToken  -- tag
-        Type         -- carry type
-        TaggedUnion  -- belongingType
-        (Maybe [Type]) -- type params
+        StringToken           -- tagname
+        [(StringToken, Type)] -- expected prop-type pairs
+        TaggedUnion           -- belongingType
+        (Maybe [Type])        -- type params
 
     | TypeRecordConstructor 
         [(StringToken, Type)] -- expected key-type pairs
@@ -79,9 +79,6 @@ data Type'
 
     | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
-
-    | TypeIdentifiedCarryfulBranch
-        Type -- carry type
 
     | TypeSelf -- for defining recursive type
 
@@ -99,7 +96,6 @@ data TaggedUnion =
 
 instance Show Type' where
     show TypeFloat                                           = "*float"
-    show (TypeIdentifiedCarryfulBranch t)                    = show t ++ " branch"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
     show (TypeRecord kvs)                                    = "*record:" ++ show kvs
@@ -130,7 +126,7 @@ data UnlinkedTag
 
     | UnlinkedCarryfulTag
         StringToken -- tag
-        Type        -- expected carry type
+        [(StringToken, Type)] -- key-type pairs
 
     deriving (Show)
 
@@ -140,9 +136,9 @@ data Tag
         TaggedUnion -- belonging type
 
     | CarryfulTag
-        StringToken -- tag
-        Type        -- expected carry type
-        TaggedUnion -- beloging type
+        StringToken             -- tag
+        [(StringToken, Type)]   -- expected key-type pairs
+        TaggedUnion             -- beloging type
             deriving (Show)
 
 tagnameOf :: Tag -> StringToken
@@ -197,12 +193,12 @@ data Expr'
 
 
     | CarryfulTagConstructor 
-        StringToken -- tag name
-        Type        -- carry type
+        StringToken             -- tag name
+        [(StringToken, Type)]   -- expected prop-type pairs
     
     | CarryfulTagExpr
         StringToken -- tag name
-        Expr        -- carry expr
+        [(StringToken, Expr)] -- key-value pairs
 
     | RecordConstructor [(StringToken, Type)]
 
@@ -223,7 +219,7 @@ data Branch
     
     | CarryfulBranch
         StringToken -- tag name
-        StringToken -- carry binding  
+        [(StringToken, StringToken, Type)] -- property binding as in [(from, to, type)]
         Expr 
     deriving (Show)
 

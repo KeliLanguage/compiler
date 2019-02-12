@@ -1,6 +1,13 @@
-answer=tag.yes.or(tag.no)
-a=answer.yes
-b=a.yes? ( 2 ) no? ( 2 ) no? ( 3 )
+Answer = tags.
+    #(yes)
+    #(no)
+
+a= Answer.yes
+=a.
+    if(yes): (2) 
+    if(no):  (1)
+    if(no):  (1)
+
 
 ====
 

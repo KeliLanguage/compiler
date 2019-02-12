@@ -1,18 +1,18 @@
 List.of(A Type) 
-    =   tag.new
-    .or(tag.cons(record.current(A) next(List.of(A))))
+    =  (#new)
+    .or(#cons.current(A) next(List.of(A)))
 
 (this Int).+(that Int) = ffi.javascript("$this + $that").as(Int)
 
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        new?
+        if(#new):
             (0)
-        cons(x)?
-            (1.+(x.next.length))
+        if(#cons.next(n)):
+            (1.+(n.length))
 
-z = List.cons(record.current(1) next(List.cons(record.current(2) next(List.new))))
+z = List.of(Int).#cons.current(1) next(List.of(Int).#cons.current(2) next(List.of(Int).#new))
 
 = z.length
 ====

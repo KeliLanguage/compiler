@@ -1,11 +1,17 @@
-human = 
-        (tag.boy)
-    .or (tag.baby(record.cuteness ( Int )))
-    .or (tag.worker(record.salary ( Int )))
+Human = tags.
+    #(boy)
+    #(baby.cuteness(Int))
+    #(worker.salary(Int))
 
-julia=human.baby(record.cuteness ( 2 ))
+julia=Human.baby.cuteness(2)
 
-=julia.boy? ( 0 ) baby(x)? (x.cuteness) worker(x)? (x.salary)
+=julia.
+    if(boy): 
+        (0) 
+    if(baby.cuteness(c)): 
+        (c) 
+    if(worker.salary(s)): 
+        (s)
 
 ====
 

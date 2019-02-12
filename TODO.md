@@ -37,8 +37,12 @@
 
 [] join child error with parent error
 
-[] update syntax of carryful tag and tag matcher
+[x] update syntax of carryful tag and tag matcher
 
 [] implement generic record
 
 [] implement interface
+
+[] implement function type
+
+[] update doc regarding constraint type

@@ -144,12 +144,13 @@ suggestCompletionItems decls =
                             map 
                                 (\t -> 
                                     case t of
-                                        V.CarryfulTag (_,tagname) carryType _ ->
+                                        V.CarryfulTag (_,tagname) propTypePairs _ ->
+                                            let text = tagname ++ "." ++ concatMap (\((_,key),t) -> key ++ "(" ++ V.stringifyType t ++ ")") propTypePairs in
                                             CompletionItem {
                                                 kind = 13, -- enum
-                                                label = tagname,
+                                                label = text,
                                                 detail = "",
-                                                insertText = tagname ++ "(${1:" ++ V.stringifyType carryType ++ "})",
+                                                insertText = text,
                                                 insertTextFormat = 2
                                             }
                                         

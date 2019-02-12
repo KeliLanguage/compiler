@@ -1,6 +1,9 @@
-intlist= tag.nothing.or (tag.cons(Int))
-=intlist.cons(2)
+IntList= tags.
+    #(nothing)
+    #(cons.value(Int))
+
+= IntList.cons.value(123)
 
 ====
 
-{ __tag: 'cons', __carry: 2 }
+{ __tag: 'cons', __carry: { value: 123 } }

@@ -19,13 +19,20 @@ class Transpilable a where
 prefix :: String -> String
 prefix s = "$" ++ s
 
+quote :: String -> String
+quote s = "\"" ++ s ++ "\""
+
+squareBracket :: String -> String
+squareBracket s = "[" ++ s ++ "]"
+
 instance Transpilable V.Tag where
     transpile tag = case tag of 
+        -- `tail id` is for removing leading hashtag `#`
         V.CarrylessTag (_,id) _ -> 
-            prefix id ++ ":({__tag:\"" ++ id ++ "\"})"
+            quote (prefix id) ++ ":({__tag:\"" ++ id ++ "\"})"
 
         V.CarryfulTag (_,id) _ _ -> 
-            prefix id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
+            quote (prefix id) ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
 
 
 instance Transpilable KeliSymbol where
@@ -125,12 +132,12 @@ instance Transpilable V.Expr where
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
             (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
-                -> prefix id ++ "." ++ prefix tag ++ "("++ transpile carry ++")"
+                -> prefix id ++ squareBracket (quote (prefix tag)) ++ "("++ transpileKeyValuePairs False carry ++")"
 
         V.Expr 
             (V.CarrylessTagConstructor(_,tag) _)
             (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
-                -> prefix id ++ "." ++ prefix tag
+                -> prefix id ++ squareBracket (quote (prefix tag))
 
         other -> 
             error (show other)
@@ -140,13 +147,17 @@ instance Transpilable V.Branch where
         V.CarrylessBranch (_,tagname) expr ->
             tagname ++ ":" ++ lazify (transpile expr)
 
-        V.CarryfulBranch (_,tagname) (_,bindingVar) expr ->
-            tagname ++ ":" ++ lazify ("(" ++ prefix bindingVar ++ "=>" ++ transpile expr ++ ")($$.__carry)")
+        V.CarryfulBranch (_,tagname) propBindings expr ->
+            -- Refer https://codeburst.io/renaming-destructured-variables-in-es6-807549754972
+            tagname ++ ":" ++ lazify ("(({" 
+                ++ (concatMap (\((_,from), (_,to), _) -> prefix from ++ ":" ++ prefix to ++ ",") propBindings)
+                ++ "})=>" 
+                ++ transpile expr ++ ")($$.__carry)")
 
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String
 transpileKeyValuePairs lazifyExpr kvs 
-    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (show (snd key)) ++ ":" 
+    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (prefix (snd key)) ++ ":" 
         ++ (if lazifyExpr then lazify (transpile expr) else (transpile expr))
         ++ ",") "" kvs) ++ "})"
 
