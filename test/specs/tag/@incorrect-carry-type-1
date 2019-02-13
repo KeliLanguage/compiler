@@ -1,5 +1,8 @@
-color=tag.red.or(tag.green(Int))
-x=color.green("123")
+Color = tags.
+    #(red)
+    #(green.value(Int))
+
+x=Color.green.value("123")
 
 ====
 

@@ -1,15 +1,15 @@
-List.of(A Type) 
-    =   tag.new
-    .or(tag.cons(record.current(A) next(List.of(A))))
+List.of(A Type) = tags.
+    #(new)
+    #(cons.current(A) next(List.of(A)))
 
 {A Type}
 (this List.of(A)).add(element A) | List.of(A) = 
     this.
-        new? 
-            (List.cons(record.current(element) next(List.new)))
+        if(new):
+            (List.cons.current(element) next(List.new))
 
-        cons(x)? 
-            (List.cons(record.current(x.current) next(x.next.add(element))))
+        if(cons.current(c) next(n)):
+            (List.cons.current(c) next(n.add(element)))
     
 =List.new.add(1).add("4")
 

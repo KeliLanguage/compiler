@@ -1,13 +1,13 @@
-List.of(A Type) 
-    =   tag.new
-    .or(tag.cons(record.current(A) next(List.of(A))))
+List.of(A Type) = tags.
+    #(new)
+    #(cons.current(A) next(List.of(A)))
 
 
-z = List.cons(record.
-    current (1) 
-    next    (List.cons(record.
-        current ("123") 
-        next    (List.new))))
+z = List.cons.
+        current (1) 
+        next    (List.cons.
+            current ("123") 
+            next    (List.new))
 
 ==== 
 

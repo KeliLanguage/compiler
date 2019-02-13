@@ -1,7 +1,13 @@
-="not all branch have same tag"
-answer=tag.yes.or(tag.no)
-a=answer.yes
-b=a.yes? ( 2 ) no? ("hi")
+Answer = tags.
+    #(yes)
+    #(no)
+
+a= Answer.yes
+=a.
+    if(yes): 
+        (2) 
+    if(no):
+        ("hello")
 
 ====
 

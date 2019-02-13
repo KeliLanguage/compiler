@@ -326,23 +326,22 @@ typeCheckExpr symtab assumption expression = case expression of
                                     typeCheckTagBranch :: (Raw.Expr, Raw.Expr) -> Either KeliError V.TagBranch
                                     typeCheckTagBranch (tag, branch) =
                                         case tag of
-                                            Raw.Id actualTagname -> 
-                                                case find (\t -> snd (V.tagnameOf t) == snd actualTagname) expectedTags of
-                                                    Just _ -> do
-                                                        typeCheckedBranch <- typeCheckExpr symtab assumption branch >>= extractExpr
-                                                        Right (V.CarrylessTagBranch (V.VerifiedTagname actualTagname) typeCheckedBranch)
 
-                                                    Nothing ->
-                                                        Left (KErrorUnknownTag actualTagname)
+                                            Raw.Id actualTagname -> do
+                                                (verifiedTagname,_) <- verifyTagname expectedTags actualTagname
+                                                typeCheckedBranch <- typeCheckExpr symtab assumption branch >>= extractExpr
+                                                Right (V.CarrylessTagBranch verifiedTagname typeCheckedBranch)
+
                                             
                                             Raw.FuncCall funcParams' funcIds' ->
                                                 case head funcParams' of
                                                     Raw.Id actualTagname -> do
-                                                        case find (\t -> snd (V.tagnameOf t) == snd actualTagname) expectedTags of
-                                                            Nothing ->
-                                                                Left (KErrorUnknownTag actualTagname)
-
-                                                            Just (V.CarryfulTag _ expectedKeyTypePairs _) -> do
+                                                        (verifiedTagname, matchingTag) <- verifyTagname expectedTags actualTagname
+                                                        case matchingTag of
+                                                            (V.CarrylessTag{}) ->
+                                                                Left (KErrorBindingCarrylessTag actualTagname)
+                                                    
+                                                            (V.CarryfulTag _ expectedKeyTypePairs _) -> do
                                                                 -- verify property bindings
                                                                 let propBindings = zip funcIds' (tail funcParams')
                                                                 verifiedPropBindings <- 
@@ -372,16 +371,15 @@ typeCheckExpr symtab assumption expression = case expression of
                                                                 -- type check the branch
                                                                 typeCheckedBranch <- typeCheckExpr updatedSymtab assumption branch >>= extractExpr
 
-                                                                Right (V.CarryfulTagBranch (V.VerifiedTagname actualTagname) verifiedPropBindings typeCheckedBranch)
-                                                            
-                                                            Just (V.CarrylessTag{}) ->
-                                                                Left (KErrorBindingCarrylessTag actualTagname)
-                                                    
+                                                                Right (V.CarryfulTagBranch verifiedTagname verifiedPropBindings typeCheckedBranch)
+
                                                     other ->
                                                         Left (KErrorExpectedId other)
 
+                                                            
                                             other -> 
                                                 Left (KErrorExpectedTagBindings other)
+
 
                                     allBranchTypeAreSame typeCheckedTagBranches = do
                                         let branches = map (\b -> case b of 
@@ -804,15 +802,15 @@ typeCompares' symtab actualExpr@(V.Expr expr actualType) expectedType =
             case actualType of
                 -- if expectedType is concrete but actualType is type variable
                 V.TypeVariable name constraint isRigid ->
-                    if isRigid then
-                        error ("Actual type"   ++ show actualType
-                        ++ ";\nActual expr:"   ++ show expr
-                        ++ ";\nExpected type:" ++ show expectedType)
-                        ApplicableFailed (KErrorCannotMatchRigidTypeVariableWithConcreteType
-                            actualExpr
-                            expectedType)
-                    else
-                        ApplicableOk symtab
+                    ApplicableOk symtab
+                    -- if isRigid then
+                    --     error ("Actual type"   ++ show actualType
+                    --     ++ ";\nActual expr:"   ++ show expr
+                    --     ++ ";\nExpected type:" ++ show expectedType)
+                    --     ApplicableFailed (KErrorCannotMatchRigidTypeVariableWithConcreteType
+                    --         actualExpr
+                    --         expectedType)
+                    -- else
 
                 -- if both are concrete types, just do direct comparison
                 V.ConcreteType actualType' ->
@@ -1000,3 +998,12 @@ evens _ = []
 -- Retrieve odd-indexed elements
 odds (_:xs) = evens xs
 odds _ = []
+
+verifyTagname :: [V.Tag] -> V.StringToken -> Either KeliError (V.VerifiedTagname, V.Tag)
+verifyTagname expectedTags actualTagname = 
+    case find (\t -> snd (V.tagnameOf t) == snd actualTagname) expectedTags of
+        Just tag -> 
+            Right (V.VerifiedTagname actualTagname, tag)
+
+        Nothing ->
+            Left (KErrorUnknownTag actualTagname)

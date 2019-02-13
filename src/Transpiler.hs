@@ -106,10 +106,10 @@ instance Transpilable V.Expr where
             -> transpileKeyValuePairs False (kvs)
 
         V.Expr(V.RecordGetter expr prop) _                  
-            -> transpile expr ++ "." ++ snd prop
+            -> transpile expr ++ "." ++ prefix (snd prop)
 
         V.Expr(V.RecordSetter subject prop newValue) _      
-            -> "({...(" ++ transpile subject ++ ")," ++ snd prop ++ ":(" ++ transpile newValue ++ ")})"
+            -> "({...(" ++ transpile subject ++ ")," ++ prefix (snd prop) ++ ":(" ++ transpile newValue ++ ")})"
 
         V.Expr(V.TagMatcher subject branches elseBranch) _
             -> 

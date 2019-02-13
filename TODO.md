@@ -5,7 +5,7 @@
 
 [] each function decl should be assign a uniq UID, to ease transpilation
 
-[] error reporting does not contain accurate location
+[x] error reporting does not contain accurate location
 
 [x] define factorial function
 
@@ -46,3 +46,5 @@
 [] implement function type
 
 [] update doc regarding constraint type
+
+[] implement bindingful else branch for tag matcher

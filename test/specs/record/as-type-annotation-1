@@ -6,5 +6,5 @@ Fruit = record.name(String)
 
 ====
 
-{ name: 'pineapple' }
+{ '$name': 'pineapple' }
 

@@ -2,4 +2,4 @@ fruit=record.taste(Int)
 =fruit.taste(3)
 
 ====
-{ taste: 3 }
+{ '$taste': 3 }

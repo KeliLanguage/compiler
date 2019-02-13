@@ -1,15 +1,17 @@
-Bool = tag.true.or(tag.false)
+Boolean = tags.
+    #(true) 
+    #(false)
 (x Int).minus   (y Int) | Int  = ffi.javascript("$x - $y").as(Int)
 (x Int).plus    (y Int) | Int  = ffi.javascript("$x + $y").as(Int)
 (x Int).times   (y Int) | Int  = ffi.javascript("$x * $y").as(Int)
-(x Int).moreThan(y Int) | Bool = ffi.javascript("$x > $y   ? $Bool.$true : $Bool.$false").as(Bool)
-(x Int).equals  (y Int) | Bool = ffi.javascript("$x === $y ? $Bool.$true : $Bool.$false").as(Bool)
+(x Int).moreThan(y Int) | Boolean = ffi.javascript("$x > $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).equals  (y Int) | Boolean = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
 
 (x Int).factorial | Int =  
     x.equals(0).
-        true? 
+        if(true):
             (1)
-        false? 
+        if(false):
             (x.times((x.minus(1)).factorial))
 
 = 3.factorial
