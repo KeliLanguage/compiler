@@ -184,7 +184,7 @@ data Expr'
     }
     | TagMatcher {
         tagMatcherSubject    :: Expr,
-        tagMatcherBranches   :: [Branch],
+        tagMatcherBranches   :: [TagBranch],
         tagMatcherElseBranch :: Maybe Expr
     } 
     | CarrylessTagConstructor 
@@ -212,15 +212,21 @@ data Expr'
 
     deriving (Show)
 
-data Branch 
-    = CarrylessBranch 
-        StringToken -- tag name
+data VerifiedTagname = VerifiedTagname StringToken
+    deriving (Show)
+
+data TagBranch 
+    = CarrylessTagBranch 
+        VerifiedTagname -- tag name
         Expr 
     
-    | CarryfulBranch
-        StringToken -- tag name
+    | CarryfulTagBranch
+        VerifiedTagname -- tag name
         [(StringToken, StringToken, Type)] -- property binding as in [(from, to, type)]
         Expr 
+
+    | ElseBranch
+        Expr
     deriving (Show)
 
 class Identifiable a where

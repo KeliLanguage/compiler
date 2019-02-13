@@ -102,7 +102,7 @@ data KeliError
     | KErrorExpectedACarry
         Raw.StringToken -- carryful tag name
 
-    | KErrorMissingCarryfulBranch
+    | KErrorMissingCarryfulTagBranch
         Raw.StringToken -- `?` should appear after this token
 
     | KErrorExpectedId
@@ -134,6 +134,9 @@ data KeliError
 
     | KErrorUnknownProp
         Raw.StringToken
+
+    | KErrorMoreThanOneElseBranch
+        [Raw.StringToken]
     
     deriving (Show)
 

@@ -1,9 +1,15 @@
-yesOrNo=tag.ok.or(tag.nope)
-a=yesOrNo.ok
-=a.ok? ( 2 ) else? ( 1 )
-=yesOrNo.nope.ok? ( 2 ) else? (1)
+Answer = tags.
+    #(yes)
+    #(no)
+
+a= Answer.no
+=a.
+    if(yes): 
+        (2) 
+    
+    else: 
+        (1)
 
 ====
 
-2
 1

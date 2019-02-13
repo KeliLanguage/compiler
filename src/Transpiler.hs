@@ -117,7 +117,7 @@ instance Transpilable V.Expr where
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
             "(($$=>({" ++ intercalate "," (map transpile branches) ++ "})[$$.__tag])(" ++ transpile subject ++ ")" ++
                 (case elseBranch of
-                    Just expr -> " || " ++ "(" ++ (lazify (transpile expr)) ++ ")"
+                    Just expr' -> " || " ++ "(" ++ (lazify (transpile expr')) ++ ")"
                     Nothing   -> "") ++ ")()"
 
         V.Expr(V.FuncCall params _ ref) _ -> 
@@ -142,12 +142,12 @@ instance Transpilable V.Expr where
         other -> 
             error (show other)
 
-instance Transpilable V.Branch where
+instance Transpilable V.TagBranch where
     transpile b = case b of
-        V.CarrylessBranch (_,tagname) expr ->
+        V.CarrylessTagBranch (V.VerifiedTagname (_,tagname)) expr ->
             tagname ++ ":" ++ lazify (transpile expr)
 
-        V.CarryfulBranch (_,tagname) propBindings expr ->
+        V.CarryfulTagBranch (V.VerifiedTagname (_,tagname)) propBindings expr ->
             -- Refer https://codeburst.io/renaming-destructured-variables-in-es6-807549754972
             tagname ++ ":" ++ lazify ("(({" 
                 ++ (concatMap (\((_,from), (_,to), _) -> prefix from ++ ":" ++ prefix to ++ ",") propBindings)
