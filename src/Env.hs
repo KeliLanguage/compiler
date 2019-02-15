@@ -1,4 +1,4 @@
-module Symbol where
+module Env where
 
 import Text.Parsec.Pos
 import Prelude hiding (id)
@@ -32,9 +32,16 @@ instance Verified.Identifiable KeliSymbol where
         other -> error (show other)
     
 
-type KeliSymTab = OMap String KeliSymbol
+type Env = OMap String KeliSymbol
 
-emptyKeliSymTab :: KeliSymTab
-emptyKeliSymTab = empty
+emptyEnv :: Env
+emptyEnv = empty
 
 
+data Context 
+    = Context 
+        Int -- next integer of type variable
+        Env
+
+emptyContext :: Context
+emptyContext = Context 0 emptyEnv

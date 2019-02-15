@@ -12,7 +12,7 @@ import Repl
 import Parser(keliParse)
 import Analyzer(analyze, analyzeDecls)
 import Diagnostics(toDiagnostic)
-import Symbol(emptyKeliSymTab)
+import Env(emptyEnv)
 import CompletionItems
 import StaticError
 

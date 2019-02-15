@@ -12,14 +12,14 @@ import Prelude hiding (lookup,id)
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
-import Symbol
+import Env
 import TypeCheck
 import Util
 import Unify
 
 analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
 analyze decls = 
-    let (errors, finalSymtab, _) = analyzeDecls emptyKeliSymTab decls in
+    let (errors, finalSymtab, _) = analyzeDecls emptyEnv decls in
     let analyzedSymbols = extractSymbols finalSymtab in
 
     -- sorting is necessary, so that the transpilation order will be correct
@@ -40,8 +40,8 @@ analyze decls =
     else
         Right sortedSymbols
 
-extractSymbols :: KeliSymTab -> [KeliSymbol]
-extractSymbols symtab = map snd (assocs symtab)
+extractSymbols :: Env -> [KeliSymbol]
+extractSymbols env = map snd (assocs env)
 
 data TypeDecl = 
     TypeDecl 
@@ -49,11 +49,11 @@ data TypeDecl =
         V.Type          -- type body
 
 analyzeDecls 
-    :: KeliSymTab -- previous symtab
+    :: Env -- previous env
     -> [Raw.Decl] -- parsed input
-    -> ([KeliError], KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
+    -> ([KeliError], Env, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
 
-analyzeDecls symtab decls = 
+analyzeDecls env decls = 
     let (finalErrors, finalSymtab, finalSymbols) = 
             foldl'
             ((\(errors, prevSymtab, prevSymbols) nextDecl1 -> 
@@ -69,14 +69,14 @@ analyzeDecls symtab decls =
                                 ([err'], prevSymtab, []) in
                 
                 (errors ++ newErrors, newSymtab, prevSymbols ++ newSymbols)
-            )::([KeliError], KeliSymTab, [KeliSymbol]) -> Raw.Decl -> ([KeliError],KeliSymTab, [KeliSymbol]))
-            ([], symtab, [])
+            )::([KeliError], Env, [KeliSymbol]) -> Raw.Decl -> ([KeliError],Env, [KeliSymbol]))
+            ([], env, [])
             decls in
     (finalErrors, finalSymtab, finalSymbols)
 
 
-analyzeDecl :: Raw.Decl -> KeliSymTab -> Either KeliError KeliSymbol
-analyzeDecl decl symtab = case decl of
+analyzeDecl :: Raw.Decl -> Env -> Either KeliError KeliSymbol
+analyzeDecl decl env = case decl of
     Raw.ConstDecl Raw.Const {
         Raw.constDeclId=id,
         Raw.constDeclValue=expr
@@ -97,10 +97,10 @@ analyzeDecl decl symtab = case decl of
                     Nothing ->
                         if id' == "_primitive_type" then
                             case snd id of
-                                "Int"   -> Right (KeliSymType (V.TypeAlias id (V.ConcreteType V.TypeInt)))
-                                "String"-> Right (KeliSymType (V.TypeAlias id (V.ConcreteType V.TypeString)))
-                                "Float" -> Right (KeliSymType (V.TypeAlias id (V.ConcreteType V.TypeFloat)))
-                                "Type"  -> Right (KeliSymType (V.TypeAlias id (V.ConcreteType V.TypeType)))
+                                "Int"   -> Right (KeliSymType (V.TypeAlias id ( V.TypeInt)))
+                                "String"-> Right (KeliSymType (V.TypeAlias id ( V.TypeString)))
+                                "Float" -> Right (KeliSymType (V.TypeAlias id ( V.TypeFloat)))
+                                "Type"  -> Right (KeliSymType (V.TypeAlias id ( V.TypeType)))
                                 _       -> Left (KErrorCannotDefineCustomPrimitiveType id)
                         else 
                             continueAnalyzeConstDecl
@@ -110,9 +110,9 @@ analyzeDecl decl symtab = case decl of
 
         where 
             continueAnalyzeConstDecl = do
-                -- insert temporary types into symtab to allow declaraion of recursive types
-                let updatedSymtab = symtab |> (snd id, KeliSymType (V.TypeAlias id (V.ConcreteType V.TypeSelf))) 
-                result <- typeCheckExpr updatedSymtab CanBeAnything expr
+                -- insert temporary types into env to allow declaraion of recursive types
+                let updatedSymtab = env |> (snd id, KeliSymType (V.TypeAlias id ( V.TypeSelf))) 
+                result <- typeCheckExpr (Context 0 updatedSymtab) CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right (KeliSymConst id typeCheckedExpr)
@@ -122,7 +122,7 @@ analyzeDecl decl symtab = case decl of
 
                     Third tag -> do
                         taggedUnionType <- linkTagsTogether id [] tag Nothing
-                        Right (KeliSymType (V.TypeAlias id (V.ConcreteType (V.TypeTaggedUnion taggedUnionType))))
+                        Right (KeliSymType (V.TypeAlias id ( (V.TypeTaggedUnion taggedUnionType))))
 
     Raw.FuncDecl(Raw.Func {
         Raw.funcDeclGenericParams = genericParams,
@@ -131,6 +131,7 @@ analyzeDecl decl symtab = case decl of
         Raw.funcDeclReturnType    = returnType,
         Raw.funcDeclBody          = funcBody
     }) -> do 
+            let ctx = Context 0 env
             let verifyParamType = 
                     (\tempSymtab params verify -> 
                         mapM
@@ -140,40 +141,40 @@ analyzeDecl decl symtab = case decl of
                             params)
 
             -- 0.1 Verify implicit type params
-            verifiedGenericParams <- mapM (verifyTypeParam symtab) genericParams 
+            verifiedGenericParams <- mapM (verifyTypeParam ctx) genericParams 
 
             -- 0.2 populate symbol table with implicit type params
-            symtab2 <- 
+            env2 <- 
                 foldM 
                     (\acc t@(V.TypeParam id constraint) -> 
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else 
                             Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
-                    symtab 
+                    env 
                     verifiedGenericParams
 
             -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <- verifyParamType symtab2 funcParams verifyType
+            verifiedFuncParams <- verifyParamType env2 funcParams verifyType
 
             -- 1.2 populate symbol table with function parameters
-            symtab3 <- 
+            env3 <- 
                 foldM 
                     (\acc (id, type') ->
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else
                             Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) type'))))
-                symtab2 
+                env2 
                 verifiedFuncParams
             
             -- 2. verify return type
             verifiedReturnType <- 
                 (case returnType of 
                     Just returnType' ->
-                        verifyType symtab3 returnType'
+                        verifyType env3 returnType'
                     Nothing ->
-                        Right (V.ConcreteType V.TypeUndefined))
+                        Right ( V.TypeUndefined))
 
 
             -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
@@ -181,16 +182,16 @@ analyzeDecl decl symtab = case decl of
                     [V.Func {
                         V.funcDeclIds = funcIds,
                         V.funcDeclGenericParams = verifiedGenericParams,
-                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) (V.ConcreteType V.TypeUndefined), -- temporary body (useless)
+                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) ( V.TypeUndefined), -- temporary body (useless)
                         V.funcDeclParams = verifiedFuncParams,
                         V.funcDeclReturnType = verifiedReturnType
                     }] 
 
-            symtab4 <- insertSymbolIntoSymtab tempFunc symtab3
+            env4 <- insertSymbolIntoSymtab tempFunc env3
 
 
             -- 4. type check the function body
-            result <- typeCheckExpr symtab4 CanBeAnything funcBody
+            result <- typeCheckExpr env4 CanBeAnything funcBody
             case result of
                 First typeCheckedBody ->
                     let bodyType = getType typeCheckedBody in
@@ -205,11 +206,11 @@ analyzeDecl decl symtab = case decl of
                     -- 4. ensure body type adheres to return type
                     case verifiedReturnType of
                         -- if return type is not declared, the return type of this function is inferred as the type of the body
-                        (V.ConcreteType V.TypeUndefined) ->
+                        ( V.TypeUndefined) ->
                             Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
 
                         _ ->
-                            case typeCompares symtab4 typeCheckedBody verifiedReturnType of
+                            case typeCompares env4 typeCheckedBody verifiedReturnType of
                                 -- if body type match expected return types
                                 ApplicableOk _ ->
                                     Right (KeliSymFunc [resultFunc])
@@ -226,7 +227,7 @@ analyzeDecl decl symtab = case decl of
                 _ -> undefined
     
     Raw.IdlessDecl expr -> do
-        result <- typeCheckExpr symtab CanBeAnything expr
+        result <- typeCheckExpr env CanBeAnything expr
         case result of
             First checkedExpr ->
                 Right (KeliSymInlineExprs [checkedExpr])
@@ -240,31 +241,31 @@ analyzeDecl decl symtab = case decl of
         
     r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
         -- 1. verify all type params
-        verifiedTypeParams' <- mapM (verifyTypeParam symtab) typeParams 
+        verifiedTypeParams' <- mapM (verifyTypeParam env) typeParams 
         let verifiedTypeParams = map (\(V.TypeParam name c) -> V.TypeVariable name c True) verifiedTypeParams'
 
 
         -- 2. populate symbol table with type params
-        symtab2 <- 
+        env2 <- 
             foldM 
                 (\acc (V.TypeParam id constraint) -> 
                     if member (snd id) acc then
                         Left (KErrorDuplicatedId [id])
                     else 
                         Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
-                symtab 
+                env 
                 verifiedTypeParams'
 
         -- 3. populate symbol table with this type constructor (to allow recursve definition)
-        symtab3 <-
-            if member (snd typeConstructorName) symtab2 then
+        env3 <-
+            if member (snd typeConstructorName) env2 then
                 Left (KErrorDuplicatedId [typeConstructorName])
             else
-                Right (symtab2 |> (snd typeConstructorName, 
+                Right (env2 |> (snd typeConstructorName, 
                     KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] (Just verifiedTypeParams))))
 
         -- 4. type check the body
-        typeCheckedBody <- (typeCheckExpr symtab3 StrictlyAnalyzingType typeBody) 
+        typeCheckedBody <- (typeCheckExpr env3 StrictlyAnalyzingType typeBody) 
         
 
         case typeCheckedBody of
@@ -303,7 +304,7 @@ linkTagsTogether taggedUnionName ids tags typeParams =
                                 (V.CarrylessTag tag tagUnionType)
                             V.UnlinkedCarryfulTag tag carryType -> 
                                 let carryType' = map (\(key, type') ->
-                                        (key, substituteSelfType (V.ConcreteType (V.TypeTaggedUnion tagUnionType)) type')) 
+                                        (key, substituteSelfType ( (V.TypeTaggedUnion tagUnionType)) type')) 
                                         carryType in
                                 (V.CarryfulTag tag carryType' tagUnionType)) 
                         tags
@@ -315,7 +316,7 @@ linkTagsTogether taggedUnionName ids tags typeParams =
 substituteSelfType :: V.Type -> V.Type -> V.Type
 substituteSelfType source target =
     case target of
-        V.ConcreteType t ->
+         t ->
             case t of 
                 V.TypeSelf ->
                     source
@@ -326,7 +327,7 @@ substituteSelfType source target =
                                 (\(prop, type') -> 
                                     (prop, substituteSelfType source type'))
                                 propTypePairs
-                    in V.ConcreteType (V.TypeRecord updatedPropTypePairs)
+                    in  (V.TypeRecord updatedPropTypePairs)
 
                 _ ->
                     target

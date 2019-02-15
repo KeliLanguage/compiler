@@ -11,40 +11,37 @@ import Prelude hiding (lookup,id)
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
-import Symbol
+import Env
 import Util
 import Unify
-
-getType :: V.Expr -> V.Type
-getType (V.Expr _ type') = type'
 
 data Assumption 
     = StrictlyAnalyzingType
     | CanBeAnything 
 
-typeCheckExpr :: KeliSymTab -> Assumption -> Raw.Expr -> Either KeliError (OneOf3 V.Expr V.Type [V.UnlinkedTag])
-typeCheckExpr symtab assumption expression = case expression of 
+typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (OneOf3 V.Expr V.Type [V.UnlinkedTag])
+typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
-        typeCheckedExpr <- typeCheckExpr symtab assumption expr 
+        typeCheckedExpr <- typeCheckExpr ctx assumption expr 
         Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
 
     Raw.NumberExpr(pos,n) -> 
         case n of 
             Left intValue ->
-                Right (First (V.Expr (V.IntExpr (pos, intValue)) (V.ConcreteType V.TypeInt)))
+                Right (First (V.Expr (V.IntExpr (pos, intValue)) ( V.TypeInt)))
 
             Right doubleValue ->
-                Right (First (V.Expr (V.DoubleExpr (pos, doubleValue)) (V.ConcreteType V.TypeFloat)))
+                Right (First (V.Expr (V.DoubleExpr (pos, doubleValue)) ( V.TypeFloat)))
 
     Raw.StringExpr (pos, str) -> 
-        Right (First (V.Expr (V.StringExpr (pos, str)) (V.ConcreteType V.TypeString)))
+        Right (First (V.Expr (V.StringExpr (pos, str)) ( V.TypeString)))
 
     Raw.Id token@(_,id) -> 
-        case lookup id symtab of 
+        case lookup id env of 
             Just (KeliSymConst _ expr) -> 
                 Right (First (V.Expr (V.Id token) (getType expr)))
         
-            Just (KeliSymType (V.TypeAlias _ t@(V.ConcreteType (V.TypeRecord propTypePairs)))) -> 
+            Just (KeliSymType (V.TypeAlias _ t@( (V.TypeRecord propTypePairs)))) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
                 -- Answer: Using assumptions
 
@@ -52,14 +49,14 @@ typeCheckExpr symtab assumption expression = case expression of
                     StrictlyAnalyzingType -> 
                         (Right (Second t))
                     CanBeAnything ->
-                        (Right (First (V.Expr (V.RecordConstructor propTypePairs) (V.ConcreteType(V.TypeRecordConstructor propTypePairs)))))
+                        (Right (First (V.Expr (V.RecordConstructor propTypePairs) ((V.TypeRecordConstructor propTypePairs)))))
 
-            Just (KeliSymType (V.TypeAlias _ t@(V.ConcreteType(V.TypeTaggedUnion (V.TaggedUnion name ids tags typeParams))))) ->
+            Just (KeliSymType (V.TypeAlias _ t@((V.TypeTaggedUnion (V.TaggedUnion name ids tags typeParams))))) ->
                 case assumption of
                     StrictlyAnalyzingType -> 
                         (Right (Second t))
                     CanBeAnything ->
-                        (Right (First (V.Expr (V.TagConstructorPrefix) (V.ConcreteType (V.TypeTagConstructorPrefix name tags Nothing)))))
+                        (Right (First (V.Expr (V.TagConstructorPrefix) ( (V.TypeTagConstructorPrefix name tags Nothing)))))
             
             Just (KeliSymType (V.TypeAlias _ t)) ->
                 (Right (Second t))
@@ -70,10 +67,10 @@ typeCheckExpr symtab assumption expression = case expression of
             Just (KeliSymTypeConstructor t@(V.TaggedUnion name _ tags typeParams)) ->
                 case assumption of
                     StrictlyAnalyzingType ->
-                        Right (First (V.Expr (V.TypeConstructorPrefix) (V.ConcreteType (V.TypeTypeConstructor t))))
+                        Right (First (V.Expr (V.TypeConstructorPrefix) ( (V.TypeTypeConstructor t))))
 
                     CanBeAnything -> 
-                        (Right (First (V.Expr (V.TagConstructorPrefix) (V.ConcreteType (V.TypeTagConstructorPrefix name tags typeParams)))))
+                        (Right (First (V.Expr (V.TagConstructorPrefix) ( (V.TypeTagConstructorPrefix name tags typeParams)))))
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -83,119 +80,103 @@ typeCheckExpr symtab assumption expression = case expression of
                 undefined
 
     Raw.FuncCall params' funcIds -> do
-        case head funcIds of 
-            -- 0. Check if user wants to create a tagged union
-            (_,"or") -> do
-                let isTagOrUnion x = 
-                        case x of 
-                            Second (V.ConcreteType (V.TypeTaggedUnion{})) -> True; 
-                            Third _ -> True; 
-                            _ -> False;
-                params <- mapM (typeCheckExpr symtab assumption) params';
-                if isTagOrUnion (head params) then do
-                    tags <- mapM extractTag params
-                    Right (Third (concat tags))
-                else  do
+        case (head params') of
+            (Raw.Id firstParamToken@(_,firstParamId)) -> 
+                case firstParamId of
+                -- 1. Check if user wants to create a tagged union
+                "tags" ->
+                    case find (\(_,x) -> x /= "#") funcIds of
+                        Just x ->
+                            Left (KErrorExpectedHashTag x)
+                        Nothing -> do
+                            tags <- mapM 
+                                    (\e -> 
+                                        case e of
+                                            Raw.Id id ->
+                                                Right (V.UnlinkedCarrylessTag id)
+                                            Raw.FuncCall params'' funcIds'' ->
+                                                if length params'' < 2 then
+                                                    Left (KErrorExpectedTypeAnnotationAfterThis (last funcIds''))
+                                                else do
+                                                    case head params'' of
+                                                        Raw.Id tagname -> do
+                                                            let keys = funcIds''
+                                                            keyTypePairs <- verifyKeyTypePairs ctx keys (tail params'')
+                                                            Right (V.UnlinkedCarryfulTag tagname keyTypePairs)
+
+                                                        other ->
+                                                            Left (KErrorExpectedId other)
+                                            _ ->
+                                                Left (KErrorExpectedFuncCallOrId e)
+                                        ) (tail params')
+                            Right (Third tags)
+
+                -- 2. Check if the user wants to create a record (type/value)
+                "record" ->  
+                    if length (tail params') == 0 then 
+                        Left (KErrorIncorrectUsageOfRecord firstParamToken)
+
+                    else do 
+                        -- NOTE: 
+                        --  Because of the following line of code,
+                        --  the following recursive record type cannot be declared:
+                        --
+                        --      fruit = record.next fruit;
+                        -- 
+                        -- It's ok, because we shouldn't allow user to create recursive records (which will form infinite type)
+                        firstValue <- typeCheckExpr ctx CanBeAnything (tail params' !! 0)  -- <-- this line
+
+                        let keys = funcIds
+                        case firstValue of 
+                            -- assume user want to create a record value
+                            First _ -> do
+                                keyValuePairs <- verifyKeyValuePairs ctx keys (tail params')
+                                Right 
+                                    (First
+                                        (V.Expr
+                                            (V.Record keyValuePairs) 
+                                            ( (V.TypeRecord (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
+                            
+                            -- assume user want to declare a record type
+                            Second _ -> do
+                                keyTypePairs <- verifyKeyTypePairs ctx keys (tail params')
+                                Right (Second ( (V.TypeRecord keyTypePairs)))
+
+                            Third tag -> 
+                                Left (KErrorExpectedExprOrTypeButGotTag tag)
+
+                -- 3. check if user is using javascript ffi
+                "ffi" ->
+                    if length funcIds /= 1 || length params' /= 2 then
+                        Left (KErrorIncorrectUsageOfFFI firstParamToken)
+                    else if snd (funcIds !! 0) /= "javascript" then
+                        Left (KErrorUnknownFFITarget (funcIds !! 0))
+                    else do
+                        jsCode <- typeCheckExpr ctx assumption (params' !! 1) >>= extractExpr
+                        case jsCode of
+                            (V.Expr (V.StringExpr value) _) ->
+                                Right (First (V.Expr (V.FFIJavascript value) ( V.TypeUndefined)))
+
+                            _ -> 
+                                Left (KErrorFFIValueShouldBeString jsCode)
+                    
+                _ -> 
                     continuePreprocessFuncCall1
 
-            _ -> do  
-                case (head params') of
-                    (Raw.Id firstParamToken@(_,firstParamId)) -> 
-                        case firstParamId of
-                        -- 1. Check if user wants to create a tagged union
-                        "tags" ->
-                            case find (\(_,x) -> x /= "#") funcIds of
-                                Just x ->
-                                    Left (KErrorExpectedHashTag x)
-                                Nothing -> do
-                                    tags <- mapM 
-                                            (\e -> 
-                                                case e of
-                                                    Raw.Id id ->
-                                                        Right (V.UnlinkedCarrylessTag id)
-                                                    Raw.FuncCall params'' funcIds'' ->
-                                                        if length params'' < 2 then
-                                                            Left (KErrorExpectedTypeAnnotationAfterThis (last funcIds''))
-                                                        else do
-                                                            case head params'' of
-                                                                Raw.Id tagname -> do
-                                                                    let keys = funcIds''
-                                                                    keyTypePairs <- verifyKeyTypePairs symtab keys (tail params'')
-                                                                    Right (V.UnlinkedCarryfulTag tagname keyTypePairs)
-
-                                                                other ->
-                                                                    Left (KErrorExpectedId other)
-                                                    _ ->
-                                                        Left (KErrorExpectedFuncCallOrId e)
-                                                ) (tail params')
-                                    Right (Third tags)
-
-                        -- 2. Check if the user wants to create a record (type/value)
-                        "record" ->  
-                            if length (tail params') == 0 then 
-                                Left (KErrorIncorrectUsageOfRecord firstParamToken)
-
-                            else do 
-                                -- NOTE: 
-                                --  Because of the following line of code,
-                                --  the following recursive record type cannot be declared:
-                                --
-                                --      fruit = record.next fruit;
-                                -- 
-                                -- It's ok, because we shouldn't allow user to create recursive records (which will form infinite type)
-                                firstValue <- typeCheckExpr symtab CanBeAnything (tail params' !! 0)  -- <-- this line
-
-                                let keys = funcIds
-                                case firstValue of 
-                                    -- assume user want to create a record value
-                                    First _ -> do
-                                        keyValuePairs <- verifyKeyValuePairs symtab keys (tail params')
-                                        Right 
-                                            (First
-                                                (V.Expr
-                                                    (V.Record keyValuePairs) 
-                                                    (V.ConcreteType (V.TypeRecord (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
-                                    
-                                    -- assume user want to declare a record type
-                                    Second _ -> do
-                                        keyTypePairs <- verifyKeyTypePairs symtab keys (tail params')
-                                        Right (Second (V.ConcreteType (V.TypeRecord keyTypePairs)))
-
-                                    Third tag -> 
-                                        Left (KErrorExpectedExprOrTypeButGotTag tag)
-
-                        -- 3. check if user is using javascript ffi
-                        "ffi" ->
-                            if length funcIds /= 1 || length params' /= 2 then
-                                Left (KErrorIncorrectUsageOfFFI firstParamToken)
-                            else if snd (funcIds !! 0) /= "javascript" then
-                                Left (KErrorUnknownFFITarget (funcIds !! 0))
-                            else do
-                                jsCode <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
-                                case jsCode of
-                                    (V.Expr (V.StringExpr value) _) ->
-                                        Right (First (V.Expr (V.FFIJavascript value) (V.ConcreteType V.TypeUndefined)))
-
-                                    _ -> 
-                                        Left (KErrorFFIValueShouldBeString jsCode)
-                            
-                        _ -> 
-                            continuePreprocessFuncCall1
-
-                    _ -> 
-                        continuePreprocessFuncCall1
+            _ -> 
+                continuePreprocessFuncCall1
 
         where 
             continuePreprocessFuncCall1 :: Either KeliError (OneOf3 V.Expr V.Type [V.UnlinkedTag])
             continuePreprocessFuncCall1 = do
-                firstParam <- typeCheckExpr symtab assumption (head params') >>= extractExpr
+                firstParam <- typeCheckExpr ctx assumption (head params') >>= extractExpr
 
                 let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
                         V.TypeVariable _ _ _ ->
                             undefined
 
-                        V.ConcreteType typeOfFirstParam' ->
+                         typeOfFirstParam' ->
                             -- (A) check if user is invoking record constructor
                             case typeOfFirstParam' of
                             V.TypeRecordConstructor expectedPropTypePairs -> do
@@ -215,7 +196,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                         Left (KErrorMissingProperties firstParam missingProps)
                                     
                                     PerfectMatch ->  do
-                                        values  <- typeCheckExprs symtab assumption (tail params') >>= mapM extractExpr 
+                                        values  <- typeCheckExprs ctx assumption (tail params') >>= mapM extractExpr 
 
                                         let verifiedPropValuePairs = zip funcIds values
 
@@ -227,7 +208,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                                 case prevResult of
                                                     Right updatedSymtab ->
                                                         let expectedType = snd expected in
-                                                        case typeCompares symtab (snd actual) expectedType of
+                                                        case typeCompares env (snd actual) expectedType of
                                                             ApplicableOk _  ->
                                                                 Right updatedSymtab
                                                             
@@ -242,13 +223,13 @@ typeCheckExpr symtab assumption expression = case expression of
                                                         Left err) 
 
                                             -- initial value
-                                            (Right symtab)
+                                            (Right env)
 
                                             --foldee
                                             (zip expectedPropTypePairs' actualPropValuePairs) of
 
                                                 Right _ ->
-                                                    Right (First (V.Expr (V.Record actualPropValuePairs) (V.ConcreteType (V.TypeRecord expectedPropTypePairs'))))
+                                                    Right (First (V.Expr (V.Record actualPropValuePairs) ( (V.TypeRecord expectedPropTypePairs'))))
                                                 
                                                 Left err ->
                                                     Left err
@@ -277,7 +258,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                         typeCheckedTagBranches <- mapM typeCheckTagBranch rawTagBranches
 
                                         -- 2.2 type check raw else branches
-                                        typeCheckedElseBranches <- typeCheckExprs symtab assumption (map snd rawElseBranches) >>= mapM extractExpr
+                                        typeCheckedElseBranches <- typeCheckExprs ctx assumption (map snd rawElseBranches) >>= mapM extractExpr
 
                                         -- 3. check if each branch have the same type with the first branch
                                         case allBranchTypeAreSame (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
@@ -330,7 +311,7 @@ typeCheckExpr symtab assumption expression = case expression of
 
                                             Raw.Id actualTagname -> do
                                                 (verifiedTagname,_) <- verifyTagname expectedTags actualTagname
-                                                typeCheckedBranch <- typeCheckExpr symtab assumption branch >>= extractExpr
+                                                typeCheckedBranch <- typeCheckExpr ctx assumption branch >>= extractExpr
                                                 Right (V.CarrylessTagBranch verifiedTagname typeCheckedBranch)
 
                                             
@@ -361,16 +342,16 @@ typeCheckExpr symtab assumption expression = case expression of
 
                                                                         (propBindings)
                                                                 
-                                                                -- update symtab with property-bindings
+                                                                -- update env with property-bindings
                                                                 updatedSymtab <- 
                                                                     foldM 
                                                                         (\prevSymtab (_,bindingId, expectedType) -> 
                                                                             insertSymbolIntoSymtab (KeliSymConst bindingId (V.Expr (V.Id bindingId) expectedType)) prevSymtab)
-                                                                        symtab
+                                                                        env
                                                                         verifiedPropBindings
 
                                                                 -- type check the branch
-                                                                typeCheckedBranch <- typeCheckExpr updatedSymtab assumption branch >>= extractExpr
+                                                                typeCheckedBranch <- typeCheckExpr ctx assumption branch >>= extractExpr
 
                                                                 Right (V.CarryfulTagBranch verifiedTagname verifiedPropBindings typeCheckedBranch)
 
@@ -392,7 +373,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                         let expectedTypeOfEachBranches = getType firstBranch 
                                         (foldM 
                                             (\t branch -> 
-                                                case typeCompares symtab branch expectedTypeOfEachBranches of
+                                                case typeCompares env branch expectedTypeOfEachBranches of
                                                     ApplicableFailed err ->
                                                         Left err
 
@@ -418,14 +399,14 @@ typeCheckExpr symtab assumption expression = case expression of
                                             if length (tail params') == 0 then -- is getter
                                                 Right (First (V.Expr (V.RecordGetter subject propertyName) expectedType))
                                             else if length (tail params') == 1 then do -- is setter
-                                                newValue <- typeCheckExpr symtab assumption ((tail params') !! 0) >>= extractExpr
-                                                case typeCompares symtab newValue expectedType of
+                                                newValue <- typeCheckExpr ctx assumption ((tail params') !! 0) >>= extractExpr
+                                                case typeCompares env newValue expectedType of
                                                     ApplicableFailed err ->
                                                         Left err
 
                                                     _ ->
                                                         Right (First (V.Expr 
-                                                            (V.RecordSetter subject propertyName newValue) (V.ConcreteType recordType)))
+                                                            (V.RecordSetter subject propertyName newValue) ( recordType)))
                                             else
                                                 continuePreprocessFuncCall2
 
@@ -437,7 +418,9 @@ typeCheckExpr symtab assumption expression = case expression of
                                 if length funcIds == 1 then
                                     let tagname = head funcIds in
                                     case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
+                                        -- if is carryless tag
                                         Just (V.CarrylessTag tag (V.TaggedUnion name ids _ typeParams)) -> 
+                                            let (ctx2, instantiatedTypeVars) = instantiateTypeVar ctx typeParams in
                                             let resolvedTypeParams = 
                                                     (case typeParams of 
                                                         Just typeParams' -> Just (map derigidify typeParams'); 
@@ -446,21 +429,22 @@ typeCheckExpr symtab assumption expression = case expression of
                                             let belongingUnion = V.TaggedUnion name ids tags resolvedTypeParams in
 
                                             (Right (First (V.Expr 
-                                                (V.CarrylessTagConstructor tag tagname) 
-                                                (V.ConcreteType (V.TypeTaggedUnion belongingUnion)))))
+                                                (V.CarrylessTagExpr tag tagname) 
+                                                ( (V.TypeTaggedUnion belongingUnion)))))
 
+                                        -- if is carryful tag
                                         Just (V.CarryfulTag tagname expectedPropTypePairs belongingUnion@(V.TaggedUnion name ids _ typeParams)) ->
                                             (Right (First (V.Expr
                                                 (V.CarryfulTagConstructor tagname expectedPropTypePairs)
-                                                (V.ConcreteType (V.TypeCarryfulTagConstructor 
+                                                ( (V.TypeCarryfulTagConstructor 
                                                     tagname
                                                     expectedPropTypePairs
                                                     belongingUnion
                                                     typeParams)))))
 
                                             -- if length params' == 2 then do
-                                            --     carryExpr  <- typeCheckExpr symtab assumption (params' !! 1) >>= extractExpr
-                                            --     case typeCompares symtab carryExpr expectedCarryType of
+                                            --     carryExpr  <- typeCheckExpr env assumption (params' !! 1) >>= extractExpr
+                                            --     case typeCompares env carryExpr expectedCarryType of
                                             --         ApplicableFailed err ->
                                             --             Left err
                                             --             -- Left (KErrorIncorrectCarryType expectedCarryType carryExpr)
@@ -477,7 +461,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                             --                             Nothing
                                             --             in
                                             --                 Right (First (V.Expr 
-                                            --                     (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
+                                            --                     (V.CarryfulTagExpr tag carryExpr) ( 
                                             --                     (V.TypeTaggedUnion (V.TaggedUnion name ids tags x)))))
                                                     
                                             --         NotApplicable updatedSymtab ->
@@ -492,7 +476,7 @@ typeCheckExpr symtab assumption expression = case expression of
                                             --                             Nothing
                                             --             in
                                             --                 Right (First (V.Expr 
-                                            --                     (V.CarryfulTagExpr tag carryExpr) (V.ConcreteType 
+                                            --                     (V.CarryfulTagExpr tag carryExpr) ( 
                                             --                     (V.TypeTaggedUnion (V.TaggedUnion name ids tags x)))))
 
                                             -- else
@@ -511,21 +495,21 @@ typeCheckExpr symtab assumption expression = case expression of
                                     Left (KErrorTypeConstructorIdsMismatch funcIds)
                                 else do
                                     -- TODO: check if type param conforms to type constraint
-                                    types <- typeCheckExprs symtab StrictlyAnalyzingType (tail params') >>= mapM extractType 
-                                    Right (Second (V.ConcreteType (V.TypeTaggedUnion t)))
+                                    types <- typeCheckExprs ctx StrictlyAnalyzingType (tail params') >>= mapM extractType 
+                                    Right (Second ( (V.TypeTaggedUnion t)))
 
                             -- (F) check if user is invoking carryful tag constructor
                             V.TypeCarryfulTagConstructor tagname expectedPropTypePairs belongingUnion typeParams -> do
-                                values <- typeCheckExprs symtab assumption (tail params') >>= mapM extractExpr
+                                values <- typeCheckExprs ctx assumption (tail params') >>= mapM extractExpr
                                 let actualPropValuePairs = zip funcIds values
-                                case typeCompares symtab 
-                                    (V.Expr (V.Record actualPropValuePairs) (V.ConcreteType (V.TypeRecord (map (\(k, v) -> (k, getType v)) actualPropValuePairs))))
-                                    (V.ConcreteType (V.TypeRecord expectedPropTypePairs)) of
+                                case typeCompares env 
+                                    (V.Expr (V.Record actualPropValuePairs) ( (V.TypeRecord (map (\(k, v) -> (k, getType v)) actualPropValuePairs))))
+                                    ( (V.TypeRecord expectedPropTypePairs)) of
 
                                     ApplicableOk _ ->
                                         Right (First (V.Expr 
                                             (V.CarryfulTagExpr tagname actualPropValuePairs)
-                                            (V.ConcreteType (V.TypeTaggedUnion belongingUnion))))
+                                            ( (V.TypeTaggedUnion belongingUnion))))
                                     
                                     ApplicableFailed err ->
                                         Left err
@@ -544,10 +528,10 @@ typeCheckExpr symtab assumption expression = case expression of
                     -- check if user is calling type casting
                     (_, "as") ->
                         if length funcIds == 1 && length params' == 2 then do
-                            subject <- typeCheckExpr symtab assumption (params' !! 0) >>= extractExpr
-                            castType <- typeCheckExpr symtab StrictlyAnalyzingType (params' !! 1) >>= extractType
+                            subject <- typeCheckExpr ctx assumption (params' !! 0) >>= extractExpr
+                            castType <- typeCheckExpr ctx StrictlyAnalyzingType (params' !! 1) >>= extractType
                             case subject of
-                                (V.Expr expr' (V.ConcreteType V.TypeUndefined)) ->
+                                (V.Expr expr' ( V.TypeUndefined)) ->
                                     Right (First (V.Expr expr' castType))
 
                                 _ ->
@@ -561,8 +545,8 @@ typeCheckExpr symtab assumption expression = case expression of
 
                         
             treatAsNormalFuncCall = do
-                params <- typeCheckExprs symtab assumption params' >>= mapM extractExpr
-                result <- typeCheckFuncCall symtab params funcIds
+                params <- typeCheckExprs ctx assumption params' >>= mapM extractExpr
+                result <- typeCheckFuncCall env params funcIds
                 Right (First result)
 
     other -> 
@@ -571,7 +555,7 @@ typeCheckExpr symtab assumption expression = case expression of
 data MatchFuncResult 
     = PerfectlyMatchedFuncFound 
         V.Func   -- matching function
-        KeliSymTab -- corresponding environment
+        Env -- corresponding environment
 
     | PartiallyMatchedFuncFound -- means the 2nd params onward does not match expected types
         KeliError  -- corresponding error (should be type mismatch error)
@@ -579,10 +563,10 @@ data MatchFuncResult
     | StillNoMatchingFunc
 
 -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
-typeCheckFuncCall :: KeliSymTab -> [V.Expr] -> [Raw.StringToken] -> Either KeliError V.Expr
-typeCheckFuncCall symtab funcCallParams funcIds = 
+typeCheckFuncCall :: Env -> [V.Expr] -> [Raw.StringToken] -> Either KeliError V.Expr
+typeCheckFuncCall env funcCallParams funcIds = 
     let funcId = intercalate "$" (map snd funcIds) in
-    case lookup funcId symtab of
+    case lookup funcId env of
         Just (KeliSymFunc candidateFuncs) -> do
             case (foldl 
                     (\result f ->
@@ -601,12 +585,12 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                                 let fisrtParamExpectedType = head expectedParamTypes
                                 -- if only have 1 param, then just check if the first param match the expected type
                                 if length funcCallParams == 1 then 
-                                    case typeCompares symtab firstParam fisrtParamExpectedType of
+                                    case typeCompares env firstParam fisrtParamExpectedType of
                                         ApplicableFailed {} ->
                                             StillNoMatchingFunc
 
                                         ApplicableOk _ ->
-                                            PerfectlyMatchedFuncFound f symtab
+                                            PerfectlyMatchedFuncFound f env
 
                                         NotApplicable updatedSymtab ->
                                             PerfectlyMatchedFuncFound f updatedSymtab
@@ -615,7 +599,7 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                                 -- why is this branching necessary? 
                                 --     so that we can report a better error message
                                 else 
-                                    case typeCompares symtab firstParam fisrtParamExpectedType of
+                                    case typeCompares env firstParam fisrtParamExpectedType of
                                         -- if the first param does not match expected type
                                         ApplicableFailed {} ->
                                             StillNoMatchingFunc
@@ -634,7 +618,7 @@ typeCheckFuncCall symtab funcCallParams funcIds =
                                                             
                                                             NotApplicable updatedSymtab ->
                                                                 Right updatedSymtab)
-                                                    symtab
+                                                    env
                                                     (zip funcCallParams expectedParamTypes) of 
 
                                                 Right updatedSymtab ->
@@ -666,21 +650,21 @@ typeCheckFuncCall symtab funcCallParams funcIds =
             Left (KErrorUsingUndefinedFunc funcIds [])
 
 
-verifyType :: KeliSymTab -> Raw.Expr -> Either KeliError V.Type
-verifyType symtab expr = typeCheckExpr symtab StrictlyAnalyzingType expr >>= extractType
+verifyType :: Context -> Raw.Expr -> Either KeliError V.Type
+verifyType ctx expr = typeCheckExpr ctx StrictlyAnalyzingType expr >>= extractType
 
-verifyTypeParam :: KeliSymTab -> (Raw.StringToken, Raw.Expr) -> Either KeliError V.TypeParam
-verifyTypeParam symtab (paramName, expr) = do
-    result <- typeCheckExpr symtab StrictlyAnalyzingType expr
+verifyTypeParam :: Context -> (Raw.StringToken, Raw.Expr) -> Either KeliError V.TypeParam
+verifyTypeParam ctx (paramName, expr) = do
+    result <- typeCheckExpr ctx StrictlyAnalyzingType expr
     case result of
-        Second (V.ConcreteType V.TypeType) ->
+        Second ( V.TypeType) ->
             Right (V.TypeParam paramName Nothing)
 
         _ ->
             Left (KErrorInvalidTypeParamDecl expr)
 
-typeCheckExprs :: KeliSymTab -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type [V.UnlinkedTag]]
-typeCheckExprs symtab assumption exprs = mapM (typeCheckExpr symtab assumption) exprs
+typeCheckExprs :: Context -> Assumption -> [Raw.Expr] -> Either KeliError [OneOf3 V.Expr V.Type [V.UnlinkedTag]]
+typeCheckExprs ctx assumption exprs = mapM (typeCheckExpr ctx assumption) exprs
 
 
 hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
@@ -731,12 +715,12 @@ data UnverifiedBranch
         Raw.Expr
     deriving (Show)
 
-insertSymbolIntoSymtab :: KeliSymbol -> KeliSymTab -> Either KeliError KeliSymTab
-insertSymbolIntoSymtab symbol symtab =
+insertSymbolIntoSymtab :: KeliSymbol -> Env -> Either KeliError Env
+insertSymbolIntoSymtab symbol env =
     case symbol of 
         KeliSymFunc [f] -> 
             let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
-            let funcsWithSameName = lookup funcid symtab in
+            let funcsWithSameName = lookup funcid env in
             let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
             case funcsWithSameName of
                 Just (KeliSymFunc fs) ->
@@ -747,49 +731,49 @@ insertSymbolIntoSymtab symbol symtab =
                     --         (zip (funcParamTypes f) (funcParamTypes func))) fs then
                     --     Left (KErrorDuplicatedFunc f)
                     -- else
-                    Right (symtab |> (funcid, KeliSymFunc (f:fs)))
+                    Right (env |> (funcid, KeliSymFunc (f:fs)))
                 
                 Just _ ->
                     Left (KErrorDuplicatedId (V.funcDeclIds f))
 
                 Nothing ->
-                    Right (symtab |> (funcid, symbol))
+                    Right (env |> (funcid, symbol))
 
         KeliSymInlineExprs exprs ->
-            case lookup "@inline_exprs" symtab of
+            case lookup "@inline_exprs" env of
                 Just (KeliSymInlineExprs exprs') ->
-                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
+                    Right (env |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
 
                 Just _ ->
                     error "shouldn't reach here"
                 
                 Nothing ->
-                    Right (symtab |> ("@inline_exprs", KeliSymInlineExprs exprs))
+                    Right (env |> ("@inline_exprs", KeliSymInlineExprs exprs))
 
         _ -> 
             let (key,ids) = V.getIdentifier symbol in
-            if member key symtab then
+            if member key env then
                 Left (KErrorDuplicatedId ids)
             else 
-                Right (symtab |> (key, symbol))
+                Right (env |> (key, symbol))
 
 
-verifyKeyValuePairs :: KeliSymTab -> [Raw.StringToken] -> [Raw.Expr] -> Either KeliError [(V.StringToken, V.Expr)]
-verifyKeyValuePairs symtab keys values = 
+verifyKeyValuePairs :: Context -> [Raw.StringToken] -> [Raw.Expr] -> Either KeliError [(V.StringToken, V.Expr)]
+verifyKeyValuePairs ctx keys values = 
     case findDuplicates keys of
         Just duplicates ->
             Left (KErrorDuplicatedProperties duplicates)
         Nothing -> do
-            typeCheckedExprs <- typeCheckExprs symtab CanBeAnything values >>= mapM extractExpr
+            typeCheckedExprs <- typeCheckExprs ctx CanBeAnything values >>= mapM extractExpr
             Right (zip keys typeCheckedExprs)
 
-verifyKeyTypePairs :: KeliSymTab -> [Raw.StringToken] -> [Raw.Expr] -> Either KeliError [(V.StringToken, V.Type)]
-verifyKeyTypePairs symtab keys types = do
+verifyKeyTypePairs :: Context -> [Raw.StringToken] -> [Raw.Expr] -> Either KeliError [(V.StringToken, V.Type)]
+verifyKeyTypePairs ctx keys types = do
     case findDuplicates keys of
         Just duplicates ->
             Left (KErrorDuplicatedProperties duplicates)
         Nothing -> do
-            verifiedTypes <- mapM (typeCheckExpr symtab StrictlyAnalyzingType) types >>=  mapM extractType 
+            verifiedTypes <- mapM (typeCheckExpr ctx StrictlyAnalyzingType) types >>=  mapM extractType 
             Right (zip keys verifiedTypes)
 
 
@@ -810,3 +794,28 @@ verifyTagname expectedTags actualTagname =
 
         Nothing ->
             Left (KErrorUnknownTag actualTagname)
+
+instantiateTypeVar :: Context -> Maybe [V.Type] -> (Context, Maybe [V.Type])
+instantiateTypeVar ctx t =
+    case t of
+        Just typeParams ->
+            let (finalCtx, finalTypeVars) = 
+                    foldl' 
+                    (\(ctx', tvars) nextT ->
+                        case nextT of
+                            V.TypeTypeParam t constraint ->
+                                let (ctx'', tvar) = createNewTVar ctx' constraint in
+                                (ctx'', tvars ++ [tvar])
+
+                            _ ->
+                                error "Impossible" )
+                    (ctx, [])
+                    typeParams
+            in (finalCtx, Just finalTypeVars)
+
+        Nothing ->
+            (ctx, Nothing)
+
+createNewTVar :: Context -> Maybe V.TypeConstraint -> (Context, V.Type)
+createNewTVar (Context nextInt env) constraint =
+    (Context (nextInt + 1) env, V.TypeVar ("T$" ++ show nextInt) constraint)

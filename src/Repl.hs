@@ -4,7 +4,7 @@ import System.IO
 import Control.Monad
 import Parser
 import Analyzer
-import Symbol
+import Env
 import Interpreter
 import StaticError
 import Transpiler
@@ -16,7 +16,7 @@ keliRead
     >> hFlush stdout
     >> getLine
 
-keliEval :: (KeliSymTab, String) -> String -> Either [KeliError] (IO String, (KeliSymTab, String))
+keliEval :: (Env, String) -> String -> Either [KeliError] (IO String, (Env, String))
 keliEval (prevSymtab, prevBytecode) input 
     =   keliParse "<repl>" input >>= 
         analyzeDecls' prevSymtab  >>= \(newSymtab, symbols) ->
@@ -28,21 +28,21 @@ keliEval (prevSymtab, prevBytecode) input
         
     where 
         analyzeDecls' 
-            :: KeliSymTab -- previous symtab
+            :: Env -- previous env
             -> [Raw.Decl] -- parsed input
-            -> Either [KeliError] (KeliSymTab, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
-        analyzeDecls' symtab decls = 
-            let (errors, symtab', symbols') = analyzeDecls symtab decls in
+            -> Either [KeliError] (Env, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
+        analyzeDecls' env decls = 
+            let (errors, env', symbols') = analyzeDecls env decls in
             if length errors > 0 then
                 Left errors
             else 
-                Right (symtab', symbols')
+                Right (env', symbols')
         
 
 keliPrint :: String -> IO ()
 keliPrint = putStrLn
 
-keliRepl' :: KeliSymTab -> String -> IO ()
+keliRepl' :: Env -> String -> IO ()
 keliRepl' prevSymtab prevBytecode = do
     input <- keliRead
     unless (input == ":quit") 
@@ -57,4 +57,4 @@ keliRepl' prevSymtab prevBytecode = do
     
 
 keliRepl :: IO ()
-keliRepl = keliRepl' emptyKeliSymTab ""
+keliRepl = keliRepl' emptyEnv ""

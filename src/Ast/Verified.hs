@@ -41,16 +41,6 @@ data Func = Func {
 data TypeAlias =  TypeAlias StringToken Type deriving (Show)
 
 data Type
-    = TypeVariable 
-        StringToken -- name
-        (Maybe TypeConstraint) -- associated type constraint
-        Bool -- is rigid or not? For more info, refer: https://mail.haskell.org/pipermail/haskell-cafe/2008-June/044622.html
-
-    | ConcreteType
-        Type'
-    deriving (Show)
-
-data Type'
     = TypeFloat
     | TypeInt
     | TypeString
@@ -84,17 +74,20 @@ data Type'
 
     | TypeTypeConstructor TaggedUnion
 
+    | FreeTypeVar String (Maybe TypeConstraint)
+
+    | BoundedTypeVar String (Maybe TypeConstraint)
+
 
 data TaggedUnion = 
     TaggedUnion
-        StringToken    -- name (name is compulsory, meaning that user cannot create anonymous tagged union)
-        [StringToken]  -- ids
-        [Tag]          -- list of tags
-        (Maybe [Type])   -- type params
+        StringToken      -- name (name is compulsory, meaning that user cannot create anonymous tagged union)
+        [StringToken]    -- ids
+        [Tag]            -- list of tags
+        [Type] -- type params
     deriving (Show)
-    
 
-instance Show Type' where
+instance Show Type where
     show TypeFloat                                           = "*float"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
@@ -106,8 +99,7 @@ instance Show Type' where
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
     show TypeTypeConstructor{}                               = "*type constructor"
-    show (TypeTaggedUnion (TaggedUnion name _ _ (Just typeParams))) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
-    show (TypeTaggedUnion (TaggedUnion name _ _ Nothing)) = "*tagged union{"++snd name++"}"
+    show (TypeTaggedUnion (TaggedUnion name _ _ typeParams)) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
 
 
 data TypeConstraint
@@ -281,11 +273,7 @@ class Stringifiable a where
     toString :: a -> String
 
 stringifyType :: Type -> String
-stringifyType (ConcreteType t) = stringifyType' t
-stringifyType (TypeVariable {}) = ""
-
-stringifyType' :: Type' -> String
-stringifyType' t = case t of
+stringifyType t = case t of
         TypeFloat  -> "float"
         TypeInt    -> "Int"
         TypeString -> "String"

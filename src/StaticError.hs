@@ -11,7 +11,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import qualified Ast.Verified as Verified
 import qualified Ast.Raw as Raw
-import Symbol
+import Env
 import Util
 
 data Messages = Messages [Message]
@@ -36,7 +36,7 @@ data KeliError
         [String] -- missing tags
 
     | KErrorMissingProperties 
-        Verified.Expr -- for telling where is the record constructor
+        Verified.Expr' -- for telling where is the record constructor
         [String] -- missing props
 
     | KErrorNotAllBranchHaveTheSameType [Verified.Expr]
@@ -51,8 +51,9 @@ data KeliError
     | KErrorWrongTypeInSetter Verified.Expr Verified.Type
     | KErrorPropertyTypeMismatch
         Verified.StringToken -- property name
-        Verified.Type    -- expected type
-        Verified.Expr    -- actual expr (type-checked)
+        Verified.Type  -- expected type
+        Verified.Type  -- actual type
+        Verified.Expr' -- actual expr 
     | KErrorNotAFunction [Verified.StringToken]
     | KErrorDuplicatedFunc Verified.Func
     | KErrorFuncCallTypeMismatch
@@ -96,8 +97,9 @@ data KeliError
         Verified.Type   -- expected type
 
     | KErrorTypeMismatch 
-        (Verified.Expr', Verified.Type') -- actual expr
-        Verified.Type' -- expected type
+        Verified.Expr' -- actual expr (for locating error position)
+        Verified.Type  -- actual type
+        Verified.Type  -- expected type
 
     | KErrorExpectedACarry
         Raw.StringToken -- carryful tag name
@@ -137,6 +139,11 @@ data KeliError
 
     | KErrorMoreThanOneElseBranch
         [Raw.StringToken]
+
+    | KErrorTVarSelfReferencing
+        Verified.Expr'
+        String
+        Verified.Type
     
     deriving (Show)
 

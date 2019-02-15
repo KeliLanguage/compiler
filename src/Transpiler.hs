@@ -7,7 +7,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 
 import qualified Ast.Verified as V
-import Symbol
+import Env
 
 keliTranspile :: [KeliSymbol] -> String
 keliTranspile symbols = (intercalate ";\n" (map transpile symbols)) ++ ";\n"
@@ -43,7 +43,7 @@ instance Transpilable KeliSymbol where
         KeliSymConst (_,id) expr ->
             "const " ++ prefix id ++ "=" ++ transpile expr
 
-        KeliSymType (V.TypeAlias _ (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)))) ->
+        KeliSymType (V.TypeAlias _ ( (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)))) ->
             "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
         KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
@@ -131,12 +131,12 @@ instance Transpilable V.Expr where
 
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
-            (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
+            ( (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
                 -> prefix id ++ squareBracket (quote (prefix tag)) ++ "("++ transpileKeyValuePairs False carry ++")"
 
         V.Expr 
             (V.CarrylessTagConstructor(_,tag) _)
-            (V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
+            ( (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
                 -> prefix id ++ squareBracket (quote (prefix tag))
 
         other -> 

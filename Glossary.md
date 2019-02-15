@@ -11,6 +11,6 @@
 |int|integer|
 |ir|intermediate representation|
 |param|parameter|
-|symtab|symbol table|
+|env|environment a.k.a symbol table|
 |kvs|key-value pairs|
 |annon|annotation

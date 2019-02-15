@@ -4,7 +4,7 @@ module CompletionItems where
 
 import GHC.Generics
 import Data.Aeson
-import Symbol
+import Env
 import Analyzer
 import Util
 import Data.List
@@ -113,7 +113,7 @@ bracketize str = "(" ++ str ++ ")"
 
 suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
 suggestCompletionItems decls =
-    let (errors,_,symbols) = analyzeDecls emptyKeliSymTab decls in
+    let (errors,_,symbols) = analyzeDecls emptyEnv decls in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
                             
@@ -127,7 +127,7 @@ suggestCompletionItems decls =
                                         filter 
                                             (\f -> 
                                                 let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                case typeCompares emptyKeliSymTab expr firstParamType of
+                                                case typeCompares emptyEnv expr firstParamType of
                                                     ApplicableFailed _ ->
                                                         False
                                                     _ ->
@@ -141,7 +141,7 @@ suggestCompletionItems decls =
 
                     case getType expr of
                         -- tag constructor prefix
-                        V.ConcreteType (V.TypeTagConstructorPrefix _ tags typeParams) ->
+                         (V.TypeTagConstructorPrefix _ tags typeParams) ->
                             map 
                                 (\t -> 
                                     case t of
@@ -166,7 +166,7 @@ suggestCompletionItems decls =
                                 tags 
 
                         -- record constructor
-                        V.ConcreteType (V.TypeRecordConstructor propTypePairs) -> 
+                         (V.TypeRecordConstructor propTypePairs) -> 
                             let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
                             [CompletionItem {
                                 kind = 4, -- constructor
@@ -177,7 +177,7 @@ suggestCompletionItems decls =
                             }]
 
                         -- tag matchers
-                        V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
+                         (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
                             [CompletionItem {
                                 kind = 2, -- method
                                 label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
@@ -193,7 +193,7 @@ suggestCompletionItems decls =
                             }] ++ relatedFuncsCompletionItems
 
                         -- record (getter/setter)
-                        V.ConcreteType (V.TypeRecord propTypePairs) ->
+                         (V.TypeRecord propTypePairs) ->
                             (map 
                                 (\((_,prop), expectedType') ->
                                         CompletionItem {

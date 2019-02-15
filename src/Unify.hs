@@ -1,210 +1,213 @@
 module Unify where 
 
+import Control.Monad
+
 import qualified Ast.Verified as V
 import Util
-import Symbol
+import Env
 import StaticError
 import Prelude hiding(lookup)
 import Data.List hiding(lookup)
-import Data.Map.Ordered ((|>), lookup, member) 
+import qualified Data.Map.Strict as Map
+import StaticError
 
+type Substitution = Map.Map String V.Type
 
-data TypeCompareResult
-    -- TODO: 2 cases should be sufficient
-    {- 
-    NOTE:
-        Applicable means 
-            both operands are not type parameters OR both operands are type parameters (with the same name)
+emptySubstitution :: Map.Map String V.Type
+emptySubstitution = Map.empty
 
-        NotApplicable means
-            one of the operand is a type parameter
-    -}
-    = ApplicableOk -- ok means actual type equals to expected type
-        KeliSymTab -- this is only needed for type checking record types
-    
-    | ApplicableFailed -- failed means actual type does not equals expected type
-        KeliError
+type UnifyResult = Either KeliError Substitution
 
-    | NotApplicable
-        KeliSymTab  --  an updated environment, which binds the type parameter to the comparer type
+unify :: 
+       V.Expr  -- actual expr (for reporting error location only)
+    -> V.Type  -- expected type
+    -> UnifyResult
 
-instance Show TypeCompareResult where
-    show ApplicableOk{} = "ApplicableOk"
-    show ApplicableFailed{} = "ApplicableFailed"
-    show NotApplicable{} = "NotApplicable"
+unify (V.Expr actualExpr actualType) expectedType =
+    unify' actualExpr actualType expectedType
 
-typeCompares :: 
-    KeliSymTab 
-    -> V.Expr -- actual expr
-    -> V.Type -- expected type
-    -> TypeCompareResult
-typeCompares symtab (V.Expr expr actualType) expectedType =
-    typeCompares' symtab (V.Expr expr actualType) (resolveType symtab expectedType)
+unify' :: 
+       V.Expr' -- actual expr (for reporting error location only)
+    -> V.Type  -- actual type
+    -> V.Type  -- expected type
+    -> UnifyResult
 
-typeCompares' :: 
-    KeliSymTab 
-    -> V.Expr -- actual expr
-    -> V.Type -- expected type
-    -> TypeCompareResult
-typeCompares' symtab actualExpr@(V.Expr expr actualType) expectedType =
-    case expectedType of 
-        -- if expected type is a type variable, check if it is bounded
-        V.TypeVariable name1 constraint1 isRigid1 ->
-            case actualType of
-                -- if both actualType and expectedType are type params, just compare their name
-                typeVar2@(V.TypeVariable name2 constraint2 isRigid2) ->
-                    if snd name1 == snd name2 then
-                        ApplicableOk symtab
-                    else
-                        undefined
-                    -- TODO: should I check if actualType is also bounded?
+-- unify' type variables
+unify' actualExpr (V.FreeTypeVar name constraint) t =
+    unifyTVar actualExpr name constraint t
 
-                -- if expectedType is a bounded type param AND actualType is a concrete type
-                V.ConcreteType actualType' ->
-                    -- lookup symtab to check if this type parameter is already bounded to a type 
-                    case lookup (snd name1) symtab of
-                        -- if bounded, compare actualType to boundedType
-                        Just (KeliSymType (V.TypeAlias _ (V.ConcreteType boundedType))) ->
-                            typeCompares'' symtab (expr, actualType') boundedType
+unify' actualExpr t (V.FreeTypeVar name constraint) =
+    unifyTVar actualExpr name constraint t
 
-                        -- if not bounded, update the environment (bound actualType to the type variable)
-                        Nothing ->
-                            NotApplicable (symtab |> (snd name1, KeliSymType (V.TypeAlias name1 actualType)))
+-- unify' named types
+unify' _ (V.TypeFloat) (V.TypeFloat) = 
+    Right (emptySubstitution)  
 
-                        other ->
-                            error ("Actual type"   ++ show actualType' 
-                            ++ ";\nActual expr:"   ++ show expr
-                            ++ ";\nExpected type:" ++ show expectedType)
+unify' _ (V.TypeInt) (V.TypeInt) = 
+    Right (emptySubstitution)  
 
-        V.ConcreteType expectedType' ->
-            case actualType of
-                -- if expectedType is concrete but actualType is type variable
-                V.TypeVariable name constraint isRigid ->
-                    ApplicableOk symtab
-                    -- if isRigid then
-                    --     error ("Actual type"   ++ show actualType
-                    --     ++ ";\nActual expr:"   ++ show expr
-                    --     ++ ";\nExpected type:" ++ show expectedType)
-                    --     ApplicableFailed (KErrorCannotMatchRigidTypeVariableWithConcreteType
-                    --         actualExpr
-                    --         expectedType)
-                    -- else
+unify' _ (V.TypeString) (V.TypeString) = 
+    Right (emptySubstitution)  
 
-                -- if both are concrete types, just do direct comparison
-                V.ConcreteType actualType' ->
-                    typeCompares'' symtab (expr, actualType') expectedType'
-typeCompares'' :: 
-    KeliSymTab 
-    -> (V.Expr', V.Type') -- actual expr
-    -> V.Type' -- expected type
-    -> TypeCompareResult
+-- unify' bounded type variables
+unify' 
+    actualExpr 
+    actualType@(V.BoundedTypeVar name1 constraint1) 
+    expectedType@(V.BoundedTypeVar name2 constraint2) = 
+    if name1 == name2 then
+        Right (emptySubstitution)  
+    else
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
-typeCompares'' symtab (_, (V.TypeFloat)) (V.TypeFloat) = 
-    ApplicableOk symtab
-
-typeCompares'' symtab (_, (V.TypeInt)) (V.TypeInt) = 
-    ApplicableOk symtab
-
-typeCompares'' symtab (_, (V.TypeString)) (V.TypeString) = 
-    ApplicableOk symtab
-
-typeCompares'' symtab 
-    actualExpr@(_, (V.TypeCarryfulTagConstructor x _ _ _)) 
+-- unify' carryful tag counstructor
+unify' 
+    actualExpr 
+    actualType@(V.TypeCarryfulTagConstructor x _ _ _)
     expectedType@(V.TypeCarryfulTagConstructor y _ _ _) = 
-    if x == y then ApplicableOk symtab else ApplicableFailed (KErrorTypeMismatch actualExpr expectedType)
-
-typeCompares'' _ 
-    t1@(_, V.TypeRecordConstructor kvs1) 
-    t2@(V.TypeRecordConstructor kvs2) = 
-    undefined
-
-typeCompares'' _ (_, V.TypeType) (V.TypeType) = 
-    undefined
-
--- type check generic tagged union
-typeCompares'' symtab
-    (actualExpr, actualType@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ (Just actualTypeParams))))
-    t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ (Just expectedTypeParams))) = 
-    if name1 == name2 then 
-        -- TODO: we need to also compares 2nd and 3rd type params
-        typeCompares symtab (V.Expr actualExpr (head actualTypeParams)) (head expectedTypeParams)
+    if x == y then 
+        Right (emptySubstitution)  
     else 
-        ApplicableFailed (KErrorTypeMismatch (actualExpr, actualType) t2)
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
--- type check non-generic tagged union
-typeCompares'' symtab
-    t1@(_, V.TypeTaggedUnion (V.TaggedUnion name1 _ _ Nothing))    
-    t2@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ Nothing)) =
-        if name1 == name2 then 
-            ApplicableOk symtab
-        else 
-            ApplicableFailed (KErrorTypeMismatch t1 t2)
+unify' 
+    actualExpr
+    actualType@(V.TypeRecordConstructor kvs1)
+    expectedType@(V.TypeRecordConstructor kvs2) = 
+    undefined
 
+unify' _ V.TypeType V.TypeType = 
+    undefined
+
+-- unify' tagged union
+unify'
+    actualExpr
+    actualType@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ actualInnerTypes))
+    expectedType@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ expectedInnerTypes)) = 
+    if name1 == name2 && (length actualInnerTypes == length expectedInnerTypes) then do
+        foldM 
+            (\prevSubst (actualInnerType, expectedInnerType) -> do
+                nextSubst <- unify' actualExpr actualInnerType expectedInnerType
+                Right (composeSubst prevSubst nextSubst))
+            emptySubstitution
+            (zip actualInnerTypes expectedInnerTypes)
+    else 
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
+
+
+-- unfify record type
 -- record type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
-typeCompares'' symtab (V.Record kvs, V.TypeRecord kts1) (V.TypeRecord kts2) = 
-    let actualKeys = map fst kts1 in
-    let expectedKeys = map fst kts2 in
-    let expectedTypes = map snd kts2 in
-    let actualValues = map snd kvs in 
+unify' actualExpr (V.TypeRecord kts1) (V.TypeRecord kts2) = 
+    let (actualKeys, actualTypes) = unzip kts1 in
+    let (expectedKeys, expectedTypes) = unzip kts2 in
     -- TODO: get the set difference of expectedKeys with actualKeys
+    -- because we want to do structural typing
+    -- that means, it is acceptable if actualKeys is a valid subset of expectedKeys
     case match actualKeys expectedKeys of
         PerfectMatch ->
-            foldl'
-                (\result (key, actualExpr, expectedType) ->
-                    case result of 
-                        ApplicableFailed err ->
-                            -- TODO:(KErrorPropertyTypeMismatch key expectedType actualType)
-                            ApplicableFailed err
+            foldM
+                (\prevSubst (key, actualType, expectedType) -> 
+                    case unify' actualExpr actualType expectedType of
+                        Right nextSubst ->
+                            Right (composeSubst prevSubst nextSubst)
 
-                        ApplicableOk tempSymtab ->
-                            typeCompares tempSymtab actualExpr expectedType
+                        Left KErrorTypeMismatch{} ->
+                            Left (KErrorPropertyTypeMismatch key expectedType actualType actualExpr )
 
-                        NotApplicable tempSymtab ->
-                            typeCompares tempSymtab actualExpr expectedType)
-
-                (NotApplicable symtab) -- initial value
-                (zip3 expectedKeys actualValues expectedTypes)
+                        Left err ->
+                            Left err)
+                emptySubstitution
+                (zip3 expectedKeys actualTypes expectedTypes)
 
         GotDuplicates duplicates ->
-            ApplicableFailed (KErrorDuplicatedProperties duplicates)
+            Left (KErrorDuplicatedProperties duplicates)
 
         GotExcessive excessiveProps ->
-            ApplicableFailed (KErrorExcessiveProperties excessiveProps)
+            Left (KErrorExcessiveProperties excessiveProps)
         
         Missing missingProps ->
-            ApplicableFailed (KErrorMissingProperties (last actualValues) missingProps)
+            Left (KErrorMissingProperties actualExpr missingProps)
 
         ZeroIntersection ->
-            ApplicableFailed (KErrorMissingProperties (last actualValues) (map snd expectedKeys))
+            Left (KErrorMissingProperties actualExpr (map snd expectedKeys))
         
 
-typeCompares'' _ actualType expectedType =  ApplicableFailed (KErrorTypeMismatch actualType expectedType)
+unify' actualExpr actualType expectedType =  Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
--- derigidify will turn the isRigid property of a TypeVariable to False
-derigidify :: V.Type -> V.Type
-derigidify t = 
-    case t of
-        V.TypeVariable name constraint _ ->
-            V.TypeVariable name constraint False
+
+unifyTVar :: V.Expr' -> String -> Maybe V.TypeConstraint -> V.Type -> UnifyResult
+unifyTVar actualExpr tvarname1 constraint1 t2 =
+    -- NOTE: actualExpr is used for reporting error location only
+    let result = Right (Map.insert tvarname1 t2 emptySubstitution) in
+    case t2 of
+        V.FreeTypeVar tvarname2 constraint2 ->
+            if tvarname1 == tvarname2 then
+                Right emptySubstitution
+            else
+                result
 
         _ ->
-            t
+            if t2 `contains` tvarname1 then
+                Left (KErrorTVarSelfReferencing actualExpr tvarname1 t2)
+            else
+                result 
 
-resolveType :: KeliSymTab -> V.Type -> V.Type
-resolveType symtab t =
+
+contains :: V.Type -> String -> Bool
+t `contains` tvarname = 
     case t of
-        V.TypeVariable name _ isRigid ->
-            case lookup (snd name) symtab of
-                Just (KeliSymType (V.TypeAlias _ boundedType)) ->
-                    boundedType
+        V.FreeTypeVar name _ ->
+            name == tvarname
 
-                Nothing ->
+        V.TypeTaggedUnion (V.TaggedUnion _ _ _ types) ->
+            any (`contains` tvarname) types
+
+{- 
+    Composing substitution s1 and s1
+
+     For example if 
+
+        s1 = {t1 => Int, t3 => t2} 
+        s2 = {t2 => t1}
+
+    Then the result will be
+
+        s3 = {
+            t1 => Int,
+            t2 => Int,
+            t3 => Int
+        }
+-}
+composeSubst :: Substitution -> Substitution -> Substitution 
+composeSubst s1 s2 =
+    let result = 
+            foldl 
+                (\subst (key, type') -> Map.insert key (applySubstitutionToType s1 type') subst) 
+                emptySubstitution
+                ((Map.assocs s2)::[(String, V.Type)]) in
+
+    -- cannot be Map.union result s1
+    -- because we want keys in result to override duplicates found in s1
+    Map.union result s1
+
+
+-- Replace the type variables in a type that are
+-- present in the given substitution and return the
+-- type with those variables with their substituted values
+-- eg. Applying the substitution {"a": Bool, "b": Int}
+-- to a type (a -> b) will give type (Bool -> Int)
+applySubstitutionToType :: Substitution -> V.Type -> V.Type
+applySubstitutionToType subst type' =
+    case type' of
+        V.FreeTypeVar name constraint ->
+            case Map.lookup name subst of
+                Just t ->
                     t
+                Nothing ->
+                    type'
 
-        V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just typeParams))) ->
-            let resolvedTypeParams = map (resolveType symtab) typeParams in
-            V.ConcreteType (V.TypeTaggedUnion (V.TaggedUnion name ids tags (Just resolvedTypeParams)))
-        
-        _ ->
-            t
+        V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes) ->
+            V.TypeTaggedUnion (V.TaggedUnion name ids tags (map (applySubstitutionToType subst) innerTypes))
+
+        other ->
+            other
