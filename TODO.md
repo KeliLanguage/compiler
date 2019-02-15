@@ -48,3 +48,5 @@
 [] update doc regarding constraint type
 
 [] implement bindingful else branch for tag matcher
+
+[] refactor to use type annotation 

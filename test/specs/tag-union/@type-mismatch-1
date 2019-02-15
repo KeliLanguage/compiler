@@ -3,8 +3,10 @@ List.of(A Type) = tags.
     #(cons.current(A) next(List.of(A)))
 
 {A Type}
-(this List.of(A)).add(element A) | List.of(A) = 
-    this.
+(this List.of(A)).
+    add(element A) 
+    | List.of(A) 
+    = this.
         if(new):
             (List.cons.current(element) next(List.new))
 

@@ -15,6 +15,7 @@ import StaticError
 import Symbol
 import TypeCheck
 import Util
+import Unify
 
 analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
 analyze decls = 
