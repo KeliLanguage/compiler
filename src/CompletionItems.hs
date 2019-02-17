@@ -65,8 +65,9 @@ toCompletionItem symbol =
         KeliSymConst (_, id) _ -> 
             [CompletionItem  6 id  "" id 1]
         
-        KeliSymType (V.TypeAlias (_,id) _) ->
-            [CompletionItem 7 id "" id 1]
+        KeliSymType t ->
+            undefined
+            -- [CompletionItem 7 id "" id 1]
         
         KeliSymFunc funcs -> 
             map 
@@ -103,7 +104,7 @@ rebuildSignature (V.Func genparams params funcIds returnType _) =
 
 
 
-stringifyFuncParam :: V.FuncDeclParam -> String
+stringifyFuncParam :: (V.StringToken, V.Type) -> String
 stringifyFuncParam ((_,paramName), paramType) = 
     bracketize (paramName ++ " " ++ V.stringifyType paramType)
     
@@ -116,7 +117,6 @@ suggestCompletionItems decls =
     let (errors,_,symbols) = analyzeDecls emptyEnv decls in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
-                            
             case thing of
                 First expr -> 
                     let relatedFuncs =
@@ -127,11 +127,11 @@ suggestCompletionItems decls =
                                         filter 
                                             (\f -> 
                                                 let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                case typeCompares emptyEnv expr firstParamType of
-                                                    ApplicableFailed _ ->
-                                                        False
-                                                    _ ->
-                                                        True) 
+                                                case unify expr firstParamType of
+                                                    Right _ ->
+                                                        True
+                                                    Left _ ->
+                                                        False) 
                                             funcs
                                     _ -> 
                                         [])
@@ -141,7 +141,7 @@ suggestCompletionItems decls =
 
                     case getType expr of
                         -- tag constructor prefix
-                         (V.TypeTagConstructorPrefix _ tags typeParams) ->
+                         V.TypeTagConstructorPrefix _ tags typeParams ->
                             map 
                                 (\t -> 
                                     case t of
@@ -166,60 +166,54 @@ suggestCompletionItems decls =
                                 tags 
 
                         -- record constructor
-                         (V.TypeRecordConstructor propTypePairs) -> 
-                            let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
-                            [CompletionItem {
-                                kind = 4, -- constructor
-                                label = text,
-                                detail = "constructor",
-                                insertText = text,
-                                insertTextFormat = 1
-                            }]
+                        -- (V.TypeRecordConstructor name propTypePairs) -> 
+                        --     let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
+                        --     [CompletionItem {
+                        --         kind = 4, -- constructor
+                        --         label = text,
+                        --         detail = "constructor",
+                        --         insertText = text,
+                        --         insertTextFormat = 1
+                        --     }]
 
-                        -- tag matchers
-                         (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
-                            [CompletionItem {
-                                kind = 2, -- method
-                                label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
-                                detail = "tag matcher",
-                                insertText = concat (map (\t -> "\n\t" ++ 
-                                    (case t of 
-                                        V.CarryfulTag (_,tagname) _ _ ->
-                                            tagname ++ "(x)?\n\t\t()"
+                    --     -- tag matchers
+                    --      (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
+                    --         [CompletionItem {
+                    --             kind = 2, -- method
+                    --             label = concat (map (\t -> snd (V.tagnameOf t) ++ "? ") tags),
+                    --             detail = "tag matcher",
+                    --             insertText = concat (map (\t -> "\n\t" ++ 
+                    --                 (case t of 
+                    --                     V.CarryfulTag (_,tagname) _ _ ->
+                    --                         tagname ++ "(x)?\n\t\t()"
 
-                                        V.CarrylessTag (_,tagname) _ ->
-                                            tagname ++ "?\n\t\t()")) tags),
-                                insertTextFormat = 1
-                            }] ++ relatedFuncsCompletionItems
+                    --                     V.CarrylessTag (_,tagname) _ ->
+                    --                         tagname ++ "?\n\t\t()")) tags),
+                    --             insertTextFormat = 1
+                    --         }] ++ relatedFuncsCompletionItems
 
-                        -- record (getter/setter)
-                         (V.TypeRecord propTypePairs) ->
-                            (map 
-                                (\((_,prop), expectedType') ->
-                                        CompletionItem {
-                                            kind = 10, -- property
-                                            label = prop,
-                                            detail = V.stringifyType expectedType',
-                                            insertText = prop,
-                                            insertTextFormat = 1
-                                        })
-                                propTypePairs) ++ relatedFuncsCompletionItems
+                    --     -- record (getter/setter)
+                    --      (V.TypeRecord _ propTypePairs) ->
+                    --         (map 
+                    --             (\((_,prop), expectedType') ->
+                    --                     CompletionItem {
+                    --                         kind = 10, -- property
+                    --                         label = prop,
+                    --                         detail = V.stringifyType expectedType',
+                    --                         insertText = prop,
+                    --                         insertTextFormat = 1
+                    --                     })
+                    --             propTypePairs) ++ relatedFuncsCompletionItems
 
-                        -- TODO: lambda (apply)
+                    --     -- TODO: lambda (apply)
 
 
-                        -- otherwise: scope related functions
-                        _ ->
-                            relatedFuncsCompletionItems
+                    --     -- otherwise: scope related functions
+                    --     _ ->
+                    --         relatedFuncsCompletionItems
 
                 Third tag ->
-                    [CompletionItem {
-                        kind = 14, -- keyword
-                        label = "or()",
-                        detail = "This function is used for constructing tagged unions.",
-                        insertText = "or(${1:tag})",
-                        insertTextFormat = 2 -- snippet
-                    }]
+                    []
 
                 _ ->
                     [CompletionItem {

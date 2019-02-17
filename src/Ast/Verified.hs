@@ -3,7 +3,6 @@ module Ast.Verified where
 import Prelude hiding (id)
 import Text.Parsec.Pos
 import Data.List
-import Data.Char
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
@@ -27,24 +26,20 @@ data Const = Const {
     constDeclValue :: Expr
 } deriving (Show)
 
-type FuncDeclParam = (StringToken, Type)
-type FuncDeclConstraint = (StringToken, TypeParam)
-
 data Func = Func {
-    funcDeclGenericParams :: [TypeParam],
-    funcDeclParams        :: [FuncDeclParam],
+    funcDeclGenericParams :: [Type], -- all should be BoundedTypeVar
+    funcDeclParams        :: [(StringToken, Type)],
     funcDeclIds           :: [StringToken],
     funcDeclReturnType    :: Type,
     funcDeclBody          :: Expr
 } deriving (Show)
-
-data TypeAlias =  TypeAlias StringToken Type deriving (Show)
 
 data Type
     = TypeFloat
     | TypeInt
     | TypeString
     | TypeRecord 
+        (Maybe StringToken)   -- associated name
         [(StringToken, Type)] -- prop-type pairs
         -- TODO: implement generic record 
         -- (Maybe TypeParams) -- type params
@@ -57,15 +52,15 @@ data Type
         StringToken           -- tagname
         [(StringToken, Type)] -- expected prop-type pairs
         TaggedUnion           -- belongingType
-        (Maybe [Type])        -- type params
 
     | TypeRecordConstructor 
+        (Maybe StringToken)   -- record type alias name
         [(StringToken, Type)] -- expected key-type pairs
 
     | TypeTagConstructorPrefix 
         StringToken -- name
         [Tag]       -- available tags
-        (Maybe [Type]) -- type params
+        [Type]      -- type params
 
     | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
@@ -76,7 +71,7 @@ data Type
 
     | FreeTypeVar String (Maybe TypeConstraint)
 
-    | BoundedTypeVar String (Maybe TypeConstraint)
+    | BoundedTypeVar StringToken (Maybe TypeConstraint)
 
 
 data TaggedUnion = 
@@ -85,32 +80,31 @@ data TaggedUnion =
         [StringToken]    -- ids
         [Tag]            -- list of tags
         [Type] -- type params
-    deriving (Show)
+
+instance Show TaggedUnion where
+    show (TaggedUnion (_,name) ids _ _) = 
+        name ++ "." ++ intercalate "$" (map snd ids)
 
 instance Show Type where
     show TypeFloat                                           = "*float"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
-    show (TypeRecord kvs)                                    = "*record:" ++ show kvs
+    show (TypeRecord name kvs)                               = "*record: (show name)"
     show (TypeUndefined)                                     = "undefined"
-    show (TypeCarryfulTagConstructor name _ _ _)             = "*carryful tag constructor:" ++ show name
-    show (TypeRecordConstructor kvs)                         = "*record constructorshow:" ++ show kvs
+    show (TypeCarryfulTagConstructor name _ _)               = "*carryful tag constructor:" ++ show name
+    show (TypeRecordConstructor _ kvs)                       = undefined -- "*record constructorshow:" ++ show kvs
     show (TypeTypeParam name _)                              = "*type param:" ++ show name
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
     show TypeTypeConstructor{}                               = "*type constructor"
     show (TypeTaggedUnion (TaggedUnion name _ _ typeParams)) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
+    show (FreeTypeVar name _) = "*freetypevar:" ++ name
+    show (BoundedTypeVar name _) = "*boundedtypevar:" ++ snd name
 
 
 data TypeConstraint
     = ConstraintAny
     deriving (Show, Eq)
-
-data TypeParam 
-    = TypeParam 
-        StringToken -- name
-        (Maybe TypeConstraint)  -- associated type constriant
-    deriving (Show)
 
 data UnlinkedTag
     = UnlinkedCarrylessTag 
@@ -179,7 +173,7 @@ data Expr'
         tagMatcherBranches   :: [TagBranch],
         tagMatcherElseBranch :: Maybe Expr
     } 
-    | CarrylessTagConstructor 
+    | CarrylessTagExpr 
         StringToken -- where is it defined?
         StringToken -- where is it used?
 
@@ -221,71 +215,13 @@ data TagBranch
         Expr
     deriving (Show)
 
-class Identifiable a where
-    getIdentifier :: a -> (String, [StringToken])
-
-instance Identifiable Decl where
-    getIdentifier d = case d of
-        ConstDecl c -> getIdentifier c
-        FuncDecl  f -> getIdentifier f
-
--- Each function identifier shall follows the following format:
---
---      <front part>$$<back part>
---      id1$id2$id3$$paramType1$paramType2$paramType3
---
---  where <front part> is function names and <back part> is param types
--- 
--- Example:
---      this:String.replace old:String with new:String | String = undefined
--- Shall have id of
---      replace$with$$String$String$String 
---
--- This format is necessary, so that when we do function lookup,
---  we can still construct back the function details from its id when needed
---  especially when looking up generic functions
-instance Identifiable Func where
-    getIdentifier (Func{funcDeclIds=ids, funcDeclParams=params})
-        = ( 
-            intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ intercalate "$" (map (stringifyType . snd) params)
-            ,
-            ids
-         )
-
--- Basically, this function will convert all symbols to its corresponding ASCII code
--- e.g. toValidJavaScriptId "$" = "_36"
-toValidJavaScriptId :: String -> String
-toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
-
-
-instance Identifiable Const where
-    getIdentifier c = let x = constDeclId c in (snd x, [x])
-
-
--- What is toString for?
--- It is for generating the identifier for each particular functions
--- For example, the following function:
---     this:String.reverse = undefined
--- Will have an id of something like _reverse_str
--- So that the function lookup process can be fast (during analyzing function call)
-
-class Stringifiable a where
-    toString :: a -> String
-
 stringifyType :: Type -> String
 stringifyType t = case t of
         TypeFloat  -> "float"
         TypeInt    -> "Int"
         TypeString -> "String"
-        TypeRecord kvs ->  error (show kvs)
+        TypeRecord name kvs ->  error (show kvs)
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
         TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name
         _ -> error (show t)
-
--- For constraint type, we just return an empty string
-instance Stringifiable TypeConstraint where
-    toString c = case c of
-        ConstraintAny -> "any"
-        _ -> undefined
-    

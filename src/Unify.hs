@@ -11,6 +11,9 @@ import Data.List hiding(lookup)
 import qualified Data.Map.Strict as Map
 import StaticError
 
+getType :: V.Expr -> V.Type
+getType (V.Expr _ t) = t
+
 type Substitution = Map.Map String V.Type
 
 emptySubstitution :: Map.Map String V.Type
@@ -54,7 +57,7 @@ unify'
     actualExpr 
     actualType@(V.BoundedTypeVar name1 constraint1) 
     expectedType@(V.BoundedTypeVar name2 constraint2) = 
-    if name1 == name2 then
+    if snd name1 == snd name2 then
         Right (emptySubstitution)  
     else
         Left (KErrorTypeMismatch actualExpr actualType expectedType)
@@ -62,8 +65,8 @@ unify'
 -- unify' carryful tag counstructor
 unify' 
     actualExpr 
-    actualType@(V.TypeCarryfulTagConstructor x _ _ _)
-    expectedType@(V.TypeCarryfulTagConstructor y _ _ _) = 
+    actualType@(V.TypeCarryfulTagConstructor x _ _ )
+    expectedType@(V.TypeCarryfulTagConstructor y _ _ ) = 
     if x == y then 
         Right (emptySubstitution)  
     else 
@@ -71,8 +74,8 @@ unify'
 
 unify' 
     actualExpr
-    actualType@(V.TypeRecordConstructor kvs1)
-    expectedType@(V.TypeRecordConstructor kvs2) = 
+    actualType@(V.TypeRecordConstructor name1 kvs1)
+    expectedType@(V.TypeRecordConstructor name2 kvs2) = 
     undefined
 
 unify' _ V.TypeType V.TypeType = 
@@ -97,7 +100,7 @@ unify'
 -- unfify record type
 -- record type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
-unify' actualExpr (V.TypeRecord kts1) (V.TypeRecord kts2) = 
+unify' actualExpr (V.TypeRecord name1 kts1) (V.TypeRecord name2 kts2) = 
     let (actualKeys, actualTypes) = unzip kts1 in
     let (expectedKeys, expectedTypes) = unzip kts2 in
     -- TODO: get the set difference of expectedKeys with actualKeys
@@ -107,7 +110,7 @@ unify' actualExpr (V.TypeRecord kts1) (V.TypeRecord kts2) =
         PerfectMatch ->
             foldM
                 (\prevSubst (key, actualType, expectedType) -> 
-                    case unify' actualExpr actualType expectedType of
+                    case unify' actualExpr actualType (applySubstitutionToType prevSubst expectedType) of
                         Right nextSubst ->
                             Right (composeSubst prevSubst nextSubst)
 
@@ -117,7 +120,7 @@ unify' actualExpr (V.TypeRecord kts1) (V.TypeRecord kts2) =
                         Left err ->
                             Left err)
                 emptySubstitution
-                (zip3 expectedKeys actualTypes expectedTypes)
+                (zip3 actualKeys actualTypes expectedTypes)
 
         GotDuplicates duplicates ->
             Left (KErrorDuplicatedProperties duplicates)
@@ -156,11 +159,17 @@ unifyTVar actualExpr tvarname1 constraint1 t2 =
 contains :: V.Type -> String -> Bool
 t `contains` tvarname = 
     case t of
+        V.BoundedTypeVar (_,name) _ ->
+            name == tvarname
+
         V.FreeTypeVar name _ ->
             name == tvarname
 
         V.TypeTaggedUnion (V.TaggedUnion _ _ _ types) ->
             any (`contains` tvarname) types
+
+        _ ->
+            False
 
 {- 
     Composing substitution s1 and s1
@@ -206,8 +215,19 @@ applySubstitutionToType subst type' =
                 Nothing ->
                     type'
 
+        V.BoundedTypeVar name constraint ->
+            case Map.lookup (snd name) subst of
+                Just t ->
+                    t
+                Nothing ->
+                    type'
+
         V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes) ->
             V.TypeTaggedUnion (V.TaggedUnion name ids tags (map (applySubstitutionToType subst) innerTypes))
 
+        V.TypeRecord name propTypePairs ->
+            let (props, types) = unzip propTypePairs in
+            V.TypeRecord name (zip props (map (applySubstitutionToType subst) types))
+        
         other ->
             other

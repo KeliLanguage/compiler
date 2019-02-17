@@ -11,6 +11,7 @@ import Data.Aeson
 import Data.List
 import Analyzer
 import TypeCheck
+import Unify
 
 import qualified Ast.Verified as V
 import StaticError
@@ -107,8 +108,10 @@ toDiagnostic err = case err of
     KErrorWrongTypeInSetter expr expectedType ->
         typeMismatchError expr expectedType
 
-    KErrorPropertyTypeMismatch propname expectedType expr ->
-        typeMismatchError expr expectedType
+    KErrorPropertyTypeMismatch propname expectedType actualType actualExpr ->
+        getDiagnostic [propname] (
+            "The expected type of " ++ snd propname ++ "is " ++ V.stringifyType expectedType ++ ".\n" ++
+            "But the given expression have type of " ++ V.stringifyType actualType)
 
     KErrorNotAFunction funcIds ->
         getDiagnostic funcIds (showFuncIds funcIds ++ " is not a function")
@@ -126,7 +129,7 @@ toDiagnostic err = case err of
     KErrorCannotDefineCustomPrimitiveType token ->
         getDiagnostic [token] ("Cannot define custome primitive type: " ++ quote (snd token))
 
-    KErrorTypeMismatch (actualExpr, actualType) expectedType ->
+    KErrorTypeMismatch actualExpr actualType expectedType ->
         typeMismatchError (V.Expr actualExpr ( actualType)) ( expectedType)
 
     where 

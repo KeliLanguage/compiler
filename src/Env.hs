@@ -11,37 +11,32 @@ data KeliSymbol
     = KeliSymFunc           [Verified.Func]
     | KeliSymConst          Raw.StringToken     Verified.Expr
     | KeliSymTag            Verified.Tag
-    | KeliSymType           Verified.TypeAlias 
+    | KeliSymType           Verified.Type 
     | KeliSymTypeConstraint Raw.StringToken     Verified.TypeConstraint
     | KeliSymInlineExprs    [Verified.Expr] -- for storing expr from Raw.IdlessConst
     | KeliSymTypeConstructor Verified.TaggedUnion
         
     deriving(Show)
 
--- TODO: Verify the significance of this TypeClass
-instance Verified.Identifiable KeliSymbol where
-    getIdentifier sym = case sym of 
-        (KeliSymType (Verified.TypeAlias id t)) -> (snd id, [id])
-        (KeliSymTag t)              -> 
-            case t of
-                Verified.CarrylessTag x _   -> (snd x, [x])
-                Verified.CarryfulTag  x _ _ -> (snd x, [x])
-        (KeliSymConst id _)           -> (snd id, [id])
-        (KeliSymTypeConstraint id _) -> (snd id, [id])
-        (KeliSymTypeConstructor (Verified.TaggedUnion name _ _ _)) -> (snd name, [name])
-        other -> error (show other)
-    
-
 type Env = OMap String KeliSymbol
 
 emptyEnv :: Env
 emptyEnv = empty
 
+initialEnv :: Env
+initialEnv = 
+    empty 
+        |> ("Int"   , KeliSymType Verified.TypeInt)
+        |> ("Float" , KeliSymType Verified.TypeFloat)
+        |> ("String", KeliSymType Verified.TypeString)
+        |> ("Type"  , KeliSymType Verified.TypeType)
+
 
 data Context 
-    = Context 
-        Int -- next integer of type variable
-        Env
+    = Context {
+        contextNextInt :: Int,
+        contextEnv :: Env
+    }
 
 emptyContext :: Context
 emptyContext = Context 0 emptyEnv

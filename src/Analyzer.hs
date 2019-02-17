@@ -19,8 +19,8 @@ import Unify
 
 analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
 analyze decls = 
-    let (errors, finalSymtab, _) = analyzeDecls emptyEnv decls in
-    let analyzedSymbols = extractSymbols finalSymtab in
+    let (errors, finalEnv, _) = analyzeDecls initialEnv decls in
+    let analyzedSymbols = extractSymbols finalEnv in
 
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
@@ -84,26 +84,20 @@ analyzeDecl decl env = case decl of
         case expr of
             Raw.Id s@(_,id') -> 
                 let reservedConstants = [
-                        "_primitive_type",
-                        "tag",
+                        "tags",
                         "record",
                         "interface",
                         "ffi",
-                        "undefined"] in
+                        "undefined",
+                        "Int",
+                        "Float",
+                        "String"] in
                 case find (\x -> x == snd id) reservedConstants of
                     Just _ ->
                         Left (KErrorCannotRedefineReservedConstant id)
 
                     Nothing ->
-                        if id' == "_primitive_type" then
-                            case snd id of
-                                "Int"   -> Right (KeliSymType (V.TypeAlias id ( V.TypeInt)))
-                                "String"-> Right (KeliSymType (V.TypeAlias id ( V.TypeString)))
-                                "Float" -> Right (KeliSymType (V.TypeAlias id ( V.TypeFloat)))
-                                "Type"  -> Right (KeliSymType (V.TypeAlias id ( V.TypeType)))
-                                _       -> Left (KErrorCannotDefineCustomPrimitiveType id)
-                        else 
-                            continueAnalyzeConstDecl
+                        continueAnalyzeConstDecl
             
             _ -> 
                 continueAnalyzeConstDecl
@@ -111,18 +105,26 @@ analyzeDecl decl env = case decl of
         where 
             continueAnalyzeConstDecl = do
                 -- insert temporary types into env to allow declaraion of recursive types
-                let updatedSymtab = env |> (snd id, KeliSymType (V.TypeAlias id ( V.TypeSelf))) 
-                result <- typeCheckExpr (Context 0 updatedSymtab) CanBeAnything expr
+                let updatedSymtab = env |> (snd id, KeliSymType V.TypeSelf)
+                (_, result) <- typeCheckExpr (Context 0 updatedSymtab) CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right (KeliSymConst id typeCheckedExpr)
 
                     Second type' -> do
-                        Right (KeliSymType (V.TypeAlias id type'))
+                        case type' of
+                            V.TypeRecord _ expectedPropTypePairs ->
+                                Right (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
+
+                            t@V.TypeTaggedUnion{} ->
+                                Right (KeliSymType t)
+                            
+                            _ ->
+                                undefined
 
                     Third tag -> do
-                        taggedUnionType <- linkTagsTogether id [] tag Nothing
-                        Right (KeliSymType (V.TypeAlias id ( (V.TypeTaggedUnion taggedUnionType))))
+                        taggedUnionType <- linkTagsTogether id [] tag []
+                        Right (KeliSymType (V.TypeTaggedUnion taggedUnionType))
 
     Raw.FuncDecl(Raw.Func {
         Raw.funcDeclGenericParams = genericParams,
@@ -132,72 +134,73 @@ analyzeDecl decl env = case decl of
         Raw.funcDeclBody          = funcBody
     }) -> do 
             let ctx = Context 0 env
-            let verifyParamType = 
-                    (\tempSymtab params verify -> 
-                        mapM
-                            (\(id, paramType) -> do 
-                                verifiedType <- verify tempSymtab paramType
-                                return (id, verifiedType)) 
-                            params)
 
             -- 0.1 Verify implicit type params
-            verifiedGenericParams <- mapM (verifyTypeParam ctx) genericParams 
+            verifiedGenericParams <- mapM (verifyBoundedTypeVar ctx) genericParams
 
             -- 0.2 populate symbol table with implicit type params
-            env2 <- 
+            env1 <- 
                 foldM 
-                    (\acc t@(V.TypeParam id constraint) -> 
+                    (\acc (id, constraint) -> 
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else 
-                            Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
+                            Right (acc |> (snd id, KeliSymType (V.BoundedTypeVar id constraint))))
                     env 
                     verifiedGenericParams
 
             -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <- verifyParamType env2 funcParams verifyType
+            verifiedFuncParams <-
+                    mapM
+                        (\(id, typeAnnot) -> do 
+                            (_, verifiedTypeAnnotation) <- verifyType (Context 0 env1) typeAnnot
+                            return (id, verifiedTypeAnnotation)) 
+                        funcParams
 
             -- 1.2 populate symbol table with function parameters
-            env3 <- 
+            env2 <- 
                 foldM 
                     (\acc (id, type') ->
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else
                             Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) type'))))
-                env2 
+                env1 
                 verifiedFuncParams
             
             -- 2. verify return type
             verifiedReturnType <- 
                 (case returnType of 
-                    Just returnType' ->
-                        verifyType env3 returnType'
+                    Just t -> do
+                        (_, verifiedType) <- verifyType (Context 0 env1) t
+                        Right verifiedType
+
                     Nothing ->
-                        Right ( V.TypeUndefined))
+                        Right (V.TypeUndefined))
 
 
             -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
+            let verifiedGenericParams' = map (\(id, c) -> V.BoundedTypeVar id c) verifiedGenericParams
             let tempFunc = KeliSymFunc 
                     [V.Func {
                         V.funcDeclIds = funcIds,
-                        V.funcDeclGenericParams = verifiedGenericParams,
-                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) ( V.TypeUndefined), -- temporary body (useless)
+                        V.funcDeclGenericParams = verifiedGenericParams',
+                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) (V.TypeUndefined), -- temporary body (useless)
                         V.funcDeclParams = verifiedFuncParams,
                         V.funcDeclReturnType = verifiedReturnType
                     }] 
 
-            env4 <- insertSymbolIntoSymtab tempFunc env3
+            env3 <- insertSymbolIntoSymtab tempFunc env2
 
 
             -- 4. type check the function body
-            result <- typeCheckExpr env4 CanBeAnything funcBody
+            (_, result) <- typeCheckExpr (Context 0 env3) CanBeAnything funcBody
             case result of
                 First typeCheckedBody ->
                     let bodyType = getType typeCheckedBody in
                     let resultFunc = V.Func {
                                     V.funcDeclIds = funcIds,
-                                    V.funcDeclGenericParams = verifiedGenericParams,
+                                    V.funcDeclGenericParams = verifiedGenericParams',
                                     V.funcDeclBody = typeCheckedBody,
                                     V.funcDeclParams = verifiedFuncParams,
                                     V.funcDeclReturnType = verifiedReturnType
@@ -206,28 +209,22 @@ analyzeDecl decl env = case decl of
                     -- 4. ensure body type adheres to return type
                     case verifiedReturnType of
                         -- if return type is not declared, the return type of this function is inferred as the type of the body
-                        ( V.TypeUndefined) ->
+                        V.TypeUndefined ->
                             Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
 
-                        _ ->
-                            case typeCompares env4 typeCheckedBody verifiedReturnType of
+                        _ -> do
+                            case unify typeCheckedBody verifiedReturnType of
+                                Left err ->
+                                    Left err
+
+                                Right _ ->
                                 -- if body type match expected return types
-                                ApplicableOk _ ->
                                     Right (KeliSymFunc [resultFunc])
 
-                                ApplicableFailed err ->
-                                    Left err
-                                    -- Left (KErrorUnmatchingFuncReturnType typeCheckedBody verifiedReturnType)
-                                
-                                NotApplicable _ ->
-                                    Left (KErrorCannotMatchConcreteTypeWithRigidTypeVariable
-                                        typeCheckedBody
-                                        verifiedReturnType)
-                
                 _ -> undefined
     
     Raw.IdlessDecl expr -> do
-        result <- typeCheckExpr env CanBeAnything expr
+        (_, result) <- typeCheckExpr (Context 0 env) CanBeAnything expr
         case result of
             First checkedExpr ->
                 Right (KeliSymInlineExprs [checkedExpr])
@@ -241,36 +238,35 @@ analyzeDecl decl env = case decl of
         
     r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
         -- 1. verify all type params
-        verifiedTypeParams' <- mapM (verifyTypeParam env) typeParams 
-        let verifiedTypeParams = map (\(V.TypeParam name c) -> V.TypeVariable name c True) verifiedTypeParams'
-
+        verifiedTypeParams <- mapM (verifyBoundedTypeVar (Context 0 env)) typeParams 
 
         -- 2. populate symbol table with type params
         env2 <- 
             foldM 
-                (\acc (V.TypeParam id constraint) -> 
+                (\acc (id, constraint) -> 
                     if member (snd id) acc then
                         Left (KErrorDuplicatedId [id])
                     else 
-                        Right (acc |> (snd id, KeliSymType (V.TypeAlias id (V.TypeVariable id constraint True)))))
+                        Right (acc |> (snd id, KeliSymType (V.BoundedTypeVar id constraint))))
                 env 
-                verifiedTypeParams'
+                verifiedTypeParams
+
+        
 
         -- 3. populate symbol table with this type constructor (to allow recursve definition)
+        let verifiedTypeParams' = map (\(id, c) -> V.BoundedTypeVar id c) verifiedTypeParams
         env3 <-
             if member (snd typeConstructorName) env2 then
                 Left (KErrorDuplicatedId [typeConstructorName])
             else
                 Right (env2 |> (snd typeConstructorName, 
-                    KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] (Just verifiedTypeParams))))
+                    KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] verifiedTypeParams')))
 
         -- 4. type check the body
-        typeCheckedBody <- (typeCheckExpr env3 StrictlyAnalyzingType typeBody) 
-        
-
+        (_, typeCheckedBody) <- (typeCheckExpr (Context 0 env3) StrictlyAnalyzingType typeBody) 
         case typeCheckedBody of
             Third tag -> do
-                taggedUnionType <- linkTagsTogether typeConstructorName ids tag (Just verifiedTypeParams)
+                taggedUnionType <- linkTagsTogether typeConstructorName ids tag verifiedTypeParams'
                 Right (KeliSymTypeConstructor taggedUnionType)
 
             _ ->
@@ -280,7 +276,7 @@ analyzeDecl decl env = case decl of
 
 
 -- this function is for performing tying the knots (for tagged union types)
-linkTagsTogether :: V.StringToken -> [V.StringToken] -> [V.UnlinkedTag] -> Maybe [V.Type] -> Either KeliError V.TaggedUnion
+linkTagsTogether :: V.StringToken -> [V.StringToken] -> [V.UnlinkedTag] -> [V.Type] -> Either KeliError V.TaggedUnion
 linkTagsTogether taggedUnionName ids tags typeParams = 
     let tagnames = 
             map 
@@ -313,24 +309,21 @@ linkTagsTogether taggedUnionName ids tags typeParams =
             Right tagUnionType
             
 
+
+-- substitute source into target
 substituteSelfType :: V.Type -> V.Type -> V.Type
 substituteSelfType source target =
     case target of
-         t ->
-            case t of 
-                V.TypeSelf ->
-                    source
-            
-                V.TypeRecord propTypePairs ->
-                    let updatedPropTypePairs = 
-                            map 
-                                (\(prop, type') -> 
-                                    (prop, substituteSelfType source type'))
-                                propTypePairs
-                    in  (V.TypeRecord updatedPropTypePairs)
-
-                _ ->
-                    target
+        V.TypeSelf ->
+            source
+    
+        V.TypeRecord name propTypePairs ->
+            let updatedPropTypePairs = 
+                    map 
+                        (\(prop, type') -> 
+                            (prop, substituteSelfType source type'))
+                        propTypePairs
+            in  (V.TypeRecord name updatedPropTypePairs)
 
         _ ->
             target

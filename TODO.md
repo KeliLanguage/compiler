@@ -50,3 +50,5 @@
 [] implement bindingful else branch for tag matcher
 
 [] refactor to use type annotation 
+
+[] return context whenever typechecking expr

@@ -11,4 +11,4 @@ z = List.cons.
 
 ==== 
 
-KErrorTypeMismatch
+KErrorPropertyTypeMismatch

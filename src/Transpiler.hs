@@ -4,6 +4,8 @@ where
 import Prelude hiding (id)
 import Data.List
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import Text.ParserCombinators.Parsec.Pos
+import Data.Char
 
 
 import qualified Ast.Verified as V
@@ -43,7 +45,7 @@ instance Transpilable KeliSymbol where
         KeliSymConst (_,id) expr ->
             "const " ++ prefix id ++ "=" ++ transpile expr
 
-        KeliSymType (V.TypeAlias _ ( (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)))) ->
+        KeliSymType (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)) ->
             "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
         KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
@@ -77,7 +79,7 @@ instance Transpilable V.Decl where
 instance Transpilable V.Func where
     transpile f@(V.Func _ params _ _ body) 
         = let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
-        "function " ++ fst (V.getIdentifier f) ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
+        "function " ++ getFuncSignature f ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
 
 
@@ -121,7 +123,7 @@ instance Transpilable V.Expr where
                     Nothing   -> "") ++ ")()"
 
         V.Expr(V.FuncCall params _ ref) _ -> 
-            fst (V.getIdentifier ref) ++ "(" ++ intercalate "," (map transpile params) ++")"
+            getFuncSignature ref ++ "(" ++ intercalate "," (map transpile params) ++")"
 
         V.Expr(V.FFIJavascript (_,code)) _ ->
             code
@@ -135,7 +137,7 @@ instance Transpilable V.Expr where
                 -> prefix id ++ squareBracket (quote (prefix tag)) ++ "("++ transpileKeyValuePairs False carry ++")"
 
         V.Expr 
-            (V.CarrylessTagConstructor(_,tag) _)
+            (V.CarrylessTagExpr(_,tag) _)
             ( (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
                 -> prefix id ++ squareBracket (quote (prefix tag))
 
@@ -164,3 +166,29 @@ transpileKeyValuePairs lazifyExpr kvs
 
 lazify :: String -> String
 lazify str = "()=>(" ++ str ++ ")"
+
+-- Each function identifier shall follows the following format:
+--
+--      <front part>$$<back part>
+--      id1$id2$id3$$hash
+--
+--  where <front part> is function names and <back part> is the hash
+--  hash is the line number of where the first funcId is defined
+-- 
+-- Example:
+--      this:String.replace old:String with new:String | String = undefined
+-- Shall have id of
+--      replace$with$$1
+--
+-- This format is necessary, so that when we do function lookup,
+--  we can still construct back the function details from its id when needed
+--  especially when looking up generic functions
+getFuncSignature :: V.Func -> String
+getFuncSignature (V.Func{V.funcDeclIds=ids}) = 
+    let hash =sourceLine (fst (head ids)) in
+    intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ show hash
+
+-- Basically, this function will convert all symbols to its corresponding ASCII code
+-- e.g. toValidJavaScriptId "$" = "_36"
+toValidJavaScriptId :: String -> String
+toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
