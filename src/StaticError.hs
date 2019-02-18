@@ -39,7 +39,6 @@ data KeliError
         Verified.Expr' -- for telling where is the record constructor
         [String] -- missing props
 
-    | KErrorNotAllBranchHaveTheSameType [Verified.Expr]
     | KErrorUnmatchingFuncReturnType 
         Verified.Expr -- actual body
         Verified.Type -- expected type
@@ -102,6 +101,12 @@ data KeliError
         Verified.Expr' -- actual expr (for locating error position)
         Verified.Type  -- actual type
         Verified.Type  -- expected type
+
+    | KErrorNotAllBranchHaveTheSameType 
+        Verified.Expr' -- actual expr (for locating error position)
+        Verified.Type  -- actual type
+        Verified.Type  -- expected type
+        Verified.TagBranch -- first branch
 
     | KErrorExpectedACarry
         Raw.StringToken -- carryful tag name

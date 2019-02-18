@@ -227,10 +227,16 @@ data TagBranch
 
 stringifyType :: Type -> String
 stringifyType t = case t of
-        TypeFloat  -> "float"
+        TypeFloat  -> "Float"
         TypeInt    -> "Int"
         TypeString -> "String"
-        TypeRecord name kvs ->  error (show kvs)
+        TypeRecord name kvs ->  
+            case name of 
+                Just n ->
+                    snd n
+                Nothing ->
+                    show kvs
+
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
         TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name

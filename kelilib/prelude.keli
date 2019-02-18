@@ -1,0 +1,24 @@
+Boolean = tags.
+    #(true) 
+    #(false) 
+
+(this Boolean).or(that Boolean) = 
+    this.
+        if(true):
+            (Boolean.true)
+        if(false):
+            (that)
+
+(this Boolean).and(that Boolean) = 
+    this.
+        if(true):
+            (that)
+        if(false):
+            (Boolean.false)
+
+(this Boolean).not = 
+    this.
+        if(true):
+            (Boolean.false)
+        if(false):
+            (Boolean.true)

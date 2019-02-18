@@ -93,9 +93,6 @@ toDiagnostic err = case err of
     KErrorMissingProperties expr missingProps ->
         getDiagnostic [expr] ("Missing properties: " ++ intercalate ", " missingProps)
 
-    KErrorNotAllBranchHaveTheSameType branches ->
-        getDiagnostic branches "Not all branches have the same type."
-
     KErrorUnmatchingFuncReturnType body expectedType ->
         typeMismatchError body expectedType
 
@@ -131,6 +128,21 @@ toDiagnostic err = case err of
 
     KErrorTypeMismatch actualExpr actualType expectedType ->
         typeMismatchError (V.Expr actualExpr ( actualType)) ( expectedType)
+
+    KErrorNotAllBranchHaveTheSameType actualExpr actualType expectedType firstBranch ->
+        let locationOfFirstBranch = 
+                case firstBranch of
+                    V.CarrylessTagBranch _ expr ->
+                        getRange expr
+
+                    V.CarryfulTagBranch _ _ expr ->
+                        getRange expr in
+
+        getDiagnostic [actualExpr] ("The expected type of each branch is "
+                ++ quote (V.stringifyType expectedType)
+                ++ " (based on the type of first branch at Line " ++ show (line (start locationOfFirstBranch)) ++ ")\n"
+                ++ "But this branch has type of " 
+                ++ quote (V.stringifyType actualType))
 
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]

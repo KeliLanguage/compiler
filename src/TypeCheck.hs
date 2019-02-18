@@ -227,8 +227,13 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                     -- 3. check if each branch have the same type with the first branch
                                     case allBranchTypeAreSame (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
                                         Left err ->
-                                            Left err
-                                            -- Left (KErrorNotAllBranchHaveTheSameType branches)
+                                            case err of
+                                                KErrorTypeMismatch actualExpr actualType expectedType ->
+                                                    Left (KErrorNotAllBranchHaveTheSameType 
+                                                        actualExpr actualType expectedType (head typeCheckedTagBranches))
+
+                                                _ ->
+                                                    Left err
 
                                         Right branchType ->
                                             -- 4. check for exhaustiveness
