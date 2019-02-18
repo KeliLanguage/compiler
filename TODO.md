@@ -43,7 +43,7 @@
 
 [] implement interface
 
-[] implement function type
+[x] implement function type
 
 [] update doc regarding constraint type
 
@@ -51,4 +51,4 @@
 
 [] refactor to use type annotation 
 
-[] return context whenever typechecking expr
+[x] return context whenever typechecking expr

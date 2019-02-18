@@ -87,7 +87,9 @@ data KeliError
 
     | KErrorCannotRedefineReservedConstant Raw.StringToken
     | KErrorCannotDefineCustomPrimitiveType Raw.StringToken
-    | KErrorTypeConstructorIdsMismatch [Raw.StringToken]
+    | KErrorTypeConstructorIdsMismatch 
+        [Raw.StringToken] -- expected ids
+        [Raw.StringToken] -- actual ids
     | KErrorCannotMatchConcreteTypeWithRigidTypeVariable 
         Verified.Expr -- actual expr
         Verified.Type   -- expected type

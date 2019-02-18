@@ -21,7 +21,7 @@ data Assumption
     | CanBeAnything 
 
 typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.Type [V.UnlinkedTag])
-typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression of 
+typeCheckExpr ctx@(Context _ env) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
         (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr 
         Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
@@ -170,7 +170,7 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
         where 
             continuePreprocessFuncCall1 :: Either KeliError (Context, OneOf3 V.Expr V.Type [V.UnlinkedTag])
             continuePreprocessFuncCall1 = do
-                (ctx2, firstParam) <- verifyExpr ctx assumption (head params')
+                (ctx2, firstParam) <- verifyExpr ctx assumption  (head params')
 
                 let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
@@ -183,7 +183,16 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                             let resultingType = applySubstitutionToType substitution (V.TypeRecord aliasedName expectedPropTypePairs)
                             Right (ctx3, First (V.Expr (V.Record actualPropValuePairs) resultingType))
 
-                        -- (B) check if user is calling tag matchers
+                        -- (B) check if user is performing function application
+                        V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ innerTypes) ->
+                            if snd (head funcIds) == "apply" && length (tail params') == 1 then do
+                                (ctx3, value) <- verifyExpr ctx2 assumption (last params')
+                                let f = firstParam
+                                Right (ctx3, First(V.Expr (V.FuncApp f value) (innerTypes !! 1)))
+                            else
+                                continuePreprocessFuncCall2
+
+                        -- (C) check if user is calling tag matchers
                         V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags _) -> do
                             let subject = firstParam 
                             case find (\(_,x) -> x == "if") funcIds of
@@ -260,7 +269,7 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                                                     -- error "Shoudln't reach here, because `typeCheckTagBranch` already check for unknown tags"
 
 
-                        -- (C) check if user is calling record getter/setter
+                        -- (D) check if user is calling record getter/setter
                         recordType@(V.TypeRecord name kvs) ->  
                             if length funcIds > 1 then
                                 continuePreprocessFuncCall2
@@ -283,7 +292,7 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                                     Nothing -> 
                                         continuePreprocessFuncCall2
 
-                        -- (D) check if user is invoking tag constructor prefix
+                        -- (E) check if user is invoking tag constructor prefix
                         V.TypeTagConstructorPrefix taggedUnionName tags _ ->
                             if length funcIds == 1 then
                                 let tagname = head funcIds in
@@ -311,16 +320,16 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                             else
                                 Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
 
-                        -- (E) check if user is invoking type constructor
-                        V.TypeTypeConstructor t@(V.TaggedUnion name ids tags expectedTypeParams) ->
+                        -- (F) check if user is invoking type constructor
+                        V.TypeTypeConstructor (V.TaggedUnion name ids tags _) ->
                             if map snd funcIds /= map snd ids then
-                                Left (KErrorTypeConstructorIdsMismatch funcIds)
+                                Left (KErrorTypeConstructorIdsMismatch ids funcIds)
                             else do
                                 -- TODO: check if type param conforms to type constraint
                                 (ctx3, types) <- verifyTypes ctx (tail params')
-                                Right (ctx3, Second ( (V.TypeTaggedUnion t)))
+                                Right (ctx3, Second (V.TypeTaggedUnion (V.TaggedUnion name ids tags types)))
 
-                        -- (F) check if user is invoking carryful tag constructor
+                        -- (G) check if user is invoking carryful tag constructor
                         V.TypeCarryfulTagConstructor tagname expectedPropTypePairs (V.TaggedUnion name ids tags innerTypes) -> do
                             let (ctx3, subst1) = instantiateTypeVar ctx innerTypes 
                             (ctx4, values) <- verifyExprs ctx3 assumption (tail params')
@@ -334,7 +343,6 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                             Right (ctx4, First (V.Expr 
                                 (V.CarryfulTagExpr tagname actualPropValuePairs)
                                 (V.TypeTaggedUnion (V.TaggedUnion name ids tags resultingInnerTypes))))
-
 
                         -- otherwise
                         _ ->
@@ -367,10 +375,19 @@ typeCheckExpr ctx@(Context nextInt env) assumption expression = case expression 
                         
             treatAsNormalFuncCall = do
                 (ctx2, params) <- verifyExprs ctx assumption params'
-                (ctx3, result) <- typeCheckFuncCall ctx2 params funcIds
+                (ctx3, result) <- typeCheckFuncCall ctx2 assumption params funcIds
                 Right (ctx3, First result)
 
+    Raw.Lambda param body ->
+        let (ctx2, inputTVar) = createNewTVar ctx Nothing in
+        let (ctx3, outputTVar) = createNewTVar ctx2 Nothing in
+        Right (ctx3, First (V.Expr 
+            (V.PartiallyInferredLambda param body)
+            (V.TypeTaggedUnion (newFunctionType inputTVar outputTVar))))
+
+
     other -> 
+        error (show other)
         undefined
 
 
@@ -407,7 +424,7 @@ verifyExprs ctx assumption rawExprs =
 data MatchFuncResult 
     = PerfectlyMatchedFuncFound 
         Context    -- updated context
-        V.Func     -- matching function
+        V.Expr     -- resulting func call expr
 
     | PartiallyMatchedFuncFound -- means the 2nd params onward does not match expected types
         KeliError  -- corresponding error (should be type mismatch error)
@@ -415,8 +432,14 @@ data MatchFuncResult
     | StillNoMatchingFunc
 
 -- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
-typeCheckFuncCall :: Context -> [V.Expr] -> [Raw.StringToken] -> Either KeliError (Context, V.Expr)
-typeCheckFuncCall ctx@(Context _ env) funcCallParams funcIds = 
+typeCheckFuncCall 
+    :: Context 
+    -> Assumption 
+    -> [V.Expr] 
+    -> [Raw.StringToken] 
+    -> Either KeliError (Context, V.Expr)
+
+typeCheckFuncCall ctx@(Context _ env) assumption funcCallParams funcIds = 
     let funcId = intercalate "$" (map snd funcIds) in
     case lookup funcId env of
         Just (KeliSymFunc candidateFuncs) -> do
@@ -442,22 +465,45 @@ typeCheckFuncCall ctx@(Context _ env) funcCallParams funcIds =
                                 case unify (head funcCallParams) (head expectedParamTypes) of
                                     -- if matches, continue to unify the following params
                                     Right subst2 -> 
-                                        case foldM 
-                                            (\prevSubst (actualParam, expectedParamType) -> do
-                                                -- apply previous substituion to current expectedParamType
-                                                let expectedParamType' = applySubstitutionToType prevSubst expectedParamType
-                                                nextSubst <- unify actualParam expectedParamType'
-                                                Right (composeSubst prevSubst nextSubst))
-                                            subst2
-                                            (zip (tail funcCallParams) (tail expectedParamTypes)) of
-
+                                        case unifyMany subst2 (tail funcCallParams) (tail expectedParamTypes) of
                                             Left err ->
                                                 PartiallyMatchedFuncFound err
 
-                                            Right subst3 ->
-                                                let expectedReturnType = applySubstitutionToType subst1 (V.funcDeclReturnType currentFunc) in
-                                                let expectedReturnType' = applySubstitutionToType (composeSubst subst2 subst3) expectedReturnType in
-                                                PerfectlyMatchedFuncFound ctx2 currentFunc{V.funcDeclReturnType = expectedReturnType'}
+                                            Right subst3 -> 
+                                                -- perform second pass type checking, mainly for inferring lambda types
+                                                let subst4 = composeSubst subst2 subst3 in
+                                                case mapM 
+                                                        (\e -> 
+                                                            case e of 
+                                                            V.Expr 
+                                                                (V.PartiallyInferredLambda paramName body) 
+                                                                (V.TypeTaggedUnion (V.TaggedUnion _ _ _ [inputType, outputType])) -> do
+                                                                let inputType' = applySubstitutionToType subst4 inputType 
+                                                                let outputType' = applySubstitutionToType subst4 outputType 
+                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymConst paramName (V.Expr (V.Id paramName) inputType')) env 
+                                                                -- QUESTION: Should I ignore this new context?
+                                                                (_, body') <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption body
+                                                                tempSubst <- unify body' outputType'
+                                                                Right (V.Expr 
+                                                                    (V.Lambda (paramName, inputType') body') 
+                                                                    (V.TypeTaggedUnion (newFunctionType inputType' (applySubstitutionToType tempSubst outputType'))))
+                                                            _ -> 
+                                                                Right e) funcCallParams of
+                                                    Right funcCallParams' -> 
+                                                        let expectedReturnType = applySubstitutionToType subst1 (V.funcDeclReturnType currentFunc) in
+                                                        -- unify again to get the best substitution (mainly for inferring lambdas)
+                                                        case unifyMany subst4 funcCallParams' expectedParamTypes of
+                                                            Left err ->
+                                                                PartiallyMatchedFuncFound err
+                                                            
+                                                            Right subst5 ->
+                                                                let expectedReturnType' = applySubstitutionToType subst5 expectedReturnType in
+                                                                let funcCall = V.Expr (V.FuncCall funcCallParams' funcIds currentFunc) (expectedReturnType') in
+                                                                PerfectlyMatchedFuncFound ctx2 funcCall
+                                                    
+                                                    Left err ->
+                                                        PartiallyMatchedFuncFound err
+
 
                                     -- if not, 
                                     Left _ ->
@@ -469,9 +515,8 @@ typeCheckFuncCall ctx@(Context _ env) funcCallParams funcIds =
                         -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
                         (sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
 
-                PerfectlyMatchedFuncFound newCtx f ->
-                    let funcCall = V.FuncCall funcCallParams funcIds f in
-                    Right (newCtx, V.Expr funcCall (V.funcDeclReturnType f))
+                PerfectlyMatchedFuncFound newCtx funcCallExpr ->
+                    Right (newCtx, funcCallExpr)
 
                 PartiallyMatchedFuncFound err ->
                     Left err
@@ -547,8 +592,8 @@ data UnverifiedBranch
         Raw.Expr
     deriving (Show)
 
-insertSymbolIntoSymtab :: KeliSymbol -> Env -> Either KeliError Env
-insertSymbolIntoSymtab symbol env =
+insertSymbolIntoEnv :: KeliSymbol -> Env -> Either KeliError Env
+insertSymbolIntoEnv symbol env =
     case symbol of 
         KeliSymFunc [f] -> 
             let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
@@ -727,7 +772,7 @@ typeCheckTagBranch ctx@(Context _ env) expectedTags (tag, branch) =
                             updatedEnv <- 
                                 foldM 
                                     (\prevSymtab (_,bindingId, expectedType) -> 
-                                        insertSymbolIntoSymtab (KeliSymConst bindingId (V.Expr (V.Id bindingId) expectedType)) prevSymtab)
+                                        insertSymbolIntoEnv (KeliSymConst bindingId (V.Expr (V.Id bindingId) expectedType)) prevSymtab)
                                     env
                                     verifiedPropBindings
 

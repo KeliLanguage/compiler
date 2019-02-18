@@ -46,7 +46,7 @@ data Expr
         funcCallIds    :: [StringToken]
     }
     | Lambda {
-        lambdaParams :: StringToken,
+        lambdaParam  :: StringToken,
         lambdaBody   :: Expr
     }
     | IncompleteFuncCall -- for implementing Intellisense 

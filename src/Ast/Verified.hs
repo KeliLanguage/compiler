@@ -4,6 +4,7 @@ import Prelude hiding (id)
 import Text.Parsec.Pos
 import Data.List
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import qualified Ast.Raw as Raw
 
 type StringToken = (SourcePos, String)
 
@@ -152,10 +153,19 @@ data Expr'
         funcCallIds    :: [StringToken],
         funcCallRef    :: Func
     }
-    | Lambda {
-        lambdaParams :: [StringToken],
-        lambdaBody   :: Expr
+    | FuncApp {
+        funcAppFunc :: Expr,
+        funcAppArg  :: Expr
     }
+    | PartiallyInferredLambda 
+        StringToken -- param
+        Raw.Expr    -- body
+
+    
+    | Lambda 
+        (StringToken, Type) -- param
+        Expr        -- body
+    
     | Record {
         recordKeyValues             :: [(StringToken, Expr)]
     }

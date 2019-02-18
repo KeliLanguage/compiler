@@ -101,8 +101,8 @@ instance Transpilable V.Expr where
         V.Expr(V.Id     (_,value)) _
             -> prefix value
 
-        V.Expr(V.Lambda params body) _                      
-            -> "(" ++ intercalate "," (map snd params) ++ ")=>(" ++ transpile body ++ ")"
+        V.Expr(V.Lambda ((_,param),_) body) _                      
+            -> "(" ++ prefix param ++ ")=>(" ++ transpile body ++ ")"
 
         V.Expr(V.Record kvs) _                              
             -> transpileKeyValuePairs False (kvs)
@@ -140,6 +140,9 @@ instance Transpilable V.Expr where
             (V.CarrylessTagExpr(_,tag) _)
             ( (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
                 -> prefix id ++ squareBracket (quote (prefix tag))
+
+        V.Expr (V.FuncApp f arg) _ ->
+            transpile f ++ "(" ++ transpile arg ++ ")"
 
         other -> 
             error (show other)

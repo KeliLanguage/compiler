@@ -21,6 +21,26 @@ emptySubstitution = Map.empty
 
 type UnifyResult = Either KeliError Substitution
 
+
+unifyMany 
+    :: Substitution -- initial subst
+    -> [V.Expr]  -- actual expr (for reporting error location only)
+    -> [V.Type]  -- expected type
+    -> UnifyResult
+
+unifyMany initialSubst exprs expectedTypes = 
+    if length exprs /= length expectedTypes then
+        error ("Length of exprs should be the same as length of expectedTypes")
+    else
+        foldM 
+            (\prevSubst (actualExpr, expectedType) -> do
+                -- apply previous substituion to current expectedParamType
+                let expectedType' = applySubstitutionToType prevSubst expectedType
+                nextSubst <- unify actualExpr expectedType'
+                Right (composeSubst prevSubst nextSubst))
+            initialSubst
+            (zip exprs expectedTypes)
+
 unify :: 
        V.Expr  -- actual expr (for reporting error location only)
     -> V.Type  -- expected type

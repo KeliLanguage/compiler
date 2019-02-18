@@ -60,7 +60,7 @@ analyzeDecls env decls =
                 let (newErrors, newSymtab, newSymbols) = 
                         case analyzeDecl nextDecl1 prevSymtab of
                             Right analyzedSymbol -> 
-                                case insertSymbolIntoSymtab analyzedSymbol prevSymtab of
+                                case insertSymbolIntoEnv analyzedSymbol prevSymtab of
                                     Right newSymtab' -> 
                                         ([], newSymtab', [analyzedSymbol])
                                     Left err' -> 
@@ -190,7 +190,7 @@ analyzeDecl decl env = case decl of
                         V.funcDeclReturnType = verifiedReturnType
                     }] 
 
-            env3 <- insertSymbolIntoSymtab tempFunc env2
+            env3 <- insertSymbolIntoEnv tempFunc env2
 
 
             -- 4. type check the function body
