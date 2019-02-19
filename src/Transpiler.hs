@@ -128,9 +128,6 @@ instance Transpilable V.Expr where
         V.Expr(V.FFIJavascript (_,code)) _ ->
             code
 
-        V.Expr(V.RetrieveCarryExpr expr) _ ->
-            "((" ++ transpile expr ++ ").__carry)"
-
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry)  
             ( (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))

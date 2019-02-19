@@ -11,5 +11,5 @@ a= Answer.yes
 
 ====
 
-KErrorTypeMismatch
+KErrorNotAllBranchHaveTheSameType
 

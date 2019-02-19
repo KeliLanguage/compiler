@@ -14,6 +14,7 @@ import TypeCheck
 import Prelude hiding(id)
 import Unify
 import StaticError(KeliError(KErrorIncompleteFuncCall))
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 
 import qualified Ast.Verified as V
@@ -105,9 +106,14 @@ rebuildSignature (V.Func genparams params funcIds returnType _) =
 
 
 
-stringifyFuncParam :: (V.StringToken, V.Type) -> String
-stringifyFuncParam ((_,paramName), paramType) = 
-    bracketize (paramName ++ " " ++ V.stringifyType paramType)
+stringifyFuncParam :: (V.StringToken, V.TypeAnnotation) -> String
+stringifyFuncParam ((_,paramName), paramTypeAnnot) = 
+    bracketize (paramName ++ " " ++ stringifyTypeAnnot paramTypeAnnot)
+
+stringifyTypeAnnot :: V.TypeAnnotation -> String
+stringifyTypeAnnot (V.TypeAnnotSimple (_,name) _) = name
+stringifyTypeAnnot (V.TypeAnnotCompound (_,name) keyTypeAnnotPairs _) = 
+    name ++ "." ++ intercalate " " (map (\(key, ta) -> snd key ++ "(" ++ stringifyTypeAnnot ta ++ ")") keyTypeAnnotPairs)
     
 bracketize :: String -> String
 bracketize str = "(" ++ str ++ ")"
@@ -127,8 +133,8 @@ suggestCompletionItems decls =
                                     KeliSymFunc funcs -> 
                                         filter 
                                             (\f -> 
-                                                let (_,firstParamType) = V.funcDeclParams f !! 0 in
-                                                case unify expr firstParamType of
+                                                let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
+                                                case unify expr (V.getTypeRef firstParamTypeAnnon) of
                                                     Right _ ->
                                                         True
                                                     Left _ ->
@@ -147,8 +153,9 @@ suggestCompletionItems decls =
                                 (\t -> 
                                     case t of
                                         V.CarryfulTag (_,tagname) propTypePairs _ ->
-                                            let text = tagname ++ "." ++ concatMap (\((_,key),t) -> key ++ "(" ++ V.stringifyType t ++ ")") propTypePairs in
-                                            CompletionItem {
+                                            let text = tagname ++ "." ++ 
+                                                            concatMap (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs in
+                                                CompletionItem {
                                                 kind = 13, -- enum
                                                 label = text,
                                                 detail = "",
@@ -168,7 +175,7 @@ suggestCompletionItems decls =
 
                         -- record constructor
                         V.TypeRecordConstructor name propTypePairs -> 
-                            let text = concat (map (\((_,prop), _) -> prop ++ "() ") propTypePairs) in
+                            let text = concat (map (\((_,prop), t) -> prop ++ "(" ++ V.stringifyType t ++ ") ") propTypePairs) in
                             [CompletionItem {
                                 kind = 4, -- constructor
                                 label = text,
@@ -188,7 +195,7 @@ suggestCompletionItems decls =
                                             V.CarrylessTag (_,tagname) _ ->
                                                 "if(" ++ tagname ++ "):\n\t\t(undefined)")) tags) in
                             [CompletionItem {
-                                kind = 2, -- method
+                                kind = 12, -- value
                                 label = "if(...)",
                                 detail = "tag matcher",
                                 insertText = insertText',

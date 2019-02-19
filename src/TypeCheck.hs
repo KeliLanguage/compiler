@@ -20,7 +20,7 @@ data Assumption
     = StrictlyAnalyzingType
     | CanBeAnything 
 
-typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.Type [V.UnlinkedTag])
+typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
 typeCheckExpr ctx@(Context _ env) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
         (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr 
@@ -45,30 +45,31 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
             Just (KeliSymType t@(V.TypeRecord name propTypePairs)) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
                 -- Answer: Using assumptions
-
                 case assumption of
                     StrictlyAnalyzingType -> 
-                        (Right (ctx, Second t))
+                        (Right (ctx, Second (V.TypeAnnotSimple token t)))
+
+                            
                     CanBeAnything ->
-                        (Right (ctx, First (V.Expr (V.RecordConstructor propTypePairs) ((V.TypeRecordConstructor name propTypePairs)))))
+                        (Right (ctx, First (V.Expr (V.RecordConstructor name propTypePairs) ((V.TypeRecordConstructor name propTypePairs)))))
 
             Just (KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes)))) ->
                 case assumption of
                     StrictlyAnalyzingType -> 
-                        (Right (ctx, Second t))
+                        (Right (ctx, Second (V.TypeAnnotSimple token t)))
                     CanBeAnything ->
-                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix) ( (V.TypeTagConstructorPrefix name tags innerTypes)))))
+                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix name) ( (V.TypeTagConstructorPrefix name tags innerTypes)))))
             
             Just (KeliSymType t) ->
-                (Right (ctx, Second t))
+                (Right (ctx, Second (V.TypeAnnotSimple token t)))
             
             Just (KeliSymTypeConstructor t@(V.TaggedUnion name _ tags typeParams)) ->
                 case assumption of
                     StrictlyAnalyzingType ->
-                        Right (ctx, First (V.Expr (V.TypeConstructorPrefix) ( (V.TypeTypeConstructor t))))
+                        Right (ctx, First (V.Expr (V.TypeConstructorPrefix name) ( (V.TypeTypeConstructor t))))
 
                     CanBeAnything -> 
-                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix) ( (V.TypeTagConstructorPrefix name tags typeParams)))))
+                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix name) ( (V.TypeTagConstructorPrefix name tags typeParams)))))
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -100,13 +101,13 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                                     case head params'' of
                                                         Raw.Id tagname -> do
                                                             let keys = funcIds''
-                                                            (ctx2, keyTypePairs) <- verifyKeyTypePairs ctx keys (tail params'')
+                                                            (ctx2, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params'')
                                                             Right (ctx2, prevTags ++ [V.UnlinkedCarryfulTag tagname keyTypePairs])
 
                                                         other ->
                                                             Left (KErrorExpectedId other)
                                             _ ->
-                                                Left (KErrorExpectedFuncCallOrId currentExpr)) 
+                                                Left (KErrorExpectedPropDefOrId currentExpr)) 
                                     (ctx, [])
                                     (tail params')
                             Right (ctx2, Third tags)
@@ -139,8 +140,12 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                             
                             -- assume user want to declare a record type
                             Second _ -> do
-                                (ctx3, keyTypePairs) <- verifyKeyTypePairs ctx keys (tail params')
-                                Right (ctx3, Second ( (V.TypeRecord Nothing keyTypePairs)))
+                                (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params')
+                                Right (ctx3, Second 
+                                    (V.TypeAnnotCompound 
+                                        firstParamToken 
+                                        keyTypePairs 
+                                        (V.TypeRecord Nothing (map (\(k, ta) -> (k, V.getTypeRef ta)) keyTypePairs))))
 
                             Third tag -> 
                                 Left (KErrorExpectedExprOrTypeButGotTag tag)
@@ -168,7 +173,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                 continuePreprocessFuncCall1
 
         where 
-            continuePreprocessFuncCall1 :: Either KeliError (Context, OneOf3 V.Expr V.Type [V.UnlinkedTag])
+            continuePreprocessFuncCall1 :: Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
             continuePreprocessFuncCall1 = do
                 (ctx2, firstParam) <- verifyExpr ctx assumption  (head params')
 
@@ -331,8 +336,12 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                 Left (KErrorTypeConstructorIdsMismatch ids funcIds)
                             else do
                                 -- TODO: check if type param conforms to type constraint
-                                (ctx3, types) <- verifyTypes ctx (tail params')
-                                Right (ctx3, Second (V.TypeTaggedUnion (V.TaggedUnion name ids tags types)))
+                                (ctx3, types) <- verifyTypeAnnotationAnnotations ctx (tail params')
+                                Right (ctx3, Second 
+                                    (V.TypeAnnotCompound
+                                        name
+                                        (zip ids types)
+                                        (V.TypeTaggedUnion (V.TaggedUnion name ids tags (map V.getTypeRef types)))))
 
                         -- (G) check if user is invoking carryful tag constructor
                         V.TypeCarryfulTagConstructor tagname expectedPropTypePairs (V.TaggedUnion name ids tags innerTypes) -> do
@@ -366,7 +375,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                             castType' <- extractType castType
                             case subject' of
                                 (V.Expr expr' ( V.TypeUndefined)) ->
-                                    Right (ctx3, First (V.Expr expr' castType'))
+                                    Right (ctx3, First (V.Expr expr' (V.getTypeRef castType')))
 
                                 _ ->
                                     undefined
@@ -396,17 +405,17 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
         undefined
 
 
-verifyType :: Context -> Raw.Expr -> Either KeliError (Context, V.Type) 
-verifyType ctx rawExpr = do
+verifyTypeAnnotation :: Context -> Raw.Expr -> Either KeliError (Context, V.TypeAnnotation) 
+verifyTypeAnnotation ctx rawExpr = do
     (ctx2, expr) <- typeCheckExpr ctx StrictlyAnalyzingType rawExpr
     type' <- extractType expr 
     Right (ctx2, type')
 
-verifyTypes :: Context -> [Raw.Expr] -> Either KeliError (Context, [V.Type]) 
-verifyTypes ctx rawExprs = do
+verifyTypeAnnotationAnnotations :: Context -> [Raw.Expr] -> Either KeliError (Context, [V.TypeAnnotation]) 
+verifyTypeAnnotationAnnotations ctx rawExprs = do
     foldM 
         (\(prevCtx, verifiedTypes) nextRawExpr -> do
-            (nextCtx, verifiedType) <- verifyType prevCtx nextRawExpr
+            (nextCtx, verifiedType) <- verifyTypeAnnotation prevCtx nextRawExpr
             Right (nextCtx, verifiedTypes ++ [verifiedType]))
         (ctx, [])
         rawExprs
@@ -464,7 +473,8 @@ typeCheckFuncCall ctx@(Context _ env) assumption funcCallParams funcIds =
                                 let (ctx2, subst1) = instantiateTypeVar ctx (V.funcDeclGenericParams currentFunc)
 
                                 -- (B) apply substitution to every expected func param types
-                                let expectedParamTypes = map (\(_,paramType) -> applySubstitutionToType subst1 paramType) (V.funcDeclParams currentFunc) 
+                                let expectedParamTypes = map (\(_,paramTypeAnnot) -> 
+                                        applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams currentFunc) 
 
                                 -- (C) check if the firstParam matches the firstParamExpectedType
                                 case unify (head funcCallParams) (head expectedParamTypes) of
@@ -540,13 +550,13 @@ verifyBoundedTypeVar
     -> (Raw.StringToken, Raw.Expr) 
     -> Either KeliError (V.StringToken, Maybe V.TypeConstraint)
 verifyBoundedTypeVar ctx (name, expr) = do
-    (_, result) <- verifyType ctx expr
+    (_, result) <- verifyTypeAnnotation ctx expr
     case result of
-        V.TypeType ->
+        V.TypeAnnotSimple _ (V.TypeType) ->
             Right (name, Nothing)
 
         _ ->
-            Left (KErrorInvalidTypeParamDecl expr)
+            Left (KErrorInvalidBoundedTypeVarDecl expr)
 
 
 hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
@@ -558,27 +568,27 @@ type' `hardConformsTo` (Just constraint) =
         _ -> 
             undefined
 
-extractTag :: OneOf3 V.Expr V.Type [V.UnlinkedTag] -> Either KeliError [V.UnlinkedTag]
+extractTag :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError [V.UnlinkedTag]
 extractTag x =
     case x of
         First expr   -> Left (KErrorExpectedTagButGotExpr expr)
-        Second type' -> Left (KErrorExpectedTagButGotType type')
+        Second type' -> Left (KErrorExpectedTagButGotTypeAnnotation type')
         Third tags   -> Right tags
 
-extractType :: OneOf3 V.Expr V.Type [V.UnlinkedTag] -> Either KeliError V.Type
+extractType :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError V.TypeAnnotation
 extractType x = 
     case x of
         First expr   -> Left (KErrorExpectedTypeButGotExpr expr)
         Second type' -> Right type' 
-        Third tag    -> Left (KErrorExpectedTypeButGotTag tag)
+        Third tag    -> Left (KErrorExpectedTypeAnnotationButGotTag tag)
 
 
 
-extractExpr :: OneOf3 V.Expr V.Type [V.UnlinkedTag] -> Either KeliError V.Expr
+extractExpr :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError V.Expr
 extractExpr x = 
     case x of 
         First expr -> Right expr
-        Second type' -> Left (KErrorExpectedExprButGotType type')
+        Second type' -> Left (KErrorExpectedExprButGotTypeAnnotation type')
         Third tag    -> Left (KErrorExpectedExprButGotTag tag)
 
 
@@ -678,17 +688,17 @@ verifyKeyValuePairs ctx keys values =
             (ctx2, typeCheckedExprs) <- verifyExprs ctx CanBeAnything values
             Right (ctx, zip keys typeCheckedExprs)
 
-verifyKeyTypePairs 
+verifyKeyTypeAnnotPairs 
     :: Context 
     -> [Raw.StringToken] 
     -> [Raw.Expr] 
-    -> Either KeliError (Context, [(V.StringToken, V.Type)])
-verifyKeyTypePairs ctx keys types = do
+    -> Either KeliError (Context, [(V.StringToken, V.TypeAnnotation)])
+verifyKeyTypeAnnotPairs ctx keys types = do
     case findDuplicates keys of
         Just duplicates ->
             Left (KErrorDuplicatedProperties duplicates)
         Nothing -> do
-            (ctx2, verifiedTypes) <- verifyTypes ctx types
+            (ctx2, verifiedTypes) <- verifyTypeAnnotationAnnotations ctx types
             Right (ctx2, zip keys verifiedTypes)
 
 

@@ -29,11 +29,27 @@ data Const = Const {
 
 data Func = Func {
     funcDeclGenericParams :: [Type], -- all should be BoundedTypeVar
-    funcDeclParams        :: [(StringToken, Type)],
+    funcDeclParams        :: [(StringToken, TypeAnnotation)],
     funcDeclIds           :: [StringToken],
     funcDeclReturnType    :: Type,
     funcDeclBody          :: Expr
 } deriving (Show)
+
+data TypeAnnotation 
+    = TypeAnnotSimple 
+        StringToken -- name
+        Type -- ref
+    
+    | TypeAnnotCompound
+        StringToken -- constructor name
+        [(StringToken, TypeAnnotation)] -- key-type pairs
+        Type -- ref
+    deriving (Show)
+
+getTypeRef :: TypeAnnotation -> Type
+getTypeRef x = case x of
+    TypeAnnotSimple _ t -> t
+    TypeAnnotCompound _ _ t -> t
 
 data Type
     = TypeFloat
@@ -113,7 +129,7 @@ data UnlinkedTag
 
     | UnlinkedCarryfulTag
         StringToken -- tag
-        [(StringToken, Type)] -- key-type pairs
+        [(StringToken, TypeAnnotation)] -- key-type pairs
 
     deriving (Show)
 
@@ -196,13 +212,13 @@ data Expr'
         StringToken -- tag name
         [(StringToken, Expr)] -- key-value pairs
 
-    | RecordConstructor [(StringToken, Type)]
+    | RecordConstructor 
+        (Maybe StringToken)   -- record type alias name
+        [(StringToken, Type)]
 
-    | TagConstructorPrefix
+    | TagConstructorPrefix StringToken
 
-    | TypeConstructorPrefix
-
-    | RetrieveCarryExpr Expr
+    | TypeConstructorPrefix StringToken
 
     | FFIJavascript StringToken
 

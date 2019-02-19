@@ -9,10 +9,9 @@ import Text.ParserCombinators.Parsec
 import GHC.Generics
 import Data.Aeson
 import Data.List
-import Analyzer
-import TypeCheck
 import Unify
 
+import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
 
@@ -52,6 +51,85 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
+    KErrorUnknownProp x ->
+        getDiagnostic [x] ("Unkown property: " ++ quote (snd x))
+
+    KErrorMoreThanOneElseBranch xs ->
+        getDiagnostic xs "Should not have more than one `else` branch."
+
+    KErrorTVarSelfReferencing{} ->
+        undefined
+
+    KErrorExpectedColon x ->
+        getDiagnostic [x] "Expected this to be a `:` symbol."
+
+    KErrorUnknownTag t ->
+        getDiagnostic [t] ("Unkown tag: " ++ quote (snd t))
+
+    KErrorBindingCarrylessTag x ->
+        getDiagnostic [x] "Carryless tag does not contains value to be binded to variables."
+
+    KErrorExpectedTagBindings x ->
+        getDiagnostic [x] "Expected this to be a tag binding expression."
+
+    KErrorExpectedHashTag x ->
+        getDiagnostic [x] "Expected this to be a `#` symbol."
+
+    KErrorExpectedPropDefOrId x ->
+        getDiagnostic [x] "Expected this to be properties definition or an identifier."
+
+    KErrorExpectedTypeAnnotationAfterThis x ->
+        getDiagnostic [x] "Expected a type annotation after this."
+        
+    KErrorExpectedIfOrElse x ->
+        getDiagnostic [x] "Expected this to be `if` or `else`"
+
+    KErrorInvalidBoundedTypeVarDecl x ->
+        getDiagnostic [x] "Invalid bounded type variable."
+
+    KErrorIncorrectUsageOfTagConstructorPrefix x ->
+        getDiagnostic [x] "Incorrect usage of tag constructor prefix."
+
+    KErrorExpectedId x ->
+        getDiagnostic [x] "Expected an identifier."
+
+    KErrorTagNotFound actualTagname (_,taggedUnionName) _ ->
+        getDiagnostic [actualTagname] ("The tagged union " ++ taggedUnionName ++ " does not have the tag " ++ quote (snd actualTagname))
+
+    KErrorTypeConstructorIdsMismatch expectedIds actualIds ->
+        let combine xs = quote (intercalate "," (map (\(_,id) -> id) xs)) in
+        getDiagnostic actualIds ("Expected type constructor ids is " ++ combine expectedIds ++ " but got " ++ combine actualIds)
+
+    KErrorUnknownFFITarget x ->
+        getDiagnostic [x] ("Unkown FFI target: " ++ quote (snd x))
+
+    KErrorFFIValueShouldBeString x ->
+        getDiagnostic [x] "FFI value should be type of String."
+
+    KErrorExpectedExprButGotTypeAnnotation typeAnnon ->
+        getDiagnostic [typeAnnon] "Expected an expression but got a type annotation."
+
+    KErrorExpectedTypeAnnotationButGotTag tags ->
+        getDiagnostic tags "Expected an type annotation but got tags."
+
+    KErrorExpectedExprButGotTag tags ->
+        getDiagnostic tags "Expected an expression but got tags."
+
+    KErrorExpectedExprOrTypeButGotTag tags ->
+        getDiagnostic tags "Expected an expression or a type annotation but got tags."
+
+    KErrorCannotDeclareTypeAsAnonymousConstant x -> 
+        getDiagnostic [x] "Cannot declare type as anonymous constant."
+
+    KErrorCannotDeclareTagAsAnonymousConstant tags ->
+        getDiagnostic tags "Cannot declare tags as anonymous constant."
+
+    KErrorExpectedTagButGotExpr x ->
+        getDiagnostic [x] "Expected a tag but got an expression."
+
+    KErrorExpectedTagButGotTypeAnnotation x ->
+        getDiagnostic [x] "Expected a tag but got a type annotation."
+
     KErrorIncompleteFuncCall _ positionOfDotOperator ->
         [Diagnostic 1 (buildRange positionOfDotOperator 1) "Expecting function identifier after this dot operator."]
         
@@ -107,7 +185,7 @@ toDiagnostic err = case err of
 
     KErrorPropertyTypeMismatch propname expectedType actualType actualExpr ->
         getDiagnostic [propname] (
-            "The expected type of " ++ snd propname ++ "is " ++ V.stringifyType expectedType ++ ".\n" ++
+            "The expected type of " ++ quote (snd propname) ++ " is " ++ V.stringifyType expectedType ++ ".\n" ++
             "But the given expression have type of " ++ V.stringifyType actualType)
 
     KErrorNotAFunction funcIds ->
@@ -129,9 +207,15 @@ toDiagnostic err = case err of
     KErrorTypeMismatch actualExpr actualType expectedType ->
         typeMismatchError (V.Expr actualExpr ( actualType)) ( expectedType)
 
+    KErrorExpectedTypeButGotExpr expr ->
+        getDiagnostic [expr] ("Expected a type but got an expression.")
+
     KErrorNotAllBranchHaveTheSameType actualExpr actualType expectedType firstBranch ->
         let locationOfFirstBranch = 
                 case firstBranch of
+                    V.ElseBranch expr ->
+                        getRange expr
+
                     V.CarrylessTagBranch _ expr ->
                         getRange expr
 
@@ -169,8 +253,54 @@ instance HaveRange V.StringToken where
 instance HaveRange V.Expr where
     getRange (V.Expr expr _) = getRange expr
 
+instance HaveRange V.TypeAnnotation where
+    getRange (V.TypeAnnotSimple x _) = getRange x
+    getRange (V.TypeAnnotCompound name keyTypeAnnotPairs _) =
+        mergeRanges ([getRange name] ++ map (\(_,t) -> getRange t) keyTypeAnnotPairs)
+
+instance HaveRange V.UnlinkedTag where
+    getRange (V.UnlinkedCarrylessTag x) = getRange x
+    getRange (V.UnlinkedCarryfulTag name keyTypeAnnotPairs) = 
+        mergeRanges ([getRange name] ++ map (\(_,t) -> getRange t) keyTypeAnnotPairs)
+
 instance HaveRange V.Expr' where
-    getRange expr = case expr of
+    getRange expression = case expression of
+        V.FFIJavascript code ->
+            getRange code
+
+        V.TagConstructorPrefix name ->
+            getRange name
+
+        V.TypeConstructorPrefix name ->
+            getRange name
+
+        V.CarryfulTagConstructor name _ ->
+            getRange name
+
+        V.RecordConstructor (Just name) _ ->
+            getRange name
+        
+        V.CarrylessTagExpr _ x ->
+            getRange x
+
+        V.CarryfulTagExpr name x ->
+            mergeRanges [getRange name, getRange (PropValuePairs x)]
+
+        V.TagMatcher subject branches _ ->
+            mergeRanges [
+                getRange subject,
+                mergeRanges (map getRange branches)
+            ]
+
+        V.RecordSetter subject prop newValue ->
+            mergeRanges [getRange subject, getRange prop, getRange newValue]
+
+        V.RecordGetter subject prop ->
+            mergeRanges [getRange subject, getRange prop]
+
+        V.Lambda (param,_) body ->
+            mergeRanges [getRange param, getRange body]
+
         V.IntExpr (sourcePos, value) ->
             buildRange sourcePos (length (show value))
 
@@ -187,6 +317,53 @@ instance HaveRange V.Expr' where
             let ranges1 = map (\(V.Expr expr' _) -> getRange expr') params in
             let ranges2 = map getRange ids in
             mergeRanges [mergeRanges ranges1, mergeRanges ranges2]
+
+        V.Record x ->
+            getRange (PropValuePairs x)
+
+        V.FuncApp left right ->
+            mergeRanges [getRange left, getRange right]
+
+data PropValuePairs = PropValuePairs [(V.StringToken, V.Expr)]
+
+instance HaveRange PropValuePairs where
+    getRange (PropValuePairs propValuePairs) = 
+        foldl' 
+            (\ranges (prop, value) -> 
+                mergeRanges [ranges ,mergeRanges [getRange prop, getRange value]])
+            (let (prop,value) = head propValuePairs in mergeRanges [getRange prop, getRange value])
+            (tail propValuePairs)
+
+instance HaveRange Raw.Expr where
+    getRange raw = case raw of
+        Raw.NumberExpr (sourcePos, Left value) ->
+            buildRange sourcePos (length (show value))
+
+        Raw.NumberExpr (sourcePos, Right value) ->
+            buildRange sourcePos (length (show value))
+
+        Raw.StringExpr (sourcePos, value) ->
+            buildRange sourcePos (length value + 2)
+        
+        Raw.Id (sourcePos, value) ->
+            buildRange sourcePos (length value)
+
+        Raw.FuncCall params ids ->
+            mergeRanges (map getRange ids ++ map getRange params)
+
+
+instance HaveRange V.TagBranch where
+    getRange (V.CarrylessTagBranch tagname expr) = 
+        mergeRanges [getRange tagname, getRange expr]
+        
+    getRange (V.CarryfulTagBranch tagname _ expr) =
+        mergeRanges [getRange tagname, getRange expr]
+
+    getRange (V.ElseBranch expr) = 
+        getRange expr
+
+instance HaveRange V.VerifiedTagname where
+    getRange (V.VerifiedTagname x) = getRange x
 
 buildRange :: SourcePos -> Int -> Range
 buildRange sourcePos length' = 

@@ -111,8 +111,8 @@ analyzeDecl decl env = case decl of
                     First typeCheckedExpr ->
                         Right (KeliSymConst id typeCheckedExpr)
 
-                    Second type' -> do
-                        case type' of
+                    Second (V.TypeAnnotCompound _ _ t) -> do
+                        case t of
                             V.TypeRecord _ expectedPropTypePairs ->
                                 Right (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
 
@@ -121,6 +121,9 @@ analyzeDecl decl env = case decl of
                             
                             _ ->
                                 undefined
+
+                    Second (V.TypeAnnotSimple _ t) -> do
+                        undefined
 
                     Third tag -> do
                         taggedUnionType <- linkTagsTogether id [] tag []
@@ -153,18 +156,18 @@ analyzeDecl decl env = case decl of
             verifiedFuncParams <-
                     mapM
                         (\(id, typeAnnot) -> do 
-                            (_, verifiedTypeAnnotation) <- verifyType (Context 0 env1) typeAnnot
+                            (_, verifiedTypeAnnotation) <- verifyTypeAnnotation (Context 0 env1) typeAnnot
                             return (id, verifiedTypeAnnotation)) 
                         funcParams
 
             -- 1.2 populate symbol table with function parameters
             env2 <- 
                 foldM 
-                    (\acc (id, type') ->
+                    (\acc (id, typeAnnot) ->
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else
-                            Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) type'))))
+                            Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) (V.getTypeRef typeAnnot)))))
                 env1 
                 verifiedFuncParams
             
@@ -172,8 +175,8 @@ analyzeDecl decl env = case decl of
             verifiedReturnType <- 
                 (case returnType of 
                     Just t -> do
-                        (_, verifiedType) <- verifyType (Context 0 env1) t
-                        Right verifiedType
+                        (_, verifiedTypeAnnot) <- verifyTypeAnnotation (Context 0 env1) t
+                        Right (V.getTypeRef verifiedTypeAnnot)
 
                     Nothing ->
                         Right (V.TypeUndefined))
@@ -229,8 +232,8 @@ analyzeDecl decl env = case decl of
             First checkedExpr ->
                 Right (KeliSymInlineExprs [checkedExpr])
 
-            Second type' -> 
-                Left (KErrorCannotDeclareTypeAsAnonymousConstant type')
+            Second typeAnnot -> 
+                Left (KErrorCannotDeclareTypeAsAnonymousConstant typeAnnot)
             
             Third tags ->
                 Left (KErrorCannotDeclareTagAsAnonymousConstant tags)
@@ -298,10 +301,10 @@ linkTagsTogether taggedUnionName ids tags typeParams =
                         (\x -> case x of
                             V.UnlinkedCarrylessTag tag          -> 
                                 (V.CarrylessTag tag tagUnionType)
-                            V.UnlinkedCarryfulTag tag carryType -> 
-                                let carryType' = map (\(key, type') ->
-                                        (key, substituteSelfType ( (V.TypeTaggedUnion tagUnionType)) type')) 
-                                        carryType in
+                            V.UnlinkedCarryfulTag tag carryTypes -> 
+                                let carryType' = map (\(key, typeAnnot) ->
+                                        (key, substituteSelfType ( (V.TypeTaggedUnion tagUnionType)) (V.getTypeRef typeAnnot))) 
+                                        carryTypes in
                                 (V.CarryfulTag tag carryType' tagUnionType)) 
                         tags
             in

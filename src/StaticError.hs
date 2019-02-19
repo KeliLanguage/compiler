@@ -59,21 +59,19 @@ data KeliError
         Verified.Type -- expected type
         Verified.Expr -- actual expr (type-checked)
 
-    | KErrorCannotDeclareTypeAsAnonymousConstant Verified.Type
+    | KErrorCannotDeclareTypeAsAnonymousConstant Verified.TypeAnnotation
     | KErrorCannotDeclareTagAsAnonymousConstant [Verified.UnlinkedTag]
 
     | KErrorExpectedTypeButGotExpr      Verified.Expr
     | KErrorExpectedTagButGotExpr       Verified.Expr
-    | KErrorExpectedTagButGotType       Verified.Type
-    | KErrorExpectedExprButGotType      Verified.Type
-    | KErrorExpectedTypeButGotTag       [Verified.UnlinkedTag]
+    | KErrorExpectedTagButGotTypeAnnotation       Verified.TypeAnnotation
+    | KErrorExpectedExprButGotTypeAnnotation      Verified.TypeAnnotation
+    | KErrorExpectedTypeAnnotationButGotTag       [Verified.UnlinkedTag]
     | KErrorExpectedExprButGotTag       [Verified.UnlinkedTag]
     | KErrorExpectedExprOrTypeButGotTag [Verified.UnlinkedTag]
     | KErrorUnknownFFITarget Verified.StringToken
     | KErrorFFIValueShouldBeString Verified.Expr
-    | KErrorExprIsNotATypeConstraint    Raw.Expr
-    | KErrorIncorrectMethodToRetrieveCarry Verified.StringToken
-    | KErrorInvalidTypeParamDecl Raw.Expr
+    | KErrorInvalidBoundedTypeVarDecl Raw.Expr
     | KErrorIncorrectUsageOfTagConstructorPrefix Raw.Expr
     | KErrorTagNotFound 
         Raw.StringToken -- tag that user wanted to use
@@ -81,7 +79,7 @@ data KeliError
         [Verified.Tag]    -- list of possible tags
 
     | KErrorIncompleteFuncCall -- for implementing Intellisense
-        (OneOf3 Verified.Expr Verified.Type [Verified.UnlinkedTag])
+        (OneOf3 Verified.Expr Verified.TypeAnnotation [Verified.UnlinkedTag])
         SourcePos -- position of the dot operator
 
     | KErrorCannotRedefineReservedConstant Raw.StringToken
@@ -89,13 +87,6 @@ data KeliError
     | KErrorTypeConstructorIdsMismatch 
         [Raw.StringToken] -- expected ids
         [Raw.StringToken] -- actual ids
-    | KErrorCannotMatchConcreteTypeWithRigidTypeVariable 
-        Verified.Expr -- actual expr
-        Verified.Type   -- expected type
-
-    | KErrorCannotMatchRigidTypeVariableWithConcreteType
-        Verified.Expr -- actual expr
-        Verified.Type   -- expected type
 
     | KErrorTypeMismatch 
         Verified.Expr' -- actual expr (for locating error position)
@@ -108,19 +99,13 @@ data KeliError
         Verified.Type  -- expected type
         Verified.TagBranch -- first branch
 
-    | KErrorExpectedACarry
-        Raw.StringToken -- carryful tag name
-
-    | KErrorMissingCarryfulTagBranch
-        Raw.StringToken -- `?` should appear after this token
-
     | KErrorExpectedId
         Raw.Expr
 
     | KErrorExpectedHashTag 
         Raw.StringToken
 
-    | KErrorExpectedFuncCallOrId
+    | KErrorExpectedPropDefOrId
         Raw.Expr
 
     | KErrorExpectedTypeAnnotationAfterThis
