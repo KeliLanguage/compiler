@@ -230,12 +230,16 @@ stringifyType t = case t of
         TypeFloat  -> "Float"
         TypeInt    -> "Int"
         TypeString -> "String"
-        TypeRecord name kvs ->  
+        TypeRecord name propTypePairs ->  
             case name of 
                 Just n ->
                     snd n
                 Nothing ->
-                    show kvs
+                    "record." ++ 
+                    intercalate " " 
+                        (map (\((_,prop),type') ->
+                            prop ++ "(" ++ stringifyType type' ++  ")")
+                            propTypePairs)
 
         TypeTypeParam _ _ -> ""
         TypeType -> "type"
