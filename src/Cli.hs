@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Cli where
 
 
@@ -5,7 +6,10 @@ import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
 import Data.List
+import Data.Foldable
+import Data.Sequence
 import qualified Data.ByteString.Lazy.Char8 as Char8
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import Interpreter
 import Repl
@@ -23,7 +27,10 @@ data CliInput
     = Execute String 
     | Interactive Bool
     | Analyze String 
-    | Suggest String
+    | Suggest 
+        String --filename
+        Int    --line number
+        Int    --column number
     deriving (Show)
 
 parseExecute :: Parser CliInput
@@ -56,6 +63,18 @@ parseSuggest = Suggest
             <> short 's'
             <> metavar "FILENAME"
             <> help "Analyze a Keli program (*.keli) and display completion items." )
+        <*> option auto
+            (  long "line"
+            <> short 'l'
+            <> metavar "LINE"
+            <> help "To be used with --suggest" )
+        <*> option auto
+            (  long "column"
+            <> short 'c'
+            <> metavar "COLUMN"
+            <> help "To be used with --suggest" )
+
+
 
 allParser :: Parser CliInput
 allParser 
@@ -91,9 +110,40 @@ handleCliInput input =
                 Left errs ->
                     putStr (Char8.unpack (encode (concat (map toDiagnostic errs))))
 
-        Suggest filename -> do
+        Suggest filename lineNumber columnNumber -> do
             contents <- readFile filename
-            case keliParse filename contents of
+            let lines' = lines contents
+            let currentChar = lines' !! lineNumber !! columnNumber
+            let contents' = 
+                    -- if the current character is a dot(.)
+                        -- replace it with semicolon(;)
+                        -- so that we can parse KeliIncompleteFuncCall properly
+                    if currentChar == '.' then
+                        let lines'' = fromList (map fromList lines') in
+                        let result = (
+                                update 
+                                    -- at
+                                    lineNumber 
+
+                                    -- with new value
+                                    (update 
+                                        -- at
+                                        columnNumber
+
+                                        -- with new value
+                                        ';'
+
+                                        -- over
+                                        (lines'' `index` lineNumber))
+
+                                    -- over
+                                    lines'') in
+
+                        concat (map toList (toList result))
+                    else
+                        contents
+
+            case keliParse filename contents' of
                 Right decls ->
                     let completionItems = suggestCompletionItems decls in
                     putStr (Char8.unpack (encode completionItems))

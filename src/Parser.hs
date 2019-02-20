@@ -39,16 +39,20 @@ keliConstDecl
 
 keliExpr :: Parser Raw.Expr
 keliExpr 
+    =  try keliIncompleteFuncCall 
+   <|> keliExpr'
+
+keliExpr' :: Parser Raw.Expr
+keliExpr' 
     =  try keliFuncCall
-   <|> try keliIncompleteFuncCall 
    <|> try keliLambda
    <|> keliAtomicExpr 
 
 keliIncompleteFuncCall :: Parser Raw.Expr
 keliIncompleteFuncCall
-    =  keliAtomicExpr     >>= \param1
+    =  keliExpr'          >>= \param1
     -> getPosition        >>= \pos
-    -> char '.' >> spaces >>= \_
+    -> char ';' >> spaces >>= \_
     -> return (Raw.IncompleteFuncCall param1 pos)
  
 

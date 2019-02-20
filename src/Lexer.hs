@@ -4,10 +4,13 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+languageDef :: LanguageDef st
 languageDef =
   emptyDef { Token.commentStart    = "/*"
            , Token.commentEnd      = "*/"
            , Token.commentLine     = "//"
+           , Token.opStart         = oneOf "~!@#$%^&*-=+:?/<>\\"
+           , Token.opLetter        = oneOf "~!@#$%^&*-=+:?/<>\\"
            , Token.identStart      = letter   <|> char '_' <|> char '#'  
            , Token.identLetter     = alphaNum <|> char '_' <|> char '?' <|> char ':'
            , Token.reservedOpNames = [

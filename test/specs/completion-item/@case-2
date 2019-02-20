@@ -1,0 +1,13 @@
+(x Int).sqrt  = ffi.javascript("Math.sqrt($x)").as(Int)
+
+(x Int).+(y Int)  = ffi.javascript("$x + $y").as(Int)
+
+(x Int).withBase(base Int) log(value Int) = 123
+
+z = 123
+
+= z.sqrt.+(2).withBase(10) log(5);
+
+====
+
+KErrorIncompleteFuncCall

@@ -1,0 +1,33 @@
+Result.ok(A Type) fail(B Type) = tags.
+    #(ok.value(A))
+    #(fail.with(B))
+
+{A Type} {B Type} {C Type}
+(this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
+    | Result.ok(C) fail(B)
+    = this.
+        if(ok.value(v)):
+            (Result.ok.value(f.apply(v)))
+        if(fail.with(error)):
+            (Result.fail.with(error))
+
+Boolean = tags.
+    #(true) 
+    #(false) 
+
+(x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+
+(this Int).isZero | Result.ok(Int) fail(String) = 
+    this.==(0).
+        if(true):
+            (Result.ok.value(0))
+        if(false):
+            (Result.fail.with("Not a zero"))
+            
+= 123.isZero
+= 0.isZero 
+
+====
+
+{ __tag: 'fail', __carry: { '$with': 'Not a zero' } }
+{ __tag: 'ok', __carry: { '$value': 0 } }

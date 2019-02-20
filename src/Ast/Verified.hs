@@ -261,4 +261,6 @@ stringifyType t = case t of
         TypeType -> "Type"
         TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name
         BoundedTypeVar name _ -> snd name
+        FreeTypeVar name _ -> name
+        TypeUndefined -> "Undefined"
         _ -> error (show t)
