@@ -58,3 +58,7 @@ MAJOR.YY.MM.DD
 
 ### Algorithm W implemented in Haskell
 http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.65.7733&rep=rep1&type=pdf
+
+## Type inferfence for beginners (by Dhruv Rajvanshi)
+https://medium.com/@dhruvrajvanshi/type-inference-for-beginners-part-1-3e0a5be98a4b
+https://medium.com/@dhruvrajvanshi/type-inference-for-beginners-part-2-f39c33ca9513
