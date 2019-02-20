@@ -10,11 +10,9 @@ import qualified Ast.Verified as V
 data KeliSymbol
     = KeliSymFunc           [V.Func]
     | KeliSymConst          Raw.StringToken     V.Expr
-    | KeliSymTag            V.Tag
     | KeliSymType           V.Type 
-    | KeliSymTypeConstraint Raw.StringToken     V.TypeConstraint
-    | KeliSymInlineExprs    [V.Expr] -- for storing expr from Raw.IdlessConst
     | KeliSymTypeConstructor V.TaggedUnion
+    | KeliSymInlineExprs    [V.Expr] -- for storing expr from Raw.IdlessConst
         
     deriving(Show)
 

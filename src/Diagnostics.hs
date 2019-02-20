@@ -207,8 +207,8 @@ toDiagnostic err = case err of
     KErrorTypeMismatch actualExpr actualType expectedType ->
         typeMismatchError (V.Expr actualExpr ( actualType)) ( expectedType)
 
-    KErrorExpectedTypeButGotExpr expr ->
-        getDiagnostic [expr] ("Expected a type but got an expression.")
+    KErrorExpectedTypeAnnotButGotExpr expr ->
+        getDiagnostic [expr] ("Expected a type annotation but got an expression.")
 
     KErrorNotAllBranchHaveTheSameType actualExpr actualType expectedType firstBranch ->
         let locationOfFirstBranch = 

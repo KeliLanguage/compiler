@@ -5,7 +5,7 @@ module Analyzer where
 
 import Control.Monad
 import Data.List hiding (lookup)
-import Data.Map.Ordered ((|>), assocs, member, lookup) 
+import Data.Map.Ordered ((|>), assocs, member) 
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 
@@ -19,26 +19,23 @@ import Unify
 
 analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
 analyze decls = 
-    let (errors, finalEnv, _) = analyzeDecls initialEnv decls in
-    let analyzedSymbols = extractSymbols finalEnv in
+    let (errors, _, analyzedSymbols) = analyzeDecls initialEnv decls in
 
     -- sorting is necessary, so that the transpilation order will be correct
     -- Smaller number means will be transpiled first
     let sortedSymbols = sortOn (
             \x -> case x of 
-                KeliSymTag _             -> 1
+                KeliSymTypeConstructor{} -> 1
                 KeliSymType{}            -> 2
-                KeliSymTypeConstructor{} -> 2
                 KeliSymFunc _            -> 3
                 KeliSymConst _ _         -> 4
-                KeliSymTypeConstraint {} -> 6
-                KeliSymInlineExprs _     -> 7
+                KeliSymInlineExprs _     -> 5
             ) analyzedSymbols in
 
     if length errors > 0 then
         Left errors
     else
-        Right sortedSymbols
+        Right (sortedSymbols)
 
 extractSymbols :: Env -> [KeliSymbol]
 extractSymbols env = map snd (assocs env)
@@ -51,28 +48,28 @@ data TypeDecl =
 analyzeDecls 
     :: Env -- previous env
     -> [Raw.Decl] -- parsed input
-    -> ([KeliError], Env, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
+    -> ([KeliError], Env, [KeliSymbol]) -- (accumulatedErrors, newEnv, symbols)
 
 analyzeDecls env decls = 
-    let (finalErrors, finalSymtab, finalSymbols) = 
+    let (finalErrors, finalEnv) = 
             foldl'
-            ((\(errors, prevSymtab, prevSymbols) nextDecl1 -> 
-                let (newErrors, newSymtab, newSymbols) = 
+            ((\(errors, prevSymtab) nextDecl1 -> 
+                let (newErrors, newSymtab) = 
                         case analyzeDecl nextDecl1 prevSymtab of
                             Right analyzedSymbol -> 
                                 case insertSymbolIntoEnv analyzedSymbol prevSymtab of
                                     Right newSymtab' -> 
-                                        ([], newSymtab', [analyzedSymbol])
+                                        ([], newSymtab')
                                     Left err' -> 
-                                        ([err'], prevSymtab, [analyzedSymbol]) 
+                                        ([err'], prevSymtab) 
                             Left err' -> 
-                                ([err'], prevSymtab, []) in
+                                ([err'], prevSymtab) in
                 
-                (errors ++ newErrors, newSymtab, prevSymbols ++ newSymbols)
-            )::([KeliError], Env, [KeliSymbol]) -> Raw.Decl -> ([KeliError],Env, [KeliSymbol]))
-            ([], env, [])
+                (errors ++ newErrors, newSymtab)
+            )::([KeliError], Env) -> Raw.Decl -> ([KeliError],Env))
+            ([], env)
             decls in
-    (finalErrors, finalSymtab, finalSymbols)
+    (finalErrors, finalEnv, extractSymbols finalEnv)
 
 
 analyzeDecl :: Raw.Decl -> Env -> Either KeliError KeliSymbol
@@ -82,7 +79,7 @@ analyzeDecl decl env = case decl of
         Raw.constDeclValue=expr
     } -> 
         case expr of
-            Raw.Id s@(_,id') -> 
+            Raw.Id _ -> 
                 let reservedConstants = [
                         "tags",
                         "record",
@@ -116,7 +113,7 @@ analyzeDecl decl env = case decl of
                             V.TypeRecord _ expectedPropTypePairs ->
                                 Right (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
 
-                            t@V.TypeTaggedUnion{} ->
+                            V.TypeTaggedUnion{} ->
                                 Right (KeliSymType t)
                             
                             _ ->
@@ -239,7 +236,7 @@ analyzeDecl decl env = case decl of
                 Left (KErrorCannotDeclareTagAsAnonymousConstant tags)
 
         
-    r@(Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody) -> do
+    Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody -> do
         -- 1. verify all type params
         verifiedTypeParams <- mapM (verifyBoundedTypeVar (Context 0 env)) typeParams 
 

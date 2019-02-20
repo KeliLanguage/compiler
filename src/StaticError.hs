@@ -62,7 +62,7 @@ data KeliError
     | KErrorCannotDeclareTypeAsAnonymousConstant Verified.TypeAnnotation
     | KErrorCannotDeclareTagAsAnonymousConstant [Verified.UnlinkedTag]
 
-    | KErrorExpectedTypeButGotExpr      Verified.Expr
+    | KErrorExpectedTypeAnnotButGotExpr      Verified.Expr
     | KErrorExpectedTagButGotExpr       Verified.Expr
     | KErrorExpectedTagButGotTypeAnnotation       Verified.TypeAnnotation
     | KErrorExpectedExprButGotTypeAnnotation      Verified.TypeAnnotation

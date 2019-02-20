@@ -218,12 +218,11 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                     let rawTagBranches = zip tags branches
 
                                     -- 2.1 type check raw tag branches
-                                    (ctx2, typeCheckedTagBranches) <- 
-                                            foldM 
-                                                (\(prevCtx, typeCheckedTagBranches') nextRawTagBranch -> do
-                                                    (nextCtx, typeCheckedTagBranch) <- typeCheckTagBranch prevCtx expectedTags nextRawTagBranch
-                                                    Right (nextCtx, typeCheckedTagBranches' ++ [typeCheckedTagBranch]))
-                                                (ctx, [])
+                                    typeCheckedTagBranches <- 
+                                            mapM 
+                                                (\nextRawTagBranch -> do
+                                                    (_, typeCheckedTagBranch) <- typeCheckTagBranch ctx expectedTags nextRawTagBranch
+                                                    Right typeCheckedTagBranch)
                                                 rawTagBranches
 
                                     -- 2.2 type check raw else branches
@@ -253,7 +252,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
 
                                             case match actualTagnames expectedTagnames of
                                                 PerfectMatch ->
-                                                    Right (ctx2, First (V.Expr 
+                                                    Right (ctx3, First (V.Expr 
                                                         (V.TagMatcher subject typeCheckedTagBranches Nothing) 
                                                         branchType))
 
@@ -267,7 +266,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
 
                                                         1 ->
                                                             let elseBranch = head typeCheckedElseBranches in
-                                                            Right (ctx2, First (V.Expr 
+                                                            Right (ctx3, First (V.Expr 
                                                                 (V.TagMatcher subject typeCheckedTagBranches (Just elseBranch)) 
                                                                 branchType))
 
@@ -578,7 +577,7 @@ extractTag x =
 extractType :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError V.TypeAnnotation
 extractType x = 
     case x of
-        First expr   -> Left (KErrorExpectedTypeButGotExpr expr)
+        First expr   -> Left (KErrorExpectedTypeAnnotButGotExpr expr)
         Second type' -> Right type' 
         Third tag    -> Left (KErrorExpectedTypeAnnotationButGotTag tag)
 

@@ -258,6 +258,7 @@ stringifyType t = case t of
                             propTypePairs)
 
         TypeTypeParam _ _ -> ""
-        TypeType -> "type"
+        TypeType -> "Type"
         TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name
+        BoundedTypeVar name _ -> snd name
         _ -> error (show t)

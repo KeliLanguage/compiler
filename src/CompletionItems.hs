@@ -4,6 +4,7 @@ module CompletionItems where
 
 import GHC.Generics
 import Data.Aeson
+import Data.Char
 import Env
 import Analyzer
 import Util
@@ -65,11 +66,14 @@ toCompletionItem :: KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
         KeliSymConst (_, id) _ -> 
-            [CompletionItem  6 id  "" id 1]
+            [CompletionItem  6 id  "Constant" id 1]
         
         KeliSymType t ->
             let id = V.stringifyType t in
-            [CompletionItem 7 id "" id 1]
+            [CompletionItem 7 id "Type" id 1]
+
+        KeliSymTypeConstructor (V.TaggedUnion (_,id) ids _ _) ->
+            [CompletionItem 7 id "Type constructor" id 1]
         
         KeliSymFunc funcs -> 
             map 
@@ -89,9 +93,9 @@ toCompletionItem symbol =
                         1 -- TODO: change to 2 (snippet)
                 ) 
                 funcs
-        _ -> 
+        
+        KeliSymInlineExprs{} ->
             []
-
 
 rebuildSignature :: V.Func -> String 
 rebuildSignature (V.Func genparams params funcIds returnType _) = 
@@ -121,8 +125,9 @@ bracketize str = "(" ++ str ++ ")"
 
 suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
 suggestCompletionItems decls =
-    let (errors,_,symbols) = analyzeDecls emptyEnv decls in
+    let (errors,env, symbols) = analyzeDecls initialEnv decls in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
+        -- if is triggered by pressing the dot operator
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
             case thing of
                 First expr -> 
@@ -184,13 +189,26 @@ suggestCompletionItems decls =
                                 insertTextFormat = 1
                             }]
 
+
+                        -- lambda
+                        (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ _)) ->
+                            [CompletionItem {
+                                kind = 2,
+                                label = "apply",
+                                detail = "",
+                                insertText = "apply($1)",
+                                insertTextFormat = 2
+                            }]
+
                         -- tag matchers
                         (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
                             let insertText' = 
                                     concat (map (\t -> "\n\t" ++ 
                                         (case t of 
-                                            V.CarryfulTag (_,tagname) _ _ ->
-                                                "if(" ++ tagname ++ "):\n\t\t(undefined)"
+                                            V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
+                                                "if(" ++ tagname ++ "."
+                                                    ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
+                                                    ++ "):\n\t\t(undefined)"
 
                                             V.CarrylessTag (_,tagname) _ ->
                                                 "if(" ++ tagname ++ "):\n\t\t(undefined)")) tags) in
@@ -215,12 +233,13 @@ suggestCompletionItems decls =
                                         })
                                 propTypePairs) ++ relatedFuncsCompletionItems
 
+
                     --     -- TODO: lambda (apply)
 
 
                     --     -- otherwise: scope related functions
-                    --     _ ->
-                    --         relatedFuncsCompletionItems
+                        _ ->
+                            relatedFuncsCompletionItems
 
                 Third tag ->
                     []
@@ -234,7 +253,7 @@ suggestCompletionItems decls =
                         insertTextFormat = 1
                     }]
 
-        _ ->
-            -- if not triggered by pressing the dot operator
+        -- if not triggered by pressing the dot operator
+        other ->
             -- then only return only non-functions identifiers
-            concat (map toCompletionItem (filter (\s -> case s of KeliSymFunc{} -> False; _ -> True) symbols))
+            concat (map toCompletionItem ((filter (\s -> case s of KeliSymFunc{} -> False; _ -> True) (symbols))))

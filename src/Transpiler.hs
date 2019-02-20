@@ -51,13 +51,7 @@ instance Transpilable KeliSymbol where
         KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
             "const " ++ prefix (snd name) ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
 
-        KeliSymTypeConstructor {} ->
-            ""
-
         KeliSymType {} -> 
-            ""
-
-        KeliSymTypeConstraint {} ->
             ""
 
         KeliSymInlineExprs exprs -> 
