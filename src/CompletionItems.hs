@@ -81,21 +81,35 @@ toCompletionItem symbol =
                     let ids = V.funcDeclIds f in 
                     let funcParams = V.funcDeclParams f in
                     let signature = (intercalate "() " (map snd ids)) in
-                    let text = 
+                    let label = 
                             (if length funcParams > 1 then 
                                 signature ++ "()"
                             else
                                 signature) in
+
+                    let text = 
+                            (if length funcParams == 1 then 
+                                signature
+                            else
+                                makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) funcParams))) in
                     CompletionItem 3
-                        text
+                        label
                         (rebuildSignature f)
                         text
-                        1 -- TODO: change to 2 (snippet)
-                ) 
-                funcs
+                        2 
+                    )funcs
         
         KeliSymInlineExprs{} ->
             []
+
+makeKeyValuesSnippet :: [(String,String)] -> String
+makeKeyValuesSnippet kvs =
+    intercalate " "
+    (map 
+        (\((key, value), index) -> 
+            key ++ "(${" ++ show index ++ ":" ++ value ++ "})")
+        (zip kvs [1..]))
+
 
 rebuildSignature :: V.Func -> String 
 rebuildSignature (V.Func genparams params funcIds returnType _) = 
@@ -166,7 +180,9 @@ suggestCompletionItems decls =
                                                 kind = 13, -- enum
                                                 label = text,
                                                 detail = "",
-                                                insertText = text,
+                                                insertText = tagname 
+                                                    ++ "." 
+                                                    ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
                                                 insertTextFormat = 2
                                             }
                                         
@@ -187,8 +203,8 @@ suggestCompletionItems decls =
                                 kind = 4, -- constructor
                                 label = text,
                                 detail = "constructor",
-                                insertText = text,
-                                insertTextFormat = 1
+                                insertText = makeKeyValuesSnippet (map (\(p, t) -> (snd p, V.stringifyType t)) propTypePairs),
+                                insertTextFormat = 2
                             }]
 
 
@@ -205,34 +221,43 @@ suggestCompletionItems decls =
                         -- tag matchers
                         (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
                             let insertText' = 
-                                    concat (map (\t -> "\n\t" ++ 
-                                        (case t of 
-                                            V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
-                                                "if(" ++ tagname ++ "."
-                                                    ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
-                                                    ++ "):\n\t\t(undefined)"
+                                    concatMap 
+                                        (\(t,index) -> "\n\t" ++ 
+                                            (case t of 
+                                                V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
+                                                    "if(" ++ tagname ++ "."
+                                                        ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
+                                                        ++ "):\n\t\t(${" ++ show index ++ ":undefined})"
 
-                                            V.CarrylessTag (_,tagname) _ ->
-                                                "if(" ++ tagname ++ "):\n\t\t(undefined)")) tags) in
+                                                V.CarrylessTag (_,tagname) _ ->
+                                                    "if(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
+                                        (zip tags [1..]) in
                             [CompletionItem {
                                 kind = 12, -- value
                                 label = "if(...)",
                                 detail = "tag matcher",
                                 insertText = insertText',
-                                insertTextFormat = 1
+                                insertTextFormat = 2
                             }] ++ relatedFuncsCompletionItems
 
                         -- record (getter/setter)
                         (V.TypeRecord _ propTypePairs) ->
-                            (map 
+                            (concatMap 
                                 (\((_,prop), expectedType') ->
-                                        CompletionItem {
+                                        [CompletionItem {
                                             kind = 10, -- property
                                             label = prop,
-                                            detail = V.stringifyType expectedType',
+                                            detail = "getter",
                                             insertText = prop,
                                             insertTextFormat = 1
-                                        })
+                                        },
+                                        CompletionItem {
+                                            kind = 10, -- property
+                                            label = prop ++ "()",
+                                            detail = "setter",
+                                            insertText = prop ++ "(${1:undefined})",
+                                            insertTextFormat = 2
+                                        }])
                                 propTypePairs) ++ relatedFuncsCompletionItems
 
 
