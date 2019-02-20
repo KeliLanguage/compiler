@@ -48,6 +48,11 @@ Boolean = tags.
 (x Int).toFloat = ffi.javascript("Math.trunc($x)").as(Float)
 (x Float).toInt = ffi.javascript("$x").as(Int)
 
+{A Type}
+(x A).toString = ffi.javascript("$x.toString()").as(String)
+
+(this String).++(that String) = ffi.javascript("$this + $that").as(String)
+
 Result.ok(A Type) fail(B Type) = tags.
     #(ok.value(A))
     #(fail.with(B))
@@ -82,3 +87,57 @@ List.of(A Type) = tags.
             (List.cons.current(element) next(List.nil))
         if(cons.current(c) next(n)):
             (List.cons.current(c) next(n.add(element)))
+
+{A Type}
+(this List.of(A)).filter(f Function.in(A) out(Boolean))
+    | List.of(A)
+    = this.
+        if(nil):
+            (List.nil)
+        if(cons.current(c) next(n)):
+            (f.apply(c).
+                if(true):
+                    (List.cons.current(c) next(n.filter(f)))
+                if(false):
+                    (n.filter(f)))
+
+{A Type} {B Type}
+(this List.of(A)).map(f Function.in(A) out(B))
+    | List.of(B)
+    = this.
+        if(nil):
+            (List.nil)
+        if(cons.current(c) next(n)):
+            (List.cons.current(f.apply(this)) next(n.map(f)))
+
+{A Type} {B Type}
+(this List.of(A)).
+    select(f Function.in(A) out(B))
+    where(g Function.in(A) out(Boolean))
+    | List.of(B)
+    = this.
+        if(nil):
+            (List.nil)
+        if(cons.current(c) next(n)):
+            (g.apply(c).
+                if(true):
+                    (List.cons.
+                        current(f.apply(c)) 
+                        next(n.select(f) where(g)))
+                if(false):
+                    (n.select(f) where(g)))
+
+
+{A Type}
+(this List.of(A))._show
+    | String
+    = this.
+        if(nil):
+            ("")
+        if(cons.current(c) next(n)):
+            (c.toString.++(",").++(n._show))
+
+{A Type}
+(this List.of(A)).show
+    | String
+    = "[".++(this._show).++("]")
