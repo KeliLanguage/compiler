@@ -13,9 +13,12 @@ List.of(A Type) = tags.
             (List.cons.current(f.apply(c)) next(n.map(f)))
         
 
-= List.cons.current(1) next(List.new).map(x | x.+(2)).map(x | x.+(3))
+= List.cons.
+    current(1) 
+    next(List.cons.
+        current(2)
+        next(List.new)).map(x | x.+(2)).map(x | x.+(3))
 
 ====
 
-{ __tag: 'cons',
-  __carry: { '$current': 6, '$next': { __tag: 'new' } } }
+Line 16 = cons.current(6) next(cons.current(7) next(new))

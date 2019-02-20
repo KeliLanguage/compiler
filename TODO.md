@@ -52,3 +52,5 @@
 [] refactor to use type annotation 
 
 [x] return context whenever typechecking expr
+
+[] change transpile prefix from "$" to "k$" to reduce conflicts

@@ -1,4 +1,5 @@
 =record.name("dog").name
 
 ====
-dog
+
+Line 1 = "dog"

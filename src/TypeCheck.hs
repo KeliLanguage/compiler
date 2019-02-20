@@ -316,8 +316,8 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
-                                    Just (V.CarryfulTag tagname expectedPropTypePairs belongingUnion@(V.TaggedUnion name ids _ typeParams)) ->
-                                        (Right (ctx, First (V.Expr
+                                    Just (V.CarryfulTag _ expectedPropTypePairs belongingUnion@(V.TaggedUnion name ids _ typeParams)) ->
+                                        (Right (ctx2, First (V.Expr
                                             (V.CarryfulTagConstructor tagname expectedPropTypePairs)
                                             ((V.TypeCarryfulTagConstructor 
                                                 tagname

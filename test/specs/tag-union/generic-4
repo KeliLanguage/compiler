@@ -29,5 +29,5 @@ Boolean = tags.
 
 ====
 
-{ __tag: 'fail', __carry: { '$with': 'Not a zero' } }
-{ __tag: 'ok', __carry: { '$value': 0 } }
+Line 27 = fail.with("Not a zero")
+Line 28 = ok.value(0)

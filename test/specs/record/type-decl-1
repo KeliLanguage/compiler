@@ -1,5 +1,5 @@
-fruit=record.taste(Int)
-=fruit.taste(3)
+Fruit=record.taste(Int)
+=Fruit.taste(3)
 
 ====
-{ '$taste': 3 }
+Line 2 = record.taste(3)

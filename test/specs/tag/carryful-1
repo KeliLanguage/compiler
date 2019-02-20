@@ -6,4 +6,4 @@ IntList= tags.
 
 ====
 
-{ __tag: 'cons', __carry: { '$value': 123 } }
+Line 5 = cons.value(123)

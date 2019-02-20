@@ -5,18 +5,18 @@ import Compiler
 import System.Process
 
 
-getBaseCode :: IO String 
-getBaseCode = readFile "./kelilib/base.keli"
+getPreludeJs :: IO String 
+getPreludeJs = readFile "./kelilib/prelude.js"
 
 
 keliInterpret :: String -> String -> IO (Either [KeliError] String)
 keliInterpret filename contents = do
-    baseCode <- getBaseCode
-    -- baseCode is loaded automaticall by default
-    case (keliCompile filename $ baseCode ++ contents) of 
+    preludeJsCode <- getPreludeJs
+    case (keliCompile filename $ contents) of 
+
         Right code -> do 
             -- putStrLn code
-            output <- keliExecute code
+            output <- keliExecute (preludeJsCode ++ code)
             return (Right output)
 
         Left errs -> return (Left errs)

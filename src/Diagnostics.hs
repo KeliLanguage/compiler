@@ -52,7 +52,7 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
     KErrorUnknownProp x ->
-        getDiagnostic [x] ("Unkown property: " ++ quote (snd x))
+        getDiagnostic [x] ("Unkown property: " ++ backtick (snd x))
 
     KErrorMoreThanOneElseBranch xs ->
         getDiagnostic xs "Should not have more than one `else` branch."
@@ -64,7 +64,7 @@ toDiagnostic err = case err of
         getDiagnostic [x] "Expected this to be a `:` symbol."
 
     KErrorUnknownTag t ->
-        getDiagnostic [t] ("Unkown tag: " ++ quote (snd t))
+        getDiagnostic [t] ("Unkown tag: " ++ backtick (snd t))
 
     KErrorBindingCarrylessTag x ->
         getDiagnostic [x] "Carryless tag does not contains value to be binded to variables."
@@ -94,14 +94,14 @@ toDiagnostic err = case err of
         getDiagnostic [x] "Expected an identifier."
 
     KErrorTagNotFound actualTagname (_,taggedUnionName) _ ->
-        getDiagnostic [actualTagname] ("The tagged union " ++ taggedUnionName ++ " does not have the tag " ++ quote (snd actualTagname))
+        getDiagnostic [actualTagname] ("The tagged union " ++ taggedUnionName ++ " does not have the tag " ++ backtick (snd actualTagname))
 
     KErrorTypeConstructorIdsMismatch expectedIds actualIds ->
-        let combine xs = quote (intercalate "," (map (\(_,id) -> id) xs)) in
+        let combine xs = backtick (intercalate "," (map (\(_,id) -> id) xs)) in
         getDiagnostic actualIds ("Expected type constructor ids is " ++ combine expectedIds ++ " but got " ++ combine actualIds)
 
     KErrorUnknownFFITarget x ->
-        getDiagnostic [x] ("Unkown FFI target: " ++ quote (snd x))
+        getDiagnostic [x] ("Unkown FFI target: " ++ backtick (snd x))
 
     KErrorFFIValueShouldBeString x ->
         getDiagnostic [x] "FFI value should be type of String."
@@ -185,7 +185,7 @@ toDiagnostic err = case err of
 
     KErrorPropertyTypeMismatch propname expectedType actualType actualExpr ->
         getDiagnostic [propname] (
-            "The expected type of " ++ quote (snd propname) ++ " is " ++ V.stringifyType expectedType ++ ".\n" ++
+            "The expected type of " ++ backtick (snd propname) ++ " is " ++ V.stringifyType expectedType ++ ".\n" ++
             "But the given expression have type of " ++ V.stringifyType actualType)
 
     KErrorNotAFunction funcIds ->
@@ -199,10 +199,10 @@ toDiagnostic err = case err of
         typeMismatchError expr expectedType
 
     KErrorCannotRedefineReservedConstant token ->
-        getDiagnostic [token] ("Cannot redefined reserved constant " ++ quote (snd token))
+        getDiagnostic [token] ("Cannot redefined reserved constant " ++ backtick (snd token))
 
     KErrorCannotDefineCustomPrimitiveType token ->
-        getDiagnostic [token] ("Cannot define custome primitive type: " ++ quote (snd token))
+        getDiagnostic [token] ("Cannot define custome primitive type: " ++ backtick (snd token))
 
     KErrorTypeMismatch actualExpr actualType expectedType ->
         typeMismatchError (V.Expr actualExpr ( actualType)) ( expectedType)
@@ -223,26 +223,26 @@ toDiagnostic err = case err of
                         getRange expr in
 
         getDiagnostic [actualExpr] ("The expected type of each branch is "
-                ++ quote (V.stringifyType expectedType)
+                ++ backtick (V.stringifyType expectedType)
                 ++ " (based on the type of first branch at Line " ++ show (line (start locationOfFirstBranch)) ++ ")\n"
                 ++ "But this branch has type of " 
-                ++ quote (V.stringifyType actualType))
+                ++ backtick (V.stringifyType actualType))
 
     where 
         typeMismatchError :: V.Expr -> V.Type -> [Diagnostic]
         typeMismatchError expr expectedType = 
-            getDiagnostic [expr] ("Expected " ++ quote (V.stringifyType expectedType) ++ " but got " ++ quote (V.stringifyType (getType expr)))
+            getDiagnostic [expr] ("Expected " ++ backtick (V.stringifyType expectedType) ++ " but got " ++ backtick (V.stringifyType (getType expr)))
 
         getDiagnostic :: HaveRange a => [a] -> String -> [Diagnostic]
         getDiagnostic strtoks errorMsg =
             map (\id -> Diagnostic 1 (getRange id) errorMsg) strtoks
 
         showFuncIds :: [V.StringToken] -> String
-        showFuncIds funcIds = quote (intercalate " " (map snd funcIds))
+        showFuncIds funcIds = backtick (intercalate " " (map snd funcIds))
 
         
-quote :: String -> String
-quote str = "`" ++ str ++ "`"
+backtick :: String -> String
+backtick str = "`" ++ str ++ "`"
 
 class HaveRange a where
     getRange :: a -> Range

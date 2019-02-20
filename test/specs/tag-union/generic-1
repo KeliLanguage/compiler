@@ -17,4 +17,4 @@ z = List.cons.current(1) next(List.cons.current(2) next(List.new))
 = z.length
 ====
 
-2
+Line 17 = 2

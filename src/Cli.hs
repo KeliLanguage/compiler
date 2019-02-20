@@ -96,8 +96,13 @@ handleCliInput input =
     case input of 
         Execute filename -> do
             contents <- readFile filename
-            output <- keliInterpret filename contents
-            print output
+            result <- keliInterpret filename contents
+            case result of 
+                Right output ->
+                    putStrLn output
+                
+                Left err ->
+                    print (err)
         
         Interactive {} -> 
             keliRepl

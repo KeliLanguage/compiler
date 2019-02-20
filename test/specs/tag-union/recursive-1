@@ -33,5 +33,5 @@ myList=IntList.cons.
 =myList.sum
 ====
 
-3
-6
+Line 32 = 3
+Line 33 = 6

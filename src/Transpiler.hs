@@ -6,6 +6,7 @@ import Data.List
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Text.ParserCombinators.Parsec.Pos
 import Data.Char
+import Diagnostics
 
 
 import qualified Ast.Verified as V
@@ -55,7 +56,13 @@ instance Transpilable KeliSymbol where
             ""
 
         KeliSymInlineExprs exprs -> 
-            intercalate ";" (map (\x -> "console.log(" ++ transpile x ++ ")") exprs)
+            intercalate ";" 
+                (map 
+                    (\x -> 
+                        let lineNumber = line (start (getRange x)) in 
+                        "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
+                        "KELI_PRELUDE$show(" ++ transpile x ++ "))") 
+                    exprs)
 
         other ->
             error (show other)

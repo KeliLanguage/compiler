@@ -22,3 +22,63 @@ Boolean = tags.
             (Boolean.false)
         if(false):
             (Boolean.true)
+
+
+(x Int).-(y Int)  = ffi.javascript("$x - $y").as(Int)
+(x Int).+(y Int)  = ffi.javascript("$x + $y").as(Int)
+(x Int).*(y Int)  = ffi.javascript("$x * $y").as(Int)
+(x Int).^(y Int) =  ffi.javascript("Math.pow($x, $y)").as(Int)
+(x Int).>(y Int)  = ffi.javascript("$x > $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).<(y Int)  = ffi.javascript("$x < $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).>=(y Int) = ffi.javascript("$x >= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).<=(y Int) = ffi.javascript("$x <= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+
+
+(x Float).-(y Float)  = ffi.javascript("$x - $y").as(Float)
+(x Float).+(y Float)  = ffi.javascript("$x + $y").as(Float)
+(x Float).*(y Float)  = ffi.javascript("$x * $y").as(Float)
+(x Float).^(y Float) =  ffi.javascript("Math.pow($x, $y)").as(Float)
+(x Float).>(y Float)  = ffi.javascript("$x > $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Float).<(y Float)  = ffi.javascript("$x < $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Float).>=(y Float) = ffi.javascript("$x >= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Float).<=(y Float) = ffi.javascript("$x <= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Float).==(y Float) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+
+(x Int).toFloat = ffi.javascript("Math.trunc($x)").as(Float)
+(x Float).toInt = ffi.javascript("$x").as(Int)
+
+Result.ok(A Type) fail(B Type) = tags.
+    #(ok.value(A))
+    #(fail.with(B))
+
+{A Type} {B Type} {C Type}
+(this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
+    | Result.ok(C) fail(B)
+    = this.
+        if(ok.value(v)):
+            (Result.ok.value(f.apply(v)))
+        if(fail.with(error)):
+            (Result.fail.with(error))
+
+List.of(A Type) = tags.
+    #(nil)
+    #(cons.current(A) next(List.of(A)))
+
+{A Type}
+(this List.of(A)).length 
+    | Int 
+    = this.
+        if(nil):
+            (0)
+        if(cons.next(n)):
+            (1.+(n.length))
+
+{A Type}
+(this List.of(A)).add(element A) 
+    | List.of(A)
+    = this.
+        if(nil):
+            (List.cons.current(element) next(List.nil))
+        if(cons.current(c) next(n)):
+            (List.cons.current(c) next(n.add(element)))

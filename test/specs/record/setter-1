@@ -4,5 +4,5 @@ y=x.age(10)
 =y
 
 ====
-{ '$name': 'cat', '$age': 9 }
-{ '$name': 'cat', '$age': 10 }
+Line 2 = record.name("cat") age(9)
+Line 4 = record.name("cat") age(10)

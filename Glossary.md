@@ -13,4 +13,4 @@
 |param|parameter|
 |env|environment a.k.a symbol table|
 |kvs|key-value pairs|
-|annon|annotation
+|Annot|annotation
