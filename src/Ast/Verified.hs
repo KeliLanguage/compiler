@@ -259,7 +259,10 @@ stringifyType t = case t of
 
         TypeTypeParam _ _ -> ""
         TypeType -> "Type"
-        TypeTaggedUnion (TaggedUnion name _ _ _) -> snd name
+        TypeTaggedUnion (TaggedUnion name ids _ innerTypes) -> 
+            let tailPart = intercalate " " (map (\((_,id), t') -> id ++ "(" ++ stringifyType t' ++ ")") (zip ids innerTypes)) in
+            snd name ++ (if length ids > 0 then "." ++ tailPart else "")
+
         BoundedTypeVar name _ -> snd name
         FreeTypeVar name _ -> name
         TypeUndefined -> "Undefined"

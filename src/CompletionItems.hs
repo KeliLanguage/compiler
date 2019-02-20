@@ -139,12 +139,14 @@ suggestCompletionItems decls =
                                         filter 
                                             (\f -> 
                                                 let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
-                                                case unify expr (V.getTypeRef firstParamTypeAnnon) of
+                                                -- instantiate type variables first
+                                                let (_, subst) = instantiateTypeVar (Context 999 emptyEnv) (V.funcDeclGenericParams f) in
+                                                case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
                                                     Right _ ->
                                                         True
                                                     Left _ ->
                                                         False) 
-                                            funcs
+                                            (funcs)
                                     _ -> 
                                         [])
                             symbols in
@@ -158,8 +160,8 @@ suggestCompletionItems decls =
                                 (\t -> 
                                     case t of
                                         V.CarryfulTag (_,tagname) propTypePairs _ ->
-                                            let text = tagname ++ "." ++ 
-                                                            concatMap (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs in
+                                            let text = tagname ++ "." ++ intercalate " "
+                                                            (map (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs) in
                                                 CompletionItem {
                                                 kind = 13, -- enum
                                                 label = text,

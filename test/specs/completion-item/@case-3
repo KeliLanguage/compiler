@@ -1,0 +1,8 @@
+Shape = tags.
+    #(circle.radius(Int))
+
+
+= Shape.circle.radius(4);
+====
+
+KErrorIncompleteFuncCall
