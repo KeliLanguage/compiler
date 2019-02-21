@@ -2,8 +2,6 @@ module Ast.Raw where
 
 import Prelude hiding (id)
 import Text.Parsec.Pos
-import Data.List
-import Data.Char
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 type StringToken = (SourcePos, String)
@@ -29,6 +27,7 @@ type FuncDeclParam = (StringToken, Expr)
 type FuncDeclConstraint = (StringToken, Expr)
 
 data Func = Func {
+    funcDeclDocString     :: Maybe String,
     funcDeclGenericParams :: [FuncDeclConstraint],
     funcDeclParams        :: [FuncDeclParam],
     funcDeclIds           :: [StringToken],

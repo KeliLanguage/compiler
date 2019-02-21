@@ -28,6 +28,7 @@ data Const = Const {
 } deriving (Show)
 
 data Func = Func {
+    funcDeclDocString     :: Maybe String,
     funcDeclGenericParams :: [Type], -- all should be BoundedTypeVar
     funcDeclParams        :: [(StringToken, TypeAnnotation)],
     funcDeclIds           :: [StringToken],

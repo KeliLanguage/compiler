@@ -127,6 +127,7 @@ analyzeDecl decl env = case decl of
                         Right (KeliSymType (V.TypeTaggedUnion taggedUnionType))
 
     Raw.FuncDecl(Raw.Func {
+        Raw.funcDeclDocString     = docstring,
         Raw.funcDeclGenericParams = genericParams,
         Raw.funcDeclIds           = funcIds,
         Raw.funcDeclParams        = funcParams,
@@ -194,34 +195,30 @@ analyzeDecl decl env = case decl of
 
 
             -- 4. type check the function body
-            (_, result) <- typeCheckExpr (Context 0 env3) CanBeAnything funcBody
-            case result of
-                First typeCheckedBody ->
-                    let bodyType = getType typeCheckedBody in
-                    let resultFunc = V.Func {
-                                    V.funcDeclIds = funcIds,
-                                    V.funcDeclGenericParams = verifiedGenericParams',
-                                    V.funcDeclBody = typeCheckedBody,
-                                    V.funcDeclParams = verifiedFuncParams,
-                                    V.funcDeclReturnType = verifiedReturnType
-                                } in
+            (_, typeCheckedBody) <- verifyExpr (Context 0 env3) CanBeAnything funcBody
+            let bodyType = getType typeCheckedBody
+            let resultFunc = V.Func {
+                            V.funcDeclDocString = docstring,
+                            V.funcDeclIds = funcIds,
+                            V.funcDeclGenericParams = verifiedGenericParams',
+                            V.funcDeclBody = typeCheckedBody,
+                            V.funcDeclParams = verifiedFuncParams,
+                            V.funcDeclReturnType = verifiedReturnType } 
 
-                    -- 4. ensure body type adheres to return type
-                    case verifiedReturnType of
-                        -- if return type is not declared, the return type of this function is inferred as the type of the body
-                        V.TypeUndefined ->
-                            Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
+            -- 4. ensure body type adheres to return type
+            case verifiedReturnType of
+                -- if return type is not declared, the return type of this function is inferred as the type of the body
+                V.TypeUndefined ->
+                    Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
 
-                        _ -> do
-                            case unify typeCheckedBody verifiedReturnType of
-                                Left err ->
-                                    Left err
+                _ -> do
+                    case unify typeCheckedBody verifiedReturnType of
+                        Left err ->
+                            Left err
 
-                                Right _ ->
-                                -- if body type match expected return types
-                                    Right (KeliSymFunc [resultFunc])
-
-                _ -> undefined
+                        Right _ ->
+                        -- if body type match expected return types
+                            Right (KeliSymFunc [resultFunc])
     
     Raw.IdlessDecl expr -> do
         (_, result) <- typeCheckExpr (Context 0 env) CanBeAnything expr

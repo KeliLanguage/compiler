@@ -123,25 +123,27 @@ keliFuncDecl
 
 keliMonoFuncDecl :: Parser Raw.Decl
 keliMonoFuncDecl
-    =  keliGenericParams  >>= \genparams
-    -> keliFuncDeclParam  >>= \param
-    -> char '.' >> spaces >>= \_ 
-    -> keliFuncId         >>= \token
-    -> keliFuncReturnType >>= \typeExpr
-    -> reservedOp "="     >>= \_
-    -> keliExpr           >>= \expr
-    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) [param] [token] typeExpr expr))
+    =  optionMaybe stringLit  >>= \docstring
+    -> keliGenericParams      >>= \genparams
+    -> keliFuncDeclParam      >>= \param
+    -> char '.' >> spaces     >>= \_ 
+    -> keliFuncId             >>= \token
+    -> keliFuncReturnType     >>= \typeExpr
+    -> reservedOp "="         >>= \_
+    -> keliExpr               >>= \expr
+    -> return (Raw.FuncDecl (Raw.Func docstring (unpackMaybe genparams) [param] [token] typeExpr expr))
 
 keliPolyFuncDecl :: Parser Raw.Decl
 keliPolyFuncDecl   
-    =  keliGenericParams  >>= \genparams
-    -> keliFuncDeclParam  >>= \param1
-    -> char '.' >> spaces >>= \_ 
-    -> keliIdParamPair    >>= \xs
-    -> keliFuncReturnType >>= \typeExpr
-    -> reservedOp "="     >>= \_
-    -> keliExpr           >>= \expr
-    -> return (Raw.FuncDecl (Raw.Func(unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr))
+    =  optionMaybe stringLit  >>= \docstring
+    -> keliGenericParams      >>= \genparams
+    -> keliFuncDeclParam      >>= \param1
+    -> char '.' >> spaces     >>= \_ 
+    -> keliIdParamPair        >>= \xs
+    -> keliFuncReturnType     >>= \typeExpr
+    -> reservedOp "="         >>= \_
+    -> keliExpr               >>= \expr
+    -> return (Raw.FuncDecl (Raw.Func docstring (unpackMaybe genparams) (param1:(map snd xs)) (map fst xs) typeExpr expr))
 
 keliGenericTypeDecl :: Parser Raw.Decl
 keliGenericTypeDecl
@@ -157,8 +159,9 @@ keliGenericTypeDecl
 keliFuncReturnType :: Parser (Maybe Raw.Expr)
 keliFuncReturnType = 
     optionMaybe (
-       reservedOp "|"     >>= \_
-    -> keliExpr           >>= \typeExpr
+       reservedOp "|"        >>= \_
+    -> keliExpr              >>= \typeExpr
+    -> optionMaybe stringLit >>= \_
     -> return typeExpr)
 
 unpackMaybe :: Maybe [a] -> [a]
@@ -174,10 +177,9 @@ keliGenericParams
 
 keliIdParamPair = 
     many1 (
-            keliFuncId        >>= \token 
-        ->  keliFuncDeclParam >>= \param
-        -> return (token, param)
-    )
+            keliFuncId           >>= \token 
+        ->  keliFuncDeclParam    >>= \param
+        -> return (token, param)) 
 
 keliFuncId = 
         getPosition                   >>= \pos 
@@ -185,7 +187,10 @@ keliFuncId =
     ->  return (pos, id)
 
 keliFuncDeclParam ::Parser (Raw.StringToken, Raw.Expr)
-keliFuncDeclParam = parens keliFuncDeclParam'
+keliFuncDeclParam = 
+    parens keliFuncDeclParam' >>= \params 
+    -> optionMaybe stringLit  >>= \_ 
+    -> return params
 
 keliFuncDeclParam' ::Parser (Raw.StringToken, Raw.Expr)
 keliFuncDeclParam' 

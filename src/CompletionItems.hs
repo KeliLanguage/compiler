@@ -56,8 +56,10 @@ data CompletionItem = CompletionItem {
     label  :: String,
     detail:: String,
     insertText :: String, -- text to be inserted if user chose this completion item
-    insertTextFormat :: Int -- 1 = Plain Text, 2 = Snippet
+    insertTextFormat :: Int, -- 1 = Plain Text, 2 = Snippet
                             -- For snippet format, refer https://github.com/Microsoft/vscode/blob/master/src/vs/editor/contrib/snippet/snippet.md
+
+    documentation :: String
 } deriving (Show, Generic)
 
 instance ToJSON CompletionItem where
@@ -66,14 +68,14 @@ toCompletionItem :: KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
         KeliSymConst (_, id) _ -> 
-            [CompletionItem  6 id  "Constant" id 1]
+            [CompletionItem  6 id  "Constant" id 1 ""]
         
         KeliSymType t ->
             let id = V.stringifyType t in
-            [CompletionItem 7 id "Type" id 1]
+            [CompletionItem 7 id "Type" id 1 ""]
 
         KeliSymTypeConstructor (V.TaggedUnion (_,id) ids _ _) ->
-            [CompletionItem 7 id "Type constructor" id 1]
+            [CompletionItem 7 id "Type constructor" id 1 ""]
         
         KeliSymFunc funcs -> 
             map 
@@ -81,7 +83,7 @@ toCompletionItem symbol =
                     let ids = V.funcDeclIds f in 
                     let funcParams = V.funcDeclParams f in
                     let signature = (intercalate "() " (map snd ids)) in
-                    let label = 
+                    let label' = 
                             (if length funcParams > 1 then 
                                 signature ++ "()"
                             else
@@ -93,10 +95,11 @@ toCompletionItem symbol =
                             else
                                 makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) funcParams))) in
                     CompletionItem 3
-                        label
+                        label'
                         (rebuildSignature f)
                         text
                         2 
+                        (case V.funcDeclDocString f of Just doc -> doc; Nothing -> "")
                     )funcs
         
         KeliSymInlineExprs{} ->
@@ -112,7 +115,7 @@ makeKeyValuesSnippet kvs =
 
 
 rebuildSignature :: V.Func -> String 
-rebuildSignature (V.Func genparams params funcIds returnType _) = 
+rebuildSignature (V.Func _ genparams params funcIds returnType _) = 
     let 
         front = stringifyFuncParam (head params) ++ "." 
         back = " | " ++ V.stringifyType returnType 
@@ -183,7 +186,8 @@ suggestCompletionItems decls =
                                                 insertText = tagname 
                                                     ++ "." 
                                                     ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
-                                                insertTextFormat = 2
+                                                insertTextFormat = 2,
+                                                documentation = ""
                                             }
                                         
                                         V.CarrylessTag (_,tagname) _ ->
@@ -192,7 +196,8 @@ suggestCompletionItems decls =
                                                 label = tagname,
                                                 detail = "",
                                                 insertText = tagname,
-                                                insertTextFormat = 1
+                                                insertTextFormat = 1,
+                                                documentation = ""
                                             })
                                 tags 
 
@@ -204,7 +209,8 @@ suggestCompletionItems decls =
                                 label = text,
                                 detail = "constructor",
                                 insertText = makeKeyValuesSnippet (map (\(p, t) -> (snd p, V.stringifyType t)) propTypePairs),
-                                insertTextFormat = 2
+                                insertTextFormat = 2,
+                                documentation = ""
                             }]
 
 
@@ -215,7 +221,8 @@ suggestCompletionItems decls =
                                 label = "apply",
                                 detail = "",
                                 insertText = "apply($1)",
-                                insertTextFormat = 2
+                                insertTextFormat = 2,
+                                documentation = ""
                             }]
 
                         -- tag matchers
@@ -237,7 +244,8 @@ suggestCompletionItems decls =
                                 label = "if(...)",
                                 detail = "tag matcher",
                                 insertText = insertText',
-                                insertTextFormat = 2
+                                insertTextFormat = 2,
+                                documentation = ""
                             }] ++ relatedFuncsCompletionItems
 
                         -- record (getter/setter)
@@ -249,14 +257,16 @@ suggestCompletionItems decls =
                                             label = prop,
                                             detail = "getter",
                                             insertText = prop,
-                                            insertTextFormat = 1
+                                            insertTextFormat = 1,
+                                            documentation = ""
                                         },
                                         CompletionItem {
                                             kind = 10, -- property
                                             label = prop ++ "()",
                                             detail = "setter",
                                             insertText = prop ++ "(${1:undefined})",
-                                            insertTextFormat = 2
+                                            insertTextFormat = 2,
+                                            documentation = ""
                                         }])
                                 propTypePairs) ++ relatedFuncsCompletionItems
 
@@ -277,7 +287,8 @@ suggestCompletionItems decls =
                         label = "Gotcha",
                         detail = "Declare a carryful tag.",
                         insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
-                        insertTextFormat = 1
+                        insertTextFormat = 1,
+                        documentation = ""
                     }]
 
         -- if not triggered by pressing the dot operator

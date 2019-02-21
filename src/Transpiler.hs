@@ -78,7 +78,7 @@ instance Transpilable V.Decl where
 
 
 instance Transpilable V.Func where
-    transpile f@(V.Func _ params _ _ body) 
+    transpile f@(V.Func _ _ params _ _ body) 
         = let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
         "function " ++ getFuncSignature f ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
 
