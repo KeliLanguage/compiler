@@ -6,7 +6,7 @@ import System.Process
 
 
 getPreludeJs :: IO String 
-getPreludeJs = readFile "./kelilib/prelude.js"
+getPreludeJs = readFile "/home/hou32hou/Repos/keli/compiler/kelilib/prelude.js"
 
 
 keliInterpret :: String -> String -> IO (Either [KeliError] String)
