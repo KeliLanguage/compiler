@@ -144,7 +144,7 @@ handleCliInput input =
                                     -- over
                                     lines'') in
 
-                        concat (map toList (toList result))
+                        intercalate "\n" (map toList (toList (result)))
                     else
                         contents
 
