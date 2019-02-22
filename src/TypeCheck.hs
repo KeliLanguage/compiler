@@ -284,16 +284,17 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                 continuePreprocessFuncCall2
                             else
                                 let subject = firstParam in
-                                case find (\((_,key),_) -> key == snd (funcIds !! 0)) kvs of
-                                    Just (propertyName, expectedType) -> 
+                                let actualPropertyName = funcIds !! 0 in
+                                case find (\((_,key),_) -> key == snd actualPropertyName) kvs of
+                                    Just (_, expectedType) -> 
                                         -- Check if is getter or setter
                                         if length (tail params') == 0 then -- is getter
-                                            Right (ctx, First (V.Expr (V.RecordGetter subject propertyName) expectedType))
+                                            Right (ctx, First (V.Expr (V.RecordGetter subject actualPropertyName) expectedType))
                                         else if length (tail params') == 1 then do -- is setter
-                                            (ctx2, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
+                                            (ctx3, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
                                             substitution <- unify newValue expectedType
-                                            Right (ctx2, First (V.Expr 
-                                                (V.RecordSetter subject propertyName newValue) 
+                                            Right (ctx3, First (V.Expr 
+                                                (V.RecordSetter subject actualPropertyName newValue) 
                                                 (applySubstitutionToType substitution recordType)))
                                         else
                                             continuePreprocessFuncCall2

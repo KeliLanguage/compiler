@@ -267,4 +267,5 @@ stringifyType t = case t of
         BoundedTypeVar name _ -> snd name
         FreeTypeVar name _ -> name
         TypeUndefined -> "Undefined"
+        TypeCarryfulTagConstructor name _ _ -> snd name
         _ -> error (show t)
