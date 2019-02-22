@@ -17,25 +17,22 @@ import TypeCheck
 import Util
 import Unify
 
-analyze :: [Raw.Decl] -> Either [KeliError] [KeliSymbol]
+analyze :: [Raw.Decl] -> Either [KeliError] [V.Decl]
 analyze decls = 
-    let (errors, _, analyzedSymbols) = analyzeDecls initialEnv decls in
-
-    -- sorting is necessary, so that the transpilation order will be correct
-    -- Smaller number means will be transpiled first
-    let sortedSymbols = sortOn (
-            \x -> case x of 
-                KeliSymTypeConstructor{} -> 1
-                KeliSymType{}            -> 2
-                KeliSymFunc _            -> 3
-                KeliSymConst _ _         -> 4
-                KeliSymInlineExprs _     -> 5
-            ) analyzedSymbols in
-
+    let (errors, _, analyzedDecls) = analyzeDecls initialEnv decls in
     if length errors > 0 then
         Left errors
     else
-        Right (sortedSymbols)
+        -- sorting is necessary, so that the transpilation order will be correct
+        -- Smaller number means will be transpiled first
+        Right (sortOn (
+                \x -> case x of 
+                    V.TaggedUnionDecl{}    -> 1
+                    V.RecordAliasDecl{}    -> 2
+                    V.FuncDecl{}           -> 3
+                    V.ConstDecl{}          -> 4
+                    V.IdlessDecl{}         -> 5
+                ) (analyzedDecls)) 
 
 extractSymbols :: Env -> [KeliSymbol]
 extractSymbols env = map snd (assocs env)
@@ -48,51 +45,66 @@ data TypeDecl =
 analyzeDecls 
     :: Env -- previous env
     -> [Raw.Decl] -- parsed input
-    -> ([KeliError], Env, [KeliSymbol]) -- (accumulatedErrors, newEnv, symbols)
+    -> ([KeliError], Env, [V.Decl]) -- (accumulatedErrors, newEnv, symbols)
 
-analyzeDecls env decls = 
-    let (errors, updatedEnv, _) = analyzeDecls' env decls in
-    (errors, updatedEnv, extractSymbols updatedEnv)
+analyzeDecls env rawDecls = 
+    let (errors, updatedEnv, _, analyzedDecls) = analyzeDecls' env rawDecls [] in
+    (errors, updatedEnv, analyzedDecls)
 
 -- this function will perform multipassing
 -- so that declaration order will be insignificant
-analyzeDecls' :: Env -> [Raw.Decl] -> 
-    ([KeliError], -- errors
-    Env,          -- updated env
-    [Raw.Decl])   -- declarations that failed to pass the type checker
+analyzeDecls' 
+    :: Env 
+    -> [Raw.Decl] 
+    -> [V.Decl]       -- previous verified decls
+    -> 
+        ([KeliError], -- errors
+        Env,          -- updated env
+        [Raw.Decl],   -- declarations that failed to pass the type checker
+        [V.Decl])     -- declarations that passed the type checker
 
-analyzeDecls' env inputDecls =
-    let result@(errors, updatedEnv, failedDecls) =
+analyzeDecls' env inputRawDecls prevVerifiedDecls =
+    let (currentErrors, updatedEnv, failedDecls, currentVerifiedDecls) =
             foldl'
-                ((\(errors, prevEnv, prevFailedDecls) currentRawDecl -> 
-                    let (newErrors, newEnv, newFailedDecls) = 
+                ((\(errors, prevEnv, prevFailedDecls, prevPassedDecls) currentRawDecl -> 
+                    let (newErrors, newEnv, newFailedDecls, newPassedDecls) = 
                             -- we should analyzeDecl based on the envFromFirstPass
                             case analyzeDecl currentRawDecl prevEnv of
-                                Right analyzedSymbol -> 
-                                    case insertSymbolIntoEnv analyzedSymbol prevEnv of
-                                        Right newEnv' -> 
-                                            ([], newEnv', [])
-                                        Left err' -> 
-                                            ([err'], prevEnv, [currentRawDecl]) 
+                                Right analyzedDecl -> 
+                                    case toSymbol analyzedDecl of
+                                        Just symbol ->
+                                            case insertSymbolIntoEnv symbol prevEnv of
+                                                Right newEnv' -> 
+                                                    ([], newEnv', [], [analyzedDecl])
+                                                Left err' -> 
+                                                    ([err'], prevEnv, [currentRawDecl], []) 
+
+                                        Nothing ->
+                                            ([], prevEnv, [], [analyzedDecl]) 
+
                                 Left err' -> 
-                                    ([err'], prevEnv, [currentRawDecl]) in
+                                    ([err'], prevEnv, [currentRawDecl],[]) in
                     
-                    (errors ++ newErrors, newEnv, prevFailedDecls ++ newFailedDecls)
-                )::([KeliError], Env, [Raw.Decl]) -> Raw.Decl -> ([KeliError],Env, [Raw.Decl]))
-                ([], env, [])
-                inputDecls in
+                    (errors ++ newErrors, 
+                        newEnv, 
+                        prevFailedDecls ++ newFailedDecls, 
+                        prevPassedDecls ++ newPassedDecls)
+                )::([KeliError], Env, [Raw.Decl], [V.Decl]) -> Raw.Decl -> ([KeliError],Env, [Raw.Decl], [V.Decl]))
+                ([], env, [], [])
+                inputRawDecls in
 
     -- if the number of failedDecls had decreased, continue multipassing
-    if length failedDecls < length inputDecls then
-        analyzeDecls' updatedEnv failedDecls
+    if length failedDecls < length inputRawDecls then
+        -- note that the current errors will be ignored
+        analyzeDecls' updatedEnv failedDecls (prevVerifiedDecls ++ currentVerifiedDecls)
 
     -- else stop multipassing
     else
-        result
+        (currentErrors, updatedEnv, failedDecls, prevVerifiedDecls ++ currentVerifiedDecls)
 
 
 
-analyzeDecl :: Raw.Decl -> Env -> Either KeliError KeliSymbol
+analyzeDecl :: Raw.Decl -> Env -> Either KeliError V.Decl
 analyzeDecl decl env = case decl of
     Raw.ConstDecl Raw.Const {
         Raw.constDeclId=id,
@@ -126,15 +138,15 @@ analyzeDecl decl env = case decl of
                 (_, result) <- typeCheckExpr (Context 0 updatedSymtab) CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
-                        Right (KeliSymConst id typeCheckedExpr)
+                        Right (V.ConstDecl id typeCheckedExpr)
 
                     Second (V.TypeAnnotCompound _ _ t) -> do
                         case t of
                             V.TypeRecord _ expectedPropTypePairs ->
-                                Right (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
+                                Right (V.RecordAliasDecl id expectedPropTypePairs)
 
-                            V.TypeTaggedUnion{} ->
-                                Right (KeliSymType t)
+                            V.TypeTaggedUnion t ->
+                                Right (V.TaggedUnionDecl t)
                             
                             _ ->
                                 undefined
@@ -144,7 +156,7 @@ analyzeDecl decl env = case decl of
 
                     Third tag -> do
                         taggedUnionType <- linkTagsTogether id [] tag []
-                        Right (KeliSymType (V.TypeTaggedUnion taggedUnionType))
+                        Right (V.TaggedUnionDecl taggedUnionType)
 
     Raw.FuncDecl(Raw.Func {
         Raw.funcDeclDocString     = docstring,
@@ -185,7 +197,7 @@ analyzeDecl decl env = case decl of
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else
-                            Right (acc |> (snd id, KeliSymConst id (V.Expr (V.Id id) (V.getTypeRef typeAnnot)))))
+                            Right (acc |> (snd id, KeliSymConst id (V.getTypeRef typeAnnot))))
                 env1 
                 verifiedFuncParams
             
@@ -202,11 +214,12 @@ analyzeDecl decl env = case decl of
 
             -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
             let verifiedGenericParams' = map (\(id, c) -> V.BoundedTypeVar id c) verifiedGenericParams
-            let tempFunc = KeliSymFunc 
+            let tempFunc =
+                 KeliSymFunc 
                     [V.Func {
+                        V.funcDeclDocString = Nothing,
                         V.funcDeclIds = funcIds,
                         V.funcDeclGenericParams = verifiedGenericParams',
-                        V.funcDeclBody = V.Expr (V.StringExpr V.nullStringToken) (V.TypeUndefined), -- temporary body (useless)
                         V.funcDeclParams = verifiedFuncParams,
                         V.funcDeclReturnType = verifiedReturnType
                     }] 
@@ -221,7 +234,7 @@ analyzeDecl decl env = case decl of
                             V.funcDeclDocString = docstring,
                             V.funcDeclIds = funcIds,
                             V.funcDeclGenericParams = verifiedGenericParams',
-                            V.funcDeclBody = typeCheckedBody,
+                            -- V.funcDeclBody = typeCheckedBody,
                             V.funcDeclParams = verifiedFuncParams,
                             V.funcDeclReturnType = verifiedReturnType } 
 
@@ -229,7 +242,7 @@ analyzeDecl decl env = case decl of
             case verifiedReturnType of
                 -- if return type is not declared, the return type of this function is inferred as the type of the body
                 V.TypeUndefined ->
-                    Right (KeliSymFunc [resultFunc {V.funcDeclReturnType = bodyType}])
+                    Right (V.FuncDecl (resultFunc {V.funcDeclReturnType = bodyType}) typeCheckedBody)
 
                 _ -> do
                     case unify typeCheckedBody verifiedReturnType of
@@ -238,13 +251,13 @@ analyzeDecl decl env = case decl of
 
                         Right _ ->
                         -- if body type match expected return types
-                            Right (KeliSymFunc [resultFunc])
+                            Right (V.FuncDecl resultFunc typeCheckedBody)
     
     Raw.IdlessDecl expr -> do
         (_, result) <- typeCheckExpr (Context 0 env) CanBeAnything expr
         case result of
             First checkedExpr ->
-                Right (KeliSymInlineExprs [checkedExpr])
+                Right (V.IdlessDecl checkedExpr)
 
             Second typeAnnot -> 
                 Left (KErrorCannotDeclareTypeAsAnonymousConstant typeAnnot)
@@ -277,14 +290,14 @@ analyzeDecl decl env = case decl of
                 Left (KErrorDuplicatedId [typeConstructorName])
             else
                 Right (env2 |> (snd typeConstructorName, 
-                    KeliSymTypeConstructor (V.TaggedUnion typeConstructorName ids [] verifiedTypeParams')))
+                    KeliSymTaggedUnion (V.TaggedUnion typeConstructorName ids [] verifiedTypeParams')))
 
         -- 4. type check the body
         (_, typeCheckedBody) <- (typeCheckExpr (Context 0 env3) StrictlyAnalyzingType typeBody) 
         case typeCheckedBody of
             Third tag -> do
-                taggedUnionType <- linkTagsTogether typeConstructorName ids tag verifiedTypeParams'
-                Right (KeliSymTypeConstructor taggedUnionType)
+                taggedUnion <- linkTagsTogether typeConstructorName ids tag verifiedTypeParams'
+                Right (V.TaggedUnionDecl taggedUnion)
 
             _ ->
                 undefined
@@ -344,3 +357,22 @@ substituteSelfType source target =
 
         _ ->
             target
+
+
+toSymbol ::  V.Decl -> Maybe KeliSymbol
+toSymbol decl = 
+    case decl of
+        V.ConstDecl id expr ->
+            Just (KeliSymConst id (getType expr))
+
+        V.FuncDecl signature _ ->
+            Just (KeliSymFunc [signature])
+
+        V.IdlessDecl _ ->
+            Nothing
+
+        V.RecordAliasDecl id expectedPropTypePairs ->
+            Just (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
+
+        V.TaggedUnionDecl t ->
+            Just (KeliSymTaggedUnion t)

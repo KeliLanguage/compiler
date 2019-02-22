@@ -12,8 +12,8 @@ import Diagnostics
 import qualified Ast.Verified as V
 import Env
 
-keliTranspile :: [KeliSymbol] -> String
-keliTranspile symbols = (intercalate ";\n" (map transpile symbols)) ++ ";\n"
+keliTranspile :: [V.Decl] -> String
+keliTranspile decls = (intercalate ";\n" (map transpile decls)) ++ ";\n"
 
 
 class Transpilable a where
@@ -37,56 +37,32 @@ instance Transpilable V.Tag where
         V.CarryfulTag (_,id) _ _ -> 
             quote (prefix id) ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
 
-
-instance Transpilable KeliSymbol where
-    transpile symbol = case symbol of
-        KeliSymFunc fs ->
-            intercalate ";" (map transpile fs)
-
-        KeliSymConst (_,id) expr ->
-            "const " ++ prefix id ++ "=" ++ transpile expr
-
-        KeliSymType (V.TypeTaggedUnion (V.TaggedUnion (_,id) ids tags _)) ->
-            "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
-
-        KeliSymTypeConstructor (V.TaggedUnion name _ tags _) ->
-            "const " ++ prefix (snd name) ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
-
-        KeliSymType {} -> 
-            ""
-
-        KeliSymInlineExprs exprs -> 
-            intercalate ";" 
-                (map 
-                    (\x -> 
-                        let lineNumber = line (start (getRange x)) in 
-                        "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
-                        "KELI_PRELUDE$show(" ++ transpile x ++ "))") 
-                    exprs)
-
-        other ->
-            error (show other)
-
 joinIds :: [V.StringToken] -> String
 joinIds ids = intercalate "_" (map snd ids)
 
 instance Transpilable V.Decl where
-    transpile x = case x of 
-        V.ConstDecl c  -> transpile c
-        V.IdlessDecl e -> transpile e
-        V.FuncDecl f   -> transpile f
+    transpile decl = case decl of 
+        V.ConstDecl (_,id) expr  -> 
+            "const " ++ prefix id ++ "=" ++ (transpile expr)
 
+        V.IdlessDecl x -> 
+            let lineNumber = line (start (getRange x)) in 
+            "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
+            "KELI_PRELUDE$show(" ++ transpile x ++ "))" 
+
+        V.FuncDecl signature body -> 
+            transpile signature ++ "(" ++ transpile body ++ ");"
+
+        V.TaggedUnionDecl (V.TaggedUnion (_,id) _ tags _) ->
+            "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+        
+        V.RecordAliasDecl{} ->
+            ""
 
 instance Transpilable V.Func where
-    transpile f@(V.Func _ _ params _ _ body) 
+    transpile f@(V.Func _ _ params _ _) 
         = let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
-        "function " ++ getFuncSignature f ++ "(" ++ params' ++ "){return " ++ transpile body ++ ";}"
-
-
-
-instance Transpilable V.Const where
-    transpile (V.Const (_,id) expr)
-        = "const " ++ prefix id ++ "=" ++ (transpile expr)
+        "const " ++ getFuncName f ++ "=(" ++ params' ++ ")=>"
 
 instance Transpilable V.Expr where
     transpile expr = case expr of 
@@ -124,7 +100,7 @@ instance Transpilable V.Expr where
                     Nothing   -> "") ++ ")()"
 
         V.Expr(V.FuncCall params _ ref) _ -> 
-            getFuncSignature ref ++ "(" ++ intercalate "," (map transpile params) ++")"
+            getFuncName ref ++ "(" ++ intercalate "," (map transpile params) ++")"
 
         V.Expr(V.FFIJavascript (_,code)) _ ->
             code
@@ -184,8 +160,8 @@ lazify str = "()=>(" ++ str ++ ")"
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
 --  especially when looking up generic functions
-getFuncSignature :: V.Func -> String
-getFuncSignature (V.Func{V.funcDeclIds=ids}) = 
+getFuncName :: V.Func -> String
+getFuncName (V.Func{V.funcDeclIds=ids}) = 
     let hash =sourceLine (fst (head ids)) in
     intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ show hash
 

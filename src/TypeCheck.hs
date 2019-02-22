@@ -39,8 +39,8 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
 
     Raw.Id token@(_,id) -> 
         case lookup id env of 
-            Just (KeliSymConst _ expr) -> 
-                Right (ctx, First (V.Expr (V.Id token) (getType expr)))
+            Just (KeliSymConst _ type') -> 
+                Right (ctx, First (V.Expr (V.Id token) type'))
         
             Just (KeliSymType t@(V.TypeRecord name propTypePairs)) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
@@ -63,10 +63,14 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
             Just (KeliSymType t) ->
                 (Right (ctx, Second (V.TypeAnnotSimple token t)))
             
-            Just (KeliSymTypeConstructor t@(V.TaggedUnion name _ tags typeParams)) ->
+            Just (KeliSymTaggedUnion t@(V.TaggedUnion _ _ tags typeParams)) ->
+                let name = token in
                 case assumption of
                     StrictlyAnalyzingType ->
-                        Right (ctx, First (V.Expr (V.TypeConstructorPrefix name) ( (V.TypeTypeConstructor t))))
+                        if length typeParams > 0 then
+                            Right (ctx, First (V.Expr (V.TypeConstructorPrefix name) ((V.TypeTypeConstructor t))))
+                        else
+                            Right (ctx, Second (V.TypeAnnotSimple name (V.TypeTaggedUnion t)))
 
                     CanBeAnything -> 
                         (Right (ctx, First (V.Expr (V.TagConstructorPrefix name) ( (V.TypeTagConstructorPrefix name tags typeParams)))))
@@ -495,7 +499,7 @@ typeCheckFuncCall ctx@(Context _ env) assumption funcCallParams funcIds =
                                                                 (V.TypeTaggedUnion (V.TaggedUnion _ _ _ [inputType, outputType])) -> do
                                                                 let inputType' = applySubstitutionToType subst4 inputType 
                                                                 let outputType' = applySubstitutionToType subst4 outputType 
-                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymConst paramName (V.Expr (V.Id paramName) inputType')) env 
+                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymConst paramName inputType') env 
                                                                 -- QUESTION: Should I ignore this new context?
                                                                 (_, body') <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption body
                                                                 tempSubst <- unify body' outputType'
@@ -631,17 +635,6 @@ insertSymbolIntoEnv symbol env =
                 Nothing ->
                     Right (env |> (funcid, symbol))
 
-        KeliSymInlineExprs exprs ->
-            case lookup "@inline_exprs" env of
-                Just (KeliSymInlineExprs exprs') ->
-                    Right (env |> ("@inline_exprs", KeliSymInlineExprs (exprs' ++ exprs)))
-
-                Just _ ->
-                    error "shouldn't reach here"
-                
-                Nothing ->
-                    Right (env |> ("@inline_exprs", KeliSymInlineExprs exprs))
-
         KeliSymType t ->
             let typeId = 
                     case t of
@@ -660,7 +653,7 @@ insertSymbolIntoEnv symbol env =
         KeliSymConst id _ ->
             insert' id
 
-        KeliSymTypeConstructor (V.TaggedUnion name _ _ _) ->
+        KeliSymTaggedUnion (V.TaggedUnion name _ _ _) ->
             insert' name
 
         other -> 
@@ -787,7 +780,7 @@ typeCheckTagBranch ctx@(Context _ env) expectedTags (tag, branch) =
                             updatedEnv <- 
                                 foldM 
                                     (\prevSymtab (_,bindingId, expectedType) -> 
-                                        insertSymbolIntoEnv (KeliSymConst bindingId (V.Expr (V.Id bindingId) expectedType)) prevSymtab)
+                                        insertSymbolIntoEnv (KeliSymConst bindingId expectedType) prevSymtab)
                                     env
                                     verifiedPropBindings
 

@@ -9,6 +9,7 @@ import Interpreter
 import StaticError
 import Transpiler
 import qualified Ast.Raw as Raw
+import qualified Ast.Verified as V
 
 keliRead :: IO String
 keliRead 
@@ -17,40 +18,40 @@ keliRead
     >> getLine
 
 keliEval :: (Env, String) -> String -> Either [KeliError] (IO String, (Env, String))
-keliEval (prevSymtab, prevBytecode) input 
+keliEval (prevEnv, prevBytecode) input 
     =   keliParse "<repl>" input >>= 
-        analyzeDecls' prevSymtab  >>= \(newSymtab, symbols) ->
-        let newBytecodeToBeExecuted = keliTranspile symbols in 
+        analyzeDecls'' prevEnv  >>= \(newEnv, decls) ->
+        let newBytecodeToBeExecuted = keliTranspile decls in 
         
-        let onlyDeclarationSymbols = filter (\s -> case s of KeliSymInlineExprs {} -> False; _ -> True) symbols in
-        let newByteCodeToBePassFoward = keliTranspile onlyDeclarationSymbols in
-        Right (keliExecute (prevBytecode ++ newBytecodeToBeExecuted), (newSymtab, newByteCodeToBePassFoward))
+        let onlyDeclarationDecls = filter (\s -> case s of V.IdlessDecl {} -> False; _ -> True) decls in
+        let newByteCodeToBePassFoward = keliTranspile onlyDeclarationDecls in
+        Right (keliExecute (prevBytecode ++ newBytecodeToBeExecuted), (newEnv, newByteCodeToBePassFoward))
         
     where 
-        analyzeDecls' 
+        analyzeDecls''
             :: Env -- previous env
             -> [Raw.Decl] -- parsed input
-            -> Either [KeliError] (Env, [KeliSymbol]) -- (accumulatedErrors, newSymtab, newSymbols)
-        analyzeDecls' env decls = 
-            let (errors, env', symbols') = analyzeDecls env decls in
+            -> Either [KeliError] (Env, [V.Decl]) -- (accumulatedErrors, newEnv, newDecls)
+        analyzeDecls'' env decls = 
+            let (errors, env', decls') = analyzeDecls env decls in
             if length errors > 0 then
                 Left errors
             else 
-                Right (env', symbols')
+                Right (env', decls')
         
 
 keliPrint :: String -> IO ()
 keliPrint = putStrLn
 
 keliRepl' :: Env -> String -> IO ()
-keliRepl' prevSymtab prevBytecode = do
+keliRepl' prevEnv prevBytecode = do
     input <- keliRead
     unless (input == ":quit") 
-        (case keliEval (prevSymtab, prevBytecode) input of
-            Right (evaluatedOutput, (newSymtab,newBytecode)) -> 
-                evaluatedOutput >>= keliPrint >> keliRepl' newSymtab (prevBytecode ++ newBytecode)
+        (case keliEval (prevEnv, prevBytecode) input of
+            Right (evaluatedOutput, (newEnv,newBytecode)) -> 
+                evaluatedOutput >>= keliPrint >> keliRepl' newEnv (prevBytecode ++ newBytecode)
             Left err ->
-                keliPrint (show err) >> keliRepl' prevSymtab prevBytecode) 
+                keliPrint (show err) >> keliRepl' prevEnv prevBytecode) 
 
 
 

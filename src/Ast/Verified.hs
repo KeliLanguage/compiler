@@ -17,24 +17,33 @@ newStringToken value = (newPos "" (-1) (-1), value)
 newStringToken' :: (Int,Int,String) -> StringToken
 newStringToken' (line,col,value) = (newPos "" line col, value)
 data Decl 
-    = ConstDecl Const
-    | FuncDecl Func
-    | IdlessDecl Expr
-    deriving (Show)
+    = ConstDecl 
+        StringToken
+        Expr
 
-data Const = Const { 
-    constDeclId    :: StringToken, -- because we can ignore the identifier
-    constDeclValue :: Expr
-} deriving (Show)
+    | FuncDecl 
+        Func -- function signature
+        Expr -- function body
+
+    | IdlessDecl 
+        Expr
+
+    | RecordAliasDecl
+        StringToken
+        [(StringToken, Type)]
+
+    | TaggedUnionDecl
+        TaggedUnion
+    deriving (Show)
 
 data Func = Func {
     funcDeclDocString     :: Maybe String,
     funcDeclGenericParams :: [Type], -- all should be BoundedTypeVar
     funcDeclParams        :: [(StringToken, TypeAnnotation)],
     funcDeclIds           :: [StringToken],
-    funcDeclReturnType    :: Type,
-    funcDeclBody          :: Expr
+    funcDeclReturnType    :: Type
 } deriving (Show)
+
 
 data TypeAnnotation 
     = TypeAnnotSimple 

@@ -12,4 +12,4 @@ keliCompile :: String -> String -> Either [KeliError] String
 keliCompile filename input
     =   keliParse filename input
     >>= analyze 
-    >>= \symbols -> return (keliTranspile symbols)
+    >>= \decls -> return (keliTranspile decls)

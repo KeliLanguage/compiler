@@ -8,13 +8,20 @@ import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 
 data KeliSymbol
-    = KeliSymFunc           [V.Func]
-    | KeliSymConst          Raw.StringToken     V.Expr
-    | KeliSymType           V.Type 
-    | KeliSymTypeConstructor V.TaggedUnion
-    | KeliSymInlineExprs    [V.Expr] -- for storing expr from Raw.IdlessConst
-        
+    = KeliSymFunc 
+        [V.Func]
+
+    | KeliSymConst          
+        V.StringToken -- this field is used for enhancing DuplicatedIdentifiers error message
+        V.Type
+
+    | KeliSymType           
+        V.Type 
+
+    | KeliSymTaggedUnion 
+        V.TaggedUnion
     deriving(Show)
+
 
 type Env = OMap String KeliSymbol
 
@@ -32,7 +39,7 @@ initialEnv =
         |> ("String",   KeliSymType V.TypeString)
         |> ("Type"  ,   KeliSymType V.TypeType)
         |> ("Function", 
-                KeliSymTypeConstructor 
+                KeliSymTaggedUnion 
                     (newFunctionType 
                         (V.BoundedTypeVar (builtinPos "A") Nothing) 
                         (V.BoundedTypeVar (builtinPos "B") Nothing)))

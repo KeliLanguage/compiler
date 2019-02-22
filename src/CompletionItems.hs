@@ -64,47 +64,43 @@ data CompletionItem = CompletionItem {
 
 instance ToJSON CompletionItem where
 
-toCompletionItem :: KeliSymbol -> [CompletionItem]
+toCompletionItem :: V.Decl -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
-        KeliSymConst (_, id) _ -> 
+        V.ConstDecl (_, id) _ -> 
             [CompletionItem  6 id  "Constant" id 1 ""]
         
-        KeliSymType t ->
-            let id = V.stringifyType t in
-            [CompletionItem 7 id "Type" id 1 ""]
+        V.RecordAliasDecl (_,id) _ ->
+            [CompletionItem 7 id "Record type alias" id 1 ""]
 
-        KeliSymTypeConstructor (V.TaggedUnion (_,id) ids _ _) ->
-            [CompletionItem 7 id "Type constructor" id 1 ""]
+        V.TaggedUnionDecl (V.TaggedUnion (_,id) ids _ _) ->
+            [CompletionItem 7 id "Tagged union type constructor" id 1 ""]
         
-        KeliSymFunc funcs -> 
-            map 
-                (\f -> 
-                    let ids = V.funcDeclIds f in 
-                    let funcParams = V.funcDeclParams f in
-                    let signature = (intercalate "() " (map snd ids)) in
-                    let label' = 
-                            (if length funcParams > 1 then 
-                                signature ++ "()"
-                            else
-                                signature) in
+        V.FuncDecl f _ -> 
+            let ids = V.funcDeclIds f in 
+            let funcParams = V.funcDeclParams f in
+            let signature = (intercalate "() " (map snd ids)) in
+            let label' = 
+                    (if length funcParams > 1 then 
+                        signature ++ "()"
+                    else
+                        signature) in
 
-                    let text = 
-                            (if length funcParams == 1 then 
-                                signature
-                            else
-                                makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) funcParams))) in
-                    CompletionItem 3
-                        label'
-                        (rebuildSignature f)
-                        text
-                        2 
-                        (case V.funcDeclDocString f of Just doc -> doc; Nothing -> "")
-                    )funcs
-        
-        KeliSymInlineExprs{} ->
+            let text = 
+                    (if length funcParams == 1 then 
+                        signature
+                    else
+                        makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) funcParams))) in
+            [CompletionItem 3
+                label'
+                (rebuildSignature f)
+                text
+                2 
+                (case V.funcDeclDocString f of Just doc -> doc; Nothing -> "")]
+
+        V.IdlessDecl{} ->
             []
-
+        
 makeKeyValuesSnippet :: [(String,String)] -> String
 makeKeyValuesSnippet kvs =
     intercalate " "
@@ -115,7 +111,7 @@ makeKeyValuesSnippet kvs =
 
 
 rebuildSignature :: V.Func -> String 
-rebuildSignature (V.Func _ genparams params funcIds returnType _) = 
+rebuildSignature (V.Func _ genparams params funcIds returnType) = 
     let 
         front = stringifyFuncParam (head params) ++ "." 
         back = " | " ++ V.stringifyType returnType 
@@ -141,34 +137,31 @@ bracketize str = "(" ++ str ++ ")"
 
 
 suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
-suggestCompletionItems decls =
-    let (errors,env, symbols) = analyzeDecls initialEnv decls in
+suggestCompletionItems rawDecls =
+    let (errors,env, verifiedDecls) = analyzeDecls initialEnv rawDecls in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
         -- if is triggered by pressing the dot operator
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
             case thing of
                 First expr -> 
                     let relatedFuncs =
-                            map 
-                            (\s -> 
-                                case s of 
-                                    KeliSymFunc funcs -> 
-                                        filter 
-                                            (\f -> 
-                                                let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
-                                                -- instantiate type variables first
-                                                let (_, subst) = instantiateTypeVar (Context 999 emptyEnv) (V.funcDeclGenericParams f) in
-                                                case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
-                                                    Right _ ->
-                                                        True
-                                                    Left _ ->
-                                                        False) 
-                                            (funcs)
+                            concatMap 
+                            (\d -> 
+                                case d of 
+                                    funcDecl@(V.FuncDecl f _) -> 
+                                        let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
+                                        -- instantiate type variables first
+                                        let (_, subst) = instantiateTypeVar (Context 999 emptyEnv) (V.funcDeclGenericParams f) in
+                                        case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
+                                            Right _ ->
+                                                [funcDecl]
+                                            Left _ ->
+                                                []
                                     _ -> 
                                         [])
-                            symbols in
+                            verifiedDecls in
 
-                    let relatedFuncsCompletionItems = concat (map toCompletionItem [KeliSymFunc (concat relatedFuncs)]) in
+                    let relatedFuncsCompletionItems = concatMap toCompletionItem relatedFuncs in
 
                     case getType expr of
                         -- tag constructor prefix
@@ -294,4 +287,6 @@ suggestCompletionItems decls =
         -- if not triggered by pressing the dot operator
         other ->
             -- then only return only non-functions identifiers
-            concat (map toCompletionItem ((filter (\s -> case s of KeliSymFunc{} -> False; _ -> True) (symbols))))
+            concatMap 
+                toCompletionItem 
+                ((filter (\d -> case d of V.FuncDecl{} -> False; _ -> True) (verifiedDecls)))
