@@ -9,7 +9,7 @@ import qualified Ast.Verified as V
 
 data KeliSymbol
     = KeliSymFunc 
-        [V.Func]
+        [V.FuncSignature]
 
     | KeliSymConst          
         V.StringToken -- this field is used for enhancing DuplicatedIdentifiers error message

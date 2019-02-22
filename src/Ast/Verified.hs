@@ -22,8 +22,8 @@ data Decl
         Expr
 
     | FuncDecl 
-        Func -- function signature
-        Expr -- function body
+        FuncSignature -- function signature
+        Expr          -- function body
 
     | IdlessDecl 
         Expr
@@ -36,7 +36,8 @@ data Decl
         TaggedUnion
     deriving (Show)
 
-data Func = Func {
+-- Func means the signature of a function
+data FuncSignature = FuncSignature {
     funcDeclDocString     :: Maybe String,
     funcDeclGenericParams :: [Type], -- all should be BoundedTypeVar
     funcDeclParams        :: [(StringToken, TypeAnnotation)],
@@ -177,7 +178,7 @@ data Expr'
     | FuncCall {
         funcCallParams :: [Expr],
         funcCallIds    :: [StringToken],
-        funcCallRef    :: Func
+        funcCallRef    :: FuncSignature
     }
     | FuncApp {
         funcAppFunc :: Expr,

@@ -68,19 +68,38 @@ analyzeDecls' env inputRawDecls prevVerifiedDecls =
             foldl'
                 ((\(errors, prevEnv, prevFailedDecls, prevPassedDecls) currentRawDecl -> 
                     let (newErrors, newEnv, newFailedDecls, newPassedDecls) = 
-                            -- we should analyzeDecl based on the envFromFirstPass
+                            -- Do partial analyzation (to get function signature (if it's a function))
                             case analyzeDecl currentRawDecl prevEnv of
-                                Right analyzedDecl -> 
-                                    case toSymbol analyzedDecl of
-                                        Just symbol ->
-                                            case insertSymbolIntoEnv symbol prevEnv of
-                                                Right newEnv' -> 
-                                                    ([], newEnv', [], [analyzedDecl])
-                                                Left err' -> 
-                                                    ([err'], prevEnv, [currentRawDecl], []) 
+                                Right partiallyAnalyzedDecl -> 
+                                    let updatedPrevEnv = 
+                                            case partiallyAnalyzedDecl of
+                                                PaFuncDecl f _ ->
+                                                    insertSymbolIntoEnv (KeliSymFunc [f]) prevEnv
 
-                                        Nothing ->
-                                            ([], prevEnv, [], [analyzedDecl]) 
+                                                _ ->
+                                                    Right prevEnv in
+
+                                    case updatedPrevEnv of
+                                        Right updatedPrevEnv' ->
+                                            case analyzePaDecl partiallyAnalyzedDecl updatedPrevEnv' of
+                                                Right analyzedDecl ->
+                                                    case toSymbol analyzedDecl of
+                                                        Just symbol ->
+                                                            case insertSymbolIntoEnv symbol prevEnv of
+                                                                Right newEnv' -> 
+                                                                    ([], newEnv', [], [analyzedDecl])
+
+                                                                Left err' -> 
+                                                                    ([err'], updatedPrevEnv', [currentRawDecl], []) 
+
+                                                        Nothing ->
+                                                            ([], updatedPrevEnv', [], [analyzedDecl]) 
+
+                                                Left err' -> 
+                                                    ([err'], updatedPrevEnv', [currentRawDecl],[])
+
+                                        Left err' -> 
+                                            ([err'], prevEnv, [currentRawDecl],[])
 
                                 Left err' -> 
                                     ([err'], prevEnv, [currentRawDecl],[]) in
@@ -103,10 +122,95 @@ analyzeDecls' env inputRawDecls prevVerifiedDecls =
         (currentErrors, updatedEnv, failedDecls, prevVerifiedDecls ++ currentVerifiedDecls)
 
 
+-- NOTE: Pa means Partially Analyzed
+data PaDecl 
+    = PaConstDecl 
+        Raw.Const
 
-analyzeDecl :: Raw.Decl -> Env -> Either KeliError V.Decl
-analyzeDecl decl env = case decl of
-    Raw.ConstDecl Raw.Const {
+    | PaFuncDecl
+        V.FuncSignature
+        Raw.Expr
+
+    | PaIdlessDecl
+        Raw.Expr
+
+    | PaGenericTypeDecl 
+        Raw.StringToken     -- name
+        [Raw.StringToken]   -- trailing ids
+        [(Raw.StringToken, Raw.Expr)] -- type params
+        Raw.Expr            -- type body
+
+analyzeDecl :: Raw.Decl -> Env -> Either KeliError PaDecl
+analyzeDecl rawDecl env = case rawDecl of
+    Raw.ConstDecl c -> 
+        Right (PaConstDecl c)
+    
+    Raw.IdlessDecl expr ->
+        Right (PaIdlessDecl expr)
+
+    Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody ->
+        Right (PaGenericTypeDecl typeConstructorName ids typeParams typeBody)
+
+    Raw.FuncDecl(Raw.Func {
+        Raw.funcDeclDocString     = docstring,
+        Raw.funcDeclGenericParams = genericParams,
+        Raw.funcDeclIds           = funcIds,
+        Raw.funcDeclParams        = funcParams,
+        Raw.funcDeclReturnType    = returnType,
+        Raw.funcDeclBody          = funcBody
+    }) -> do 
+            let ctx = Context 0 env
+
+            -- 1.0 Verify implicit type params
+            verifiedGenericParams <- mapM (verifyBoundedTypeVar ctx) genericParams
+            let verifiedGenericParams' = map (\(id, c) -> V.BoundedTypeVar id c) verifiedGenericParams
+
+            -- 1.1 populate symbol table with implicit type params
+            env1 <- 
+                foldM 
+                    (\acc (id, constraint) -> 
+                        if member (snd id) acc then
+                            Left (KErrorDuplicatedId [id])
+                        else 
+                            Right (acc |> (snd id, KeliSymType (V.BoundedTypeVar id constraint))))
+                    env 
+                    verifiedGenericParams
+
+            -- 2 Verify annotated types of each func param
+            verifiedFuncParams <-
+                    mapM
+                        (\(id, typeAnnot) -> do 
+                            (_, verifiedTypeAnnotation) <- verifyTypeAnnotation (Context 0 env1) typeAnnot
+                            return (id, verifiedTypeAnnotation)) 
+                        funcParams
+
+            -- 3. verify return type
+            verifiedReturnType <- 
+                (case returnType of 
+                    Just t -> do
+                        (_, verifiedTypeAnnot) <- verifyTypeAnnotation (Context 0 env1) t
+                        Right (V.getTypeRef verifiedTypeAnnot)
+
+                    Nothing ->
+                        Right (V.TypeUndefined))
+
+
+
+            -- 4. Return this function signature
+            let funcSig = V.FuncSignature{
+                        V.funcDeclDocString = Nothing,
+                        V.funcDeclIds = funcIds,
+                        V.funcDeclGenericParams = verifiedGenericParams',
+                        V.funcDeclParams = verifiedFuncParams,
+                        V.funcDeclReturnType = verifiedReturnType
+                    }
+
+            Right (PaFuncDecl funcSig funcBody)
+
+    
+analyzePaDecl :: PaDecl -> Env -> Either KeliError V.Decl
+analyzePaDecl paDecl env = case paDecl of
+    PaConstDecl Raw.Const {
         Raw.constDeclId=id,
         Raw.constDeclValue=expr
     } -> 
@@ -134,8 +238,8 @@ analyzeDecl decl env = case decl of
         where 
             continueAnalyzeConstDecl = do
                 -- insert temporary types into env to allow declaraion of recursive types
-                let updatedSymtab = env |> (snd id, KeliSymType V.TypeSelf)
-                (_, result) <- typeCheckExpr (Context 0 updatedSymtab) CanBeAnything expr
+                let updatedEnv = env |> (snd id, KeliSymType V.TypeSelf)
+                (_, result) <- typeCheckExpr (Context 0 updatedEnv) CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right (V.ConstDecl id typeCheckedExpr)
@@ -158,39 +262,9 @@ analyzeDecl decl env = case decl of
                         taggedUnionType <- linkTagsTogether id [] tag []
                         Right (V.TaggedUnionDecl taggedUnionType)
 
-    Raw.FuncDecl(Raw.Func {
-        Raw.funcDeclDocString     = docstring,
-        Raw.funcDeclGenericParams = genericParams,
-        Raw.funcDeclIds           = funcIds,
-        Raw.funcDeclParams        = funcParams,
-        Raw.funcDeclReturnType    = returnType,
-        Raw.funcDeclBody          = funcBody
-    }) -> do 
-            let ctx = Context 0 env
 
-            -- 0.1 Verify implicit type params
-            verifiedGenericParams <- mapM (verifyBoundedTypeVar ctx) genericParams
-
-            -- 0.2 populate symbol table with implicit type params
-            env1 <- 
-                foldM 
-                    (\acc (id, constraint) -> 
-                        if member (snd id) acc then
-                            Left (KErrorDuplicatedId [id])
-                        else 
-                            Right (acc |> (snd id, KeliSymType (V.BoundedTypeVar id constraint))))
-                    env 
-                    verifiedGenericParams
-
-            -- 1.1 Verify annotated types of each func param
-            verifiedFuncParams <-
-                    mapM
-                        (\(id, typeAnnot) -> do 
-                            (_, verifiedTypeAnnotation) <- verifyTypeAnnotation (Context 0 env1) typeAnnot
-                            return (id, verifiedTypeAnnotation)) 
-                        funcParams
-
-            -- 1.2 populate symbol table with function parameters
+    PaFuncDecl funcSignature funcBody -> do
+            -- 5. populate symbol table with function parameters
             env2 <- 
                 foldM 
                     (\acc (id, typeAnnot) ->
@@ -198,51 +272,19 @@ analyzeDecl decl env = case decl of
                             Left (KErrorDuplicatedId [id])
                         else
                             Right (acc |> (snd id, KeliSymConst id (V.getTypeRef typeAnnot))))
-                env1 
-                verifiedFuncParams
+                env
+                (V.funcDeclParams funcSignature)
             
-            -- 2. verify return type
-            verifiedReturnType <- 
-                (case returnType of 
-                    Just t -> do
-                        (_, verifiedTypeAnnot) <- verifyTypeAnnotation (Context 0 env1) t
-                        Right (V.getTypeRef verifiedTypeAnnot)
-
-                    Nothing ->
-                        Right (V.TypeUndefined))
-
-
-            -- 3. Insert function into symbol table first (to allow user to defined recursive function) 
-            let verifiedGenericParams' = map (\(id, c) -> V.BoundedTypeVar id c) verifiedGenericParams
-            let tempFunc =
-                 KeliSymFunc 
-                    [V.Func {
-                        V.funcDeclDocString = Nothing,
-                        V.funcDeclIds = funcIds,
-                        V.funcDeclGenericParams = verifiedGenericParams',
-                        V.funcDeclParams = verifiedFuncParams,
-                        V.funcDeclReturnType = verifiedReturnType
-                    }] 
-
-            env3 <- insertSymbolIntoEnv tempFunc env2
-
-
-            -- 4. type check the function body
-            (_, typeCheckedBody) <- verifyExpr (Context 0 env3) CanBeAnything funcBody
+            -- 6. type check the function body
+            (_, typeCheckedBody) <- verifyExpr (Context 0 env2) CanBeAnything funcBody
             let bodyType = getType typeCheckedBody
-            let resultFunc = V.Func {
-                            V.funcDeclDocString = docstring,
-                            V.funcDeclIds = funcIds,
-                            V.funcDeclGenericParams = verifiedGenericParams',
-                            -- V.funcDeclBody = typeCheckedBody,
-                            V.funcDeclParams = verifiedFuncParams,
-                            V.funcDeclReturnType = verifiedReturnType } 
 
-            -- 4. ensure body type adheres to return type
+            let verifiedReturnType = V.funcDeclReturnType funcSignature
+            -- 7. ensure body type adheres to return type
             case verifiedReturnType of
                 -- if return type is not declared, the return type of this function is inferred as the type of the body
                 V.TypeUndefined ->
-                    Right (V.FuncDecl (resultFunc {V.funcDeclReturnType = bodyType}) typeCheckedBody)
+                    Right (V.FuncDecl (funcSignature {V.funcDeclReturnType = bodyType}) typeCheckedBody)
 
                 _ -> do
                     case unify typeCheckedBody verifiedReturnType of
@@ -251,9 +293,9 @@ analyzeDecl decl env = case decl of
 
                         Right _ ->
                         -- if body type match expected return types
-                            Right (V.FuncDecl resultFunc typeCheckedBody)
+                            Right (V.FuncDecl funcSignature typeCheckedBody)
     
-    Raw.IdlessDecl expr -> do
+    PaIdlessDecl expr -> do
         (_, result) <- typeCheckExpr (Context 0 env) CanBeAnything expr
         case result of
             First checkedExpr ->
@@ -264,9 +306,8 @@ analyzeDecl decl env = case decl of
             
             Third tags ->
                 Left (KErrorCannotDeclareTagAsAnonymousConstant tags)
-
         
-    Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody -> do
+    PaGenericTypeDecl typeConstructorName ids typeParams typeBody -> do
         -- 1. verify all type params
         verifiedTypeParams <- mapM (verifyBoundedTypeVar (Context 0 env)) typeParams 
 

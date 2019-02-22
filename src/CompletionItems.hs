@@ -110,8 +110,8 @@ makeKeyValuesSnippet kvs =
         (zip kvs [1..]))
 
 
-rebuildSignature :: V.Func -> String 
-rebuildSignature (V.Func _ genparams params funcIds returnType) = 
+rebuildSignature :: V.FuncSignature-> String 
+rebuildSignature (V.FuncSignature _ genparams params funcIds returnType) = 
     let 
         front = stringifyFuncParam (head params) ++ "." 
         back = " | " ++ V.stringifyType returnType 

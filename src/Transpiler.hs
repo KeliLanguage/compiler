@@ -59,9 +59,9 @@ instance Transpilable V.Decl where
         V.RecordAliasDecl{} ->
             ""
 
-instance Transpilable V.Func where
-    transpile f@(V.Func _ _ params _ _) 
-        = let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
+instance Transpilable V.FuncSignature where
+    transpile f@(V.FuncSignature _ _ params _ _) = 
+        let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
         "const " ++ getFuncName f ++ "=(" ++ params' ++ ")=>"
 
 instance Transpilable V.Expr where
@@ -160,8 +160,8 @@ lazify str = "()=>(" ++ str ++ ")"
 -- This format is necessary, so that when we do function lookup,
 --  we can still construct back the function details from its id when needed
 --  especially when looking up generic functions
-getFuncName :: V.Func -> String
-getFuncName (V.Func{V.funcDeclIds=ids}) = 
+getFuncName :: V.FuncSignature -> String
+getFuncName (V.FuncSignature{V.funcDeclIds=ids}) = 
     let hash =sourceLine (fst (head ids)) in
     intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ show hash
 

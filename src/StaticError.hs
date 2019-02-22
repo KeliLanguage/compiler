@@ -44,7 +44,7 @@ data KeliError
         Verified.Type -- expected type
     | KErrorUsingUndefinedFunc 
         [Verified.StringToken] -- function ids
-        [Verified.Func] -- list of possible functions with the same ids
+        [Verified.FuncSignature] -- list of possible functions with the same ids
 
     | KErrorUsingUndefinedId Verified.StringToken
     | KErrorWrongTypeInSetter Verified.Expr Verified.Type
@@ -54,7 +54,7 @@ data KeliError
         Verified.Type  -- actual type
         Verified.Expr' -- actual expr 
     | KErrorNotAFunction [Verified.StringToken]
-    | KErrorDuplicatedFunc Verified.Func
+    | KErrorDuplicatedFunc Verified.FuncSignature
     | KErrorFuncCallTypeMismatch
         Verified.Type -- expected type
         Verified.Expr -- actual expr (type-checked)
