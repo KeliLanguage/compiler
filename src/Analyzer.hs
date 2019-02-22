@@ -51,25 +51,45 @@ analyzeDecls
     -> ([KeliError], Env, [KeliSymbol]) -- (accumulatedErrors, newEnv, symbols)
 
 analyzeDecls env decls = 
-    let (finalErrors, finalEnv) = 
+    let (errors, updatedEnv, _) = analyzeDecls' env decls in
+    (errors, updatedEnv, extractSymbols updatedEnv)
+
+-- this function will perform multipassing
+-- so that declaration order will be insignificant
+analyzeDecls' :: Env -> [Raw.Decl] -> 
+    ([KeliError], -- errors
+    Env,          -- updated env
+    [Raw.Decl])   -- declarations that failed to pass the type checker
+
+analyzeDecls' env inputDecls =
+    let result@(errors, updatedEnv, failedDecls) =
             foldl'
-            ((\(errors, prevSymtab) nextDecl1 -> 
-                let (newErrors, newSymtab) = 
-                        case analyzeDecl nextDecl1 prevSymtab of
-                            Right analyzedSymbol -> 
-                                case insertSymbolIntoEnv analyzedSymbol prevSymtab of
-                                    Right newSymtab' -> 
-                                        ([], newSymtab')
-                                    Left err' -> 
-                                        ([err'], prevSymtab) 
-                            Left err' -> 
-                                ([err'], prevSymtab) in
-                
-                (errors ++ newErrors, newSymtab)
-            )::([KeliError], Env) -> Raw.Decl -> ([KeliError],Env))
-            ([], env)
-            decls in
-    (finalErrors, finalEnv, extractSymbols finalEnv)
+                ((\(errors, prevEnv, prevFailedDecls) currentRawDecl -> 
+                    let (newErrors, newEnv, newFailedDecls) = 
+                            -- we should analyzeDecl based on the envFromFirstPass
+                            case analyzeDecl currentRawDecl prevEnv of
+                                Right analyzedSymbol -> 
+                                    case insertSymbolIntoEnv analyzedSymbol prevEnv of
+                                        Right newEnv' -> 
+                                            ([], newEnv', [])
+                                        Left err' -> 
+                                            ([err'], prevEnv, [currentRawDecl]) 
+                                Left err' -> 
+                                    ([err'], prevEnv, [currentRawDecl]) in
+                    
+                    (errors ++ newErrors, newEnv, prevFailedDecls ++ newFailedDecls)
+                )::([KeliError], Env, [Raw.Decl]) -> Raw.Decl -> ([KeliError],Env, [Raw.Decl]))
+                ([], env, [])
+                inputDecls in
+
+    -- if the number of failedDecls had decreased, continue multipassing
+    if length failedDecls < length inputDecls then
+        analyzeDecls' updatedEnv failedDecls
+
+    -- else stop multipassing
+    else
+        result
+
 
 
 analyzeDecl :: Raw.Decl -> Env -> Either KeliError KeliSymbol
