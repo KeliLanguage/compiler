@@ -180,7 +180,11 @@ suggestCompletionItemsAt filename contents (lineNumber, columnNumber) =
 
     in case keliParse filename contents' of
         Right decls ->
-            Right (suggestCompletionItems decls)
+            let items = suggestCompletionItems decls in
+
+            -- remove duplicates
+            let uniqueItems = nubBy (\x y -> label x == label y) items in
+            Right (uniqueItems)
 
         Left err ->
             Left err
