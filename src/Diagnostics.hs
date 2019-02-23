@@ -224,7 +224,7 @@ toDiagnostic err = case err of
 
         getDiagnostic [actualExpr] ("The expected type of each branch is "
                 ++ backtick (V.stringifyType expectedType)
-                ++ " (based on the type of first branch at Line " ++ show (line (start locationOfFirstBranch)) ++ ")\n"
+                ++ " (based on the type of first branch at Line " ++ show (line (start locationOfFirstBranch) + 1) ++ ")\n"
                 ++ "But this branch has type of " 
                 ++ backtick (V.stringifyType actualType))
 
