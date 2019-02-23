@@ -71,6 +71,9 @@ analyzeDecls' env inputRawDecls prevVerifiedDecls =
                             -- Do partial analyzation (to get function signature (if it's a function))
                             case analyzeDecl currentRawDecl prevEnv of
                                 Right partiallyAnalyzedDecl -> 
+
+                                    -- add the function signature into env
+                                    -- this is to allow recursive (even mutually recursive) functio to be type checked
                                     let updatedPrevEnv = 
                                             case partiallyAnalyzedDecl of
                                                 PaFuncDecl f _ ->
@@ -198,7 +201,7 @@ analyzeDecl rawDecl env = case rawDecl of
 
             -- 4. Return this function signature
             let funcSig = V.FuncSignature{
-                        V.funcDeclDocString = Nothing,
+                        V.funcDeclDocString = docstring,
                         V.funcDeclIds = funcIds,
                         V.funcDeclGenericParams = verifiedGenericParams',
                         V.funcDeclParams = verifiedFuncParams,

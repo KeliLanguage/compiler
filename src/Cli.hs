@@ -6,8 +6,6 @@ import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
 import Data.List
-import Data.Foldable
-import Data.Sequence
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
@@ -117,40 +115,8 @@ handleCliInput input =
 
         Suggest filename lineNumber columnNumber -> do
             contents <- readFile filename
-            let lines' = lines contents
-            let currentChar = lines' !! lineNumber !! columnNumber
-            let contents' = 
-                    -- if the current character is a dot(.)
-                        -- replace it with semicolon(;)
-                        -- so that we can parse KeliIncompleteFuncCall properly
-                    if currentChar == '.' then
-                        let lines'' = fromList (map fromList lines') in
-                        let result = (
-                                update 
-                                    -- at
-                                    lineNumber 
-
-                                    -- with new value
-                                    (update 
-                                        -- at
-                                        columnNumber
-
-                                        -- with new value
-                                        ';'
-
-                                        -- over
-                                        (lines'' `index` lineNumber))
-
-                                    -- over
-                                    lines'') in
-
-                        intercalate "\n" (map toList (toList (result)))
-                    else
-                        contents
-
-            case keliParse filename contents' of
-                Right decls ->
-                    let completionItems = suggestCompletionItems decls in
+            case suggestCompletionItemsAt filename contents (lineNumber, columnNumber) of
+                Right completionItems ->
                     putStr (Char8.unpack (encode completionItems))
 
                 Left errs ->

@@ -10,6 +10,7 @@ import Data.String.Utils
 import Util
 import Interpreter
 import Ast.Verified (newStringToken, newStringToken', StringToken)
+import CompletionItems
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 testParseKeli :: String -> Expectation
@@ -63,21 +64,25 @@ runTest' testCases =
                             if "====" `isInfixOf` contents then
                                 let [code, expectedOutput] = split "====" contents in
                                 it filename $ do
-                                    if '@' `elem` filename then do
-                                        result <- keliInterpret filename code 
-                                        case result of 
-                                            Right _ ->
-                                                error "No error is thrown"
-                                            Left err -> do
-                                                -- error (show err) -- Uncomment this line to show parse error
-                                                tail (split " " (show (err)) !! 0) `shouldBe` strip expectedOutput
-                                    else do
-                                        result <- keliInterpret filename code
-                                        case result of
-                                            Right output ->
-                                                strip output `shouldBe` strip expectedOutput
-                                            Left err -> 
-                                                error (show err)
+                                    case filename of
+                                        -- is testing for invalid case
+                                        '@':_ -> do
+                                            result <- keliInterpret filename code 
+                                            case result of 
+                                                Right _ ->
+                                                    error "No error is thrown"
+                                                Left err -> do
+                                                    -- error (show err) -- Uncomment this line to show parse error
+                                                    tail (split " " (show (err)) !! 0) `shouldBe` strip expectedOutput
+
+                                        -- is testing for valid case
+                                        _ -> do
+                                            result <- keliInterpret filename code
+                                            case result of
+                                                Right output ->
+                                                    strip output `shouldBe` strip expectedOutput
+                                                Left err -> 
+                                                    error (show err)
                             else
                                 error $ "\n\n\tERROR at " ++ filename ++ " : Each test file needs to contain ====\n\n"))
 
@@ -120,7 +125,6 @@ otherTest = hspec $ do
             let source = [newStringToken "a", newStringToken "b", newStringToken "c"]
             match source targetTags `shouldBe` PerfectMatch
 
-
     describe "keli parser" $ do
         it "identifiers" $ do
             testParseKeli "_=0"
@@ -160,3 +164,58 @@ otherTest = hspec $ do
             testParseKeli "=compiler.import(x)" 
             testParseKeli "=x.replace(a) with (b)" 
             testParseKeli "=x.+(y)" 
+
+    describe "completion item suggestion" $ do
+        it "for recursive function" $ do
+            let code = "(this Int).factorial = this."
+            let expected = [CompletionItem {
+                                kind = 3, 
+                                label = "factorial", 
+                                detail = "(this Int).factorial | Undefined", 
+                                insertText = "factorial", 
+                                insertTextFormat = 2, 
+                                documentation = ""
+                            }] 
+            let lineNumber = 0
+            let columnNumber = 27
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            case result of
+                Right actual ->
+                    actual `shouldBe` expected
+
+                Left err ->
+                    error (show err)
+
+
+        it "function documentation" $ do
+            let code = "\"This function will bomb you\"(this Int).bomb = 999 = 123."
+            let expected = [CompletionItem {
+                                kind = 3, 
+                                label = "bomb", 
+                                detail = "(this Int).bomb | Int", 
+                                insertText = "bomb", 
+                                insertTextFormat = 2, 
+                                documentation = "This function will bomb you"
+                            }] 
+            let lineNumber = 0
+            let columnNumber = 56
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            case result of
+                Right actual ->
+                    actual `shouldBe` expected
+
+                Left err ->
+                    error (show err)
+
+        it "suggesting primitive types" $ do
+            let code = "=I"
+            let expected = ["Int","Float","String","Type","Function"] 
+            let lineNumber = 0
+            let columnNumber = 1
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            case result of
+                Right actual ->
+                    map label actual `shouldBe` expected
+
+                Left err ->
+                    error (show err)
