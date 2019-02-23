@@ -265,6 +265,9 @@ instance HaveRange V.UnlinkedTag where
 
 instance HaveRange V.Expr' where
     getRange expression = case expression of
+        V.PartiallyInferredLambda param body ->
+            mergeRanges [getRange param, getRange body]
+
         V.RecordLambdaSetter subject _ _ lambdaBody ->
             mergeRanges [getRange subject, getRange lambdaBody]
 
@@ -282,6 +285,9 @@ instance HaveRange V.Expr' where
 
         V.RecordConstructor (Just name) _ ->
             getRange name
+
+        V.RecordConstructor Nothing kvs ->
+            getRange (fst (kvs !! 0))
         
         V.CarrylessTagExpr _ x ->
             getRange x
