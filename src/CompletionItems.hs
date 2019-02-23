@@ -221,9 +221,9 @@ suggestCompletionItems rawDecls =
 
                     let relatedFuncsCompletionItems = concatMap toCompletionItem relatedFuncs in
 
-                    case getType expr of
+                    case expr of
                         -- tag constructor prefix
-                        V.TypeTagConstructorPrefix _ tags typeParams ->
+                        V.Expr _ (V.TypeTagConstructorPrefix _ tags typeParams) ->
                             map 
                                 (\t -> 
                                     case t of
@@ -253,7 +253,7 @@ suggestCompletionItems rawDecls =
                                 tags 
 
                         -- record constructor
-                        V.TypeRecordConstructor name propTypePairs -> 
+                        V.Expr _ (V.TypeRecordConstructor name propTypePairs) -> 
                             let text = concat (map (\((_,prop), t) -> prop ++ "(" ++ V.stringifyType t ++ ") ") propTypePairs) in
                             [CompletionItem {
                                 kind = 4, -- constructor
@@ -266,7 +266,8 @@ suggestCompletionItems rawDecls =
 
 
                         -- lambda
-                        (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ _)) ->
+                        V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ _)) ->
+                            -- check if is shorthand lambda
                             [CompletionItem {
                                 kind = 2,
                                 label = "apply",
@@ -277,7 +278,7 @@ suggestCompletionItems rawDecls =
                             }]
 
                         -- tag matchers
-                        (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
+                        V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
                             let insertText' = 
                                     concatMap 
                                         (\(t,index) -> "\n\t" ++ 
@@ -300,7 +301,7 @@ suggestCompletionItems rawDecls =
                             }] ++ relatedFuncsCompletionItems
 
                         -- record (getter/setter)
-                        (V.TypeRecord _ propTypePairs) ->
+                        V.Expr _ (V.TypeRecord _ propTypePairs) ->
                             (concatMap 
                                 (\((_,prop), expectedType') ->
                                         [CompletionItem {
@@ -321,8 +322,6 @@ suggestCompletionItems rawDecls =
                                         }])
                                 propTypePairs) ++ relatedFuncsCompletionItems
 
-
-                    --     -- TODO: lambda (apply)
 
 
                     --     -- otherwise: scope related functions
