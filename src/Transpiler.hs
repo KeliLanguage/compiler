@@ -90,6 +90,15 @@ instance Transpilable V.Expr where
         V.Expr(V.RecordSetter subject prop newValue) _      
             -> "({...(" ++ transpile subject ++ ")," ++ prefix (snd prop) ++ ":(" ++ transpile newValue ++ ")})"
 
+        V.Expr (V.RecordLambdaSetter subject prop lambdaParam lambdaBody) _
+            -> 
+                "({...(" ++ transpile subject ++ ")," 
+                ++ prefix (snd prop) ++ ":("
+                ++ "((" ++ prefix (snd lambdaParam) ++ ")=>(" ++ transpile lambdaBody ++ "))"
+                ++ "((" ++ transpile subject ++ ")." ++ prefix (snd prop) ++ ")"
+                ++ ")})"
+
+
         V.Expr(V.TagMatcher subject branches elseBranch) _
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
@@ -117,6 +126,7 @@ instance Transpilable V.Expr where
 
         V.Expr (V.FuncApp f arg) _ ->
             transpile f ++ "(" ++ transpile arg ++ ")"
+
 
         other -> 
             error (show other)

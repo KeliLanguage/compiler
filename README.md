@@ -18,9 +18,11 @@ stack build
 
 ## How to run test?
 
+To treat warning as errors, use `-Werror`:
 ```
-stack test --file-watch
+stack test --ghc-options="-Wall -Werror" --file-watch
 ```
+
 
 ## How to run ghci?
 

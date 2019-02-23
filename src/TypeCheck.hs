@@ -1,12 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 module TypeCheck where
 
-
 import Control.Monad
 import Data.List hiding (lookup)
 import Data.Map.Ordered ((|>), lookup, member) 
 import qualified Data.Map.Strict as Map
-import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+-- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 
 import qualified Ast.Raw as Raw
@@ -53,7 +52,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                     CanBeAnything ->
                         (Right (ctx, First (V.Expr (V.RecordConstructor name propTypePairs) ((V.TypeRecordConstructor name propTypePairs)))))
 
-            Just (KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes)))) ->
+            Just (KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))) ->
                 case assumption of
                     StrictlyAnalyzingType -> 
                         (Right (ctx, Second (V.TypeAnnotSimple token t)))
@@ -245,11 +244,13 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
 
                                         Right branchType ->
                                             -- 4. check for exhaustiveness
-                                            let actualTagnames = map (\b -> case b of 
+                                            let actualTagnames = concatMap (\b -> case b of 
                                                     V.CarrylessTagBranch (V.VerifiedTagname name) _ ->
-                                                        name
+                                                        [name]
                                                     V.CarryfulTagBranch (V.VerifiedTagname name) _ _ ->
-                                                        name
+                                                        [name]
+                                                    V.ElseBranch{} -> 
+                                                        []
                                                     ) typeCheckedTagBranches in
                                             
                                             let expectedTagnames = map (V.tagnameOf) expectedTags in
@@ -263,10 +264,10 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                                 GotDuplicates duplicates ->
                                                     Left (KErrorDuplicatedTags duplicates)
 
-                                                Missing tags ->
+                                                Missing missingTags ->
                                                     case length typeCheckedElseBranches of
                                                         0 ->
-                                                            Left (KErrorMissingTags subject tags)
+                                                            Left (KErrorMissingTags subject missingTags)
 
                                                         1 ->
                                                             let elseBranch = head typeCheckedElseBranches in
@@ -283,7 +284,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
 
 
                         -- (D) check if user is calling record getter/setter
-                        recordType@(V.TypeRecord name kvs) ->  
+                        recordType@(V.TypeRecord _ kvs) ->  
                             if length funcIds > 1 then
                                 continuePreprocessFuncCall2
                             else
@@ -294,12 +295,33 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                         -- Check if is getter or setter
                                         if length (tail params') == 0 then -- is getter
                                             Right (ctx, First (V.Expr (V.RecordGetter subject actualPropertyName) expectedType))
-                                        else if length (tail params') == 1 then do -- is setter
-                                            (ctx3, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
-                                            substitution <- unify newValue expectedType
-                                            Right (ctx3, First (V.Expr 
-                                                (V.RecordSetter subject actualPropertyName newValue) 
-                                                (applySubstitutionToType substitution recordType)))
+                                        else if length (tail params') == 1 then -- is setter
+                                            case last params' of
+                                                -- if is lambda setter
+                                                -- TODO: need to check if expectedType is Function
+                                                -- something squishy is happening
+                                                Raw.Lambda lambdaParam lambdaBody -> do
+                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymConst lambdaParam expectedType) env 
+                                                    (ctx3, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
+
+                                                    substitution <- unify verifiedLambdaBody expectedType
+                                                    let returnType = applySubstitutionToType substitution recordType
+                                                    Right (ctx3, First (V.Expr 
+                                                        (V.RecordLambdaSetter 
+                                                            subject
+                                                            actualPropertyName
+                                                            lambdaParam
+                                                            verifiedLambdaBody)
+                                                        (returnType)))
+
+                                                -- else is value setter
+                                                _ -> do
+                                                    (ctx3, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
+                                                    substitution <- unify newValue expectedType
+                                                    let returnType = applySubstitutionToType substitution recordType
+                                                    Right (ctx3, First (V.Expr 
+                                                        (V.RecordSetter subject actualPropertyName newValue) 
+                                                        (returnType)))
                                         else
                                             continuePreprocessFuncCall2
 
@@ -312,16 +334,16 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                                 let tagname = head funcIds in
                                 case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
                                     -- if is carryless tag
-                                    Just (V.CarrylessTag tag (V.TaggedUnion name ids tags innerTypes)) -> 
-                                        let (ctx2, subst) = instantiateTypeVar ctx innerTypes in
+                                    Just (V.CarrylessTag tag (V.TaggedUnion name ids _ innerTypes)) -> 
+                                        let (ctx3, subst) = instantiateTypeVar ctx innerTypes in
                                         let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes in
                                         let belongingUnion = V.TaggedUnion name ids tags resultingInnerTypes in
-                                        (Right (ctx2, First (V.Expr 
+                                        (Right (ctx3, First (V.Expr 
                                             (V.CarrylessTagExpr tag tagname) 
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
-                                    Just (V.CarryfulTag _ expectedPropTypePairs belongingUnion@(V.TaggedUnion name ids _ typeParams)) ->
+                                    Just (V.CarryfulTag _ expectedPropTypePairs belongingUnion) ->
                                         (Right (ctx2, First (V.Expr
                                             (V.CarryfulTagConstructor tagname expectedPropTypePairs)
                                             ((V.TypeCarryfulTagConstructor 
@@ -402,11 +424,6 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
         Right (ctx3, First (V.Expr 
             (V.PartiallyInferredLambda param body)
             (V.TypeTaggedUnion (newFunctionType inputTVar outputTVar))))
-
-
-    other -> 
-        error (show other)
-        undefined
 
 
 verifyTypeAnnotation :: Context -> Raw.Expr -> Either KeliError (Context, V.TypeAnnotation) 
@@ -543,7 +560,7 @@ typeCheckFuncCall ctx@(Context _ env) assumption funcCallParams funcIds =
                 StillNoMatchingFunc ->
                     Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
         
-        Just other ->
+        Just _ ->
             Left (KErrorNotAFunction funcIds)
 
         _ -> 
@@ -564,13 +581,11 @@ verifyBoundedTypeVar ctx (name, expr) = do
 
 
 hardConformsTo :: V.Type -> (Maybe V.TypeConstraint) -> Bool
-type' `hardConformsTo` Nothing = True
-type' `hardConformsTo` (Just constraint) = 
+_ `hardConformsTo` Nothing = True
+_ `hardConformsTo` (Just constraint) = 
     case constraint of
         V.ConstraintAny -> 
             True
-        _ -> 
-            undefined
 
 extractTag :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError [V.UnlinkedTag]
 extractTag x =
@@ -693,7 +708,7 @@ verifyKeyValuePairs ctx keys values =
             Left (KErrorDuplicatedProperties duplicates)
         Nothing -> do
             (ctx2, typeCheckedExprs) <- verifyExprs ctx CanBeAnything values
-            Right (ctx, zip keys typeCheckedExprs)
+            Right (ctx2, zip keys typeCheckedExprs)
 
 verifyKeyTypeAnnotPairs 
     :: Context 
@@ -711,10 +726,12 @@ verifyKeyTypeAnnotPairs ctx keys types = do
 
 -- copied from https://stackoverflow.com/questions/49843681/getting-even-and-odd-position-of-elements-in-list-haskell-mutual-recursion/49844021
 -- Retrieve even-indexed elements 
+evens :: [a] -> [a]
 evens (x:xs) = x:odds xs
 evens _ = []
 
 -- Retrieve odd-indexed elements
+odds :: [a] -> [a]
 odds (_:xs) = evens xs
 odds _ = []
 

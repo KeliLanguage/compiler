@@ -3,7 +3,7 @@ module Ast.Verified where
 import Prelude hiding (id)
 import Text.Parsec.Pos
 import Data.List
-import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+-- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import qualified Ast.Raw as Raw
 
 type StringToken = (SourcePos, String)
@@ -117,10 +117,10 @@ instance Show Type where
     show TypeFloat                                           = "*float"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
-    show (TypeRecord name kvs)                               = "*record: (show name)"
+    show (TypeRecord name _)                               = "*record:" ++ show name
     show (TypeUndefined)                                     = "undefined"
     show (TypeCarryfulTagConstructor name _ _)               = "*carryful tag constructor:" ++ show name
-    show (TypeRecordConstructor _ kvs)                       = undefined -- "*record constructorshow:" ++ show kvs
+    show (TypeRecordConstructor _ _)                       = undefined -- "*record constructorshow:" ++ show kvs
     show (TypeTypeParam name _)                              = "*type param:" ++ show name
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
@@ -128,6 +128,7 @@ instance Show Type where
     show (TypeTaggedUnion (TaggedUnion name _ _ typeParams)) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
     show (FreeTypeVar name _) = "*freetypevar:" ++ name
     show (BoundedTypeVar name _) = "*boundedtypevar:" ++ snd name
+    show (TypeTagConstructorPrefix{}) = "TypeTagConstructorPrefix"
 
 
 data TypeConstraint
@@ -205,6 +206,12 @@ data Expr'
         recordSetterPropertyName :: StringToken,
         recordSetterNewValue     :: Expr
     }
+    | RecordLambdaSetter 
+        Expr        -- subject
+        StringToken -- property name
+        StringToken -- lambda param
+        Expr        -- lambda body
+
     | TagMatcher {
         tagMatcherSubject    :: Expr,
         tagMatcherBranches   :: [TagBranch],

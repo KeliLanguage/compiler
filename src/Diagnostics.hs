@@ -265,6 +265,9 @@ instance HaveRange V.UnlinkedTag where
 
 instance HaveRange V.Expr' where
     getRange expression = case expression of
+        V.RecordLambdaSetter subject _ _ lambdaBody ->
+            mergeRanges [getRange subject, getRange lambdaBody]
+
         V.FFIJavascript code ->
             getRange code
 
