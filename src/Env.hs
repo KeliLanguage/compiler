@@ -4,7 +4,6 @@ import Text.Parsec.Pos
 import Prelude hiding (id)
 import Data.Map.Ordered 
 
-import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 
 data KeliSymbol

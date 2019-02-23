@@ -7,11 +7,10 @@ module StaticError where
 
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Error
-import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+-- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import qualified Ast.Verified as Verified
 import qualified Ast.Raw as Raw
-import Env
 import Util
 
 data Messages = Messages [Message]

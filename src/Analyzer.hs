@@ -252,8 +252,8 @@ analyzePaDecl paDecl env = case paDecl of
                             V.TypeRecord _ expectedPropTypePairs ->
                                 Right (V.RecordAliasDecl id expectedPropTypePairs)
 
-                            V.TypeTaggedUnion t ->
-                                Right (V.TaggedUnionDecl t)
+                            V.TypeTaggedUnion taggedUnion ->
+                                Right (V.TaggedUnionDecl taggedUnion)
                             
                             _ ->
                                 undefined
@@ -345,8 +345,6 @@ analyzePaDecl paDecl env = case paDecl of
 
             _ ->
                 undefined
-
-    other -> undefined
 
 
 -- this function is for performing tying the knots (for tagged union types)

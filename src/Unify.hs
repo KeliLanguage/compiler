@@ -4,12 +4,9 @@ import Control.Monad
 
 import qualified Ast.Verified as V
 import Util
-import Env
 import StaticError
 import Prelude hiding(lookup)
-import Data.List hiding(lookup)
 import qualified Data.Map.Strict as Map
-import StaticError
 
 getType :: V.Expr -> V.Type
 getType (V.Expr _ t) = t
@@ -75,8 +72,8 @@ unify' _ (V.TypeString) (V.TypeString) =
 -- unify' bounded type variables
 unify' 
     actualExpr 
-    actualType@(V.BoundedTypeVar name1 constraint1) 
-    expectedType@(V.BoundedTypeVar name2 constraint2) = 
+    actualType@(V.BoundedTypeVar name1 _) 
+    expectedType@(V.BoundedTypeVar name2 _) = 
     if snd name1 == snd name2 then
         Right (emptySubstitution)  
     else
@@ -94,9 +91,12 @@ unify'
 
 unify' 
     actualExpr
-    actualType@(V.TypeRecordConstructor name1 kvs1)
-    expectedType@(V.TypeRecordConstructor name2 kvs2) = 
-    undefined
+    actualType@(V.TypeRecordConstructor name1 _)
+    expectedType@(V.TypeRecordConstructor name2 _) = 
+    if name1 == name2 then
+        Right (emptySubstitution)
+    else
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
 unify' _ V.TypeType V.TypeType = 
     undefined
@@ -120,7 +120,7 @@ unify'
 -- unfify record type
 -- record type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
-unify' actualExpr (V.TypeRecord name1 kts1) (V.TypeRecord name2 kts2) = 
+unify' actualExpr (V.TypeRecord _ kts1) (V.TypeRecord _ kts2) = 
     let (actualKeys, actualTypes) = unzip kts1 in
     let (expectedKeys, expectedTypes) = unzip kts2 in
     -- TODO: get the set difference of expectedKeys with actualKeys
@@ -159,11 +159,11 @@ unify' actualExpr actualType expectedType =  Left (KErrorTypeMismatch actualExpr
 
 
 unifyTVar :: V.Expr' -> String -> Maybe V.TypeConstraint -> V.Type -> UnifyResult
-unifyTVar actualExpr tvarname1 constraint1 t2 =
+unifyTVar actualExpr tvarname1 _ t2 =
     -- NOTE: actualExpr is used for reporting error location only
     let result = Right (Map.insert tvarname1 t2 emptySubstitution) in
     case t2 of
-        V.FreeTypeVar tvarname2 constraint2 ->
+        V.FreeTypeVar tvarname2 _ ->
             if tvarname1 == tvarname2 then
                 Right emptySubstitution
             else
@@ -228,14 +228,14 @@ composeSubst s1 s2 =
 applySubstitutionToType :: Substitution -> V.Type -> V.Type
 applySubstitutionToType subst type' =
     case type' of
-        V.FreeTypeVar name constraint ->
+        V.FreeTypeVar name _ ->
             case Map.lookup name subst of
                 Just t ->
                     t
                 Nothing ->
                     type'
 
-        V.BoundedTypeVar name constraint ->
+        V.BoundedTypeVar name _ ->
             case Map.lookup (snd name) subst of
                 Just t ->
                     t
