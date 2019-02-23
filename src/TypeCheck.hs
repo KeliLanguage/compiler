@@ -620,14 +620,26 @@ insertSymbolIntoEnv symbol env =
             let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
             case funcsWithSameName of
                 Just (KeliSymFunc fs) ->
-                    -- TODO: check for duplicated function (not only same ids, but also same type for each params)
-                    -- if any 
-                    --     (\func -> 
-                    --         all (\(t1,t2) -> t1 `V.typeCompares` t2) 
-                    --         (zip (funcParamTypes f) (funcParamTypes func))) fs then
-                    --     Left (KErrorDuplicatedFunc f)
-                    -- else
-                    Right (env |> (funcid, KeliSymFunc (f:fs)))
+                    -- check for duplication
+                    if any 
+                        (\func -> 
+                            let allParamSignatureIsSame =
+                                    all 
+                                        (\(t1,t2) -> 
+                                            V.stringifyType (V.getTypeRef t1) == V.stringifyType (V.getTypeRef t2))
+                                        (zip (funcParamTypes f) (funcParamTypes func)) in
+                            
+                            -- if is at the same location, means its for recursive function definition
+                            let funcNameIsDeclaredAtTheSameLocation = 
+                                    V.funcDeclIds f == V.funcDeclIds func in
+                            
+                            -- if all param signature is the same but name is not declared at same place,
+                            -- then its a duplicate
+                            allParamSignatureIsSame && not funcNameIsDeclaredAtTheSameLocation) 
+                        fs then
+                        Left (KErrorDuplicatedFunc f)
+                    else
+                        Right (env |> (funcid, KeliSymFunc (f:fs)))
                 
                 Just _ ->
                     Left (KErrorDuplicatedId (V.funcDeclIds f))
