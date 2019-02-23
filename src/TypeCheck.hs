@@ -624,6 +624,8 @@ insertSymbolIntoEnv symbol env =
                     if any 
                         (\func -> 
                             let allParamSignatureIsSame =
+                                    length (V.funcDeclParams f) == length (V.funcDeclParams func)
+                                    &&
                                     all 
                                         (\(t1,t2) -> 
                                             V.stringifyType (V.getTypeRef t1) == V.stringifyType (V.getTypeRef t2))

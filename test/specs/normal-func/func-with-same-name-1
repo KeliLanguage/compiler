@@ -1,0 +1,11 @@
+(this Int).zero = 0
+(this Int).zero(that Int) = 9
+
+= 1.zero
+= 1.zero(1)
+
+====
+
+Line 4 = 0
+Line 5 = 9
+
