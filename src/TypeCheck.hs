@@ -39,7 +39,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
         Right (ctx, First (V.Expr (V.StringExpr (pos, str)) ( V.TypeString)))
 
     Raw.Id token@(_,id) -> do
-        lookupResult <- lookupEnvs id env importedEnvs
+        lookupResult <- lookupEnvs [token] id env importedEnvs
         case lookupResult of 
             Just (KeliSymConst _ type') -> 
                 Right (ctx, First (V.Expr (V.Id token) type'))
@@ -478,8 +478,7 @@ typeCheckFuncCall
     -> Either KeliError (Context, V.Expr)
 
 typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
-    let funcId = intercalate "$" (map snd funcIds) 
-    lookupResult <- lookupEnvs funcId env importedEnvs
+    lookupResult <- lookupEnvs funcIds (intercalate "$" (map snd funcIds)) env importedEnvs
     case lookupResult of
         Just (KeliSymFunc candidateFuncs) -> do
             case (foldl 
@@ -852,8 +851,8 @@ allBranchTypeAreSame typeCheckedTagBranches = do
         Right _ ->
             Right expectedTypeOfEachBranches
                                         
-lookupEnvs :: String -> Env -> [Env] -> Either KeliError (Maybe KeliSymbol)
-lookupEnvs identifier currentEnv importedEnvs = 
+lookupEnvs :: [V.StringToken] -> String -> Env -> [Env] -> Either KeliError (Maybe KeliSymbol)
+lookupEnvs actualIds identifier currentEnv importedEnvs = 
     let result = map (lookup identifier) (currentEnv:importedEnvs) in
     let symbols = catMaybes result in
     if length symbols <= 0 then
@@ -861,5 +860,5 @@ lookupEnvs identifier currentEnv importedEnvs =
     else if length symbols == 1 then
         Right (Just (symbols !! 0))
     else -- if length symbols > 1 then
-        Left (KErrorAmbiguousUsage symbols)
+        Left (KErrorAmbiguousUsage actualIds symbols)
     

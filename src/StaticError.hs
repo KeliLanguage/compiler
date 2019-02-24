@@ -141,6 +141,7 @@ data KeliError
         Raw.StringToken
 
     | KErrorAmbiguousUsage
+        [Raw.StringToken]
         [KeliSymbol]
     
     deriving (Show)
