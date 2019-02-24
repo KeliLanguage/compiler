@@ -5,7 +5,7 @@ import Control.Monad
 import Data.List hiding (lookup)
 import Data.Map.Ordered ((|>), lookup, member) 
 import qualified Data.Map.Strict as Map
--- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Prelude hiding (lookup,id)
 
 import qualified Ast.Raw as Raw
@@ -18,6 +18,7 @@ import Unify
 data Assumption 
     = StrictlyAnalyzingType
     | CanBeAnything 
+    deriving (Show)
 
 typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
 typeCheckExpr ctx@(Context _ env) assumption expression = case expression of 
@@ -128,7 +129,7 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
                         --      fruit = record.next fruit;
                         -- 
                         -- It's ok, because we shouldn't allow user to create recursive records (which will form infinite type)
-                        (ctx2, firstValue) <- typeCheckExpr ctx CanBeAnything (tail params' !! 0)  -- <-- this line
+                        (ctx2, firstValue) <- typeCheckExpr ctx assumption (tail params' !! 0)  -- <-- this line
 
                         let keys = funcIds
                         case firstValue of 
