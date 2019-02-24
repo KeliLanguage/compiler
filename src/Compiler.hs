@@ -37,7 +37,11 @@ keliCompile filepath = do
                             yes <- doesFileExist importedFilePath
                             if yes then do
                                 (errors', envs', decls') <- keliCompile importedFilePath
-                                return (prevErrors ++ errors', prevEnvs ++ envs', prevDecls ++ decls')
+
+                                -- filter out idless decls, as specified at https://keli-language.gitbook.io/doc/specification/section-5-declarations#5-0-evaluated-declarations
+                                let idfulDecls = filter (\d -> case d of V.IdlessDecl{} -> False; _ -> True ) decls'
+
+                                return (prevErrors ++ errors', prevEnvs ++ envs', prevDecls ++ idfulDecls)
                             else 
                                 return (prevErrors ++ [KErrorCannotImport filePath], prevEnvs, prevDecls))
                         (([],[],[]) :: ([KeliError],[Env],[V.Decl]))
