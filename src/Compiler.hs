@@ -31,9 +31,13 @@ keliCompile filepath = do
             -- importeeErrors means errors at the imported files
             (importeeErrors, importedEnvs, importedDecls) <- 
                     foldM 
-                        (\(prevErrors, prevEnvs, prevDecls) (ImportDecl filePath) -> do
+                        (\(prevErrors, prevEnvs, prevDecls) (ImportDecl importFilePath) -> do
                             absoluteFilePath <- makeAbsolute filepath
-                            let importedFilePath = takeDirectory absoluteFilePath ++ "/" ++ snd filePath
+                            let importedFilePath =
+                                    if isAbsolute (snd importFilePath) then
+                                        snd importFilePath
+                                    else
+                                        takeDirectory absoluteFilePath ++ "/" ++ snd importFilePath
                             yes <- doesFileExist importedFilePath
                             if yes then do
                                 (errors', envs', decls') <- keliCompile importedFilePath
@@ -43,7 +47,7 @@ keliCompile filepath = do
 
                                 return (prevErrors ++ errors', prevEnvs ++ envs', prevDecls ++ idfulDecls)
                             else 
-                                return (prevErrors ++ [KErrorCannotImport filePath], prevEnvs, prevDecls))
+                                return (prevErrors ++ [KErrorCannotImport importFilePath], prevEnvs, prevDecls))
                         (([],[],[]) :: ([KeliError],[Env],[V.Decl]))
                         importStatements
 
