@@ -5,20 +5,14 @@ module Cli where
 import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
-import Data.List
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import Interpreter
 import Repl
-import Parser(keliParse)
-import Analyzer(analyze, analyzeDecls)
+import Compiler
 import Diagnostics(toDiagnostic)
-import Env(emptyEnv)
 import CompletionItems
-import StaticError
-
-
 
 
 data CliInput 
@@ -93,8 +87,7 @@ handleCliInput :: CliInput -> IO ()
 handleCliInput input = 
     case input of 
         Execute filename -> do
-            contents <- readFile filename
-            result <- keliInterpret filename contents
+            result <- keliInterpret filename 
             case result of 
                 Right output ->
                     putStrLn output
@@ -106,12 +99,8 @@ handleCliInput input =
             keliRepl
         
         Analyze filename -> do
-            contents <- readFile filename
-            case keliParse filename contents >>= analyze of
-                Right _ ->
-                    putStr "[]"
-                Left errs ->
-                    putStr (Char8.unpack (encode (concat (map toDiagnostic errs))))
+            (errors, _, _) <- keliCompile filename
+            putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
 
         Suggest filename lineNumber columnNumber -> do
             contents <- readFile filename

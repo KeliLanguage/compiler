@@ -1,0 +1,3 @@
+= module.import("./File1.keli")
+
+(this Int).doubleNegate = this.negate.negate

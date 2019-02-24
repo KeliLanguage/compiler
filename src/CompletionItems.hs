@@ -110,8 +110,8 @@ makeKeyValuesSnippet :: [(String,String)] -> String
 makeKeyValuesSnippet kvs =
     intercalate " "
     (map 
-        (\((key, value), index) -> 
-            key ++ "(${" ++ show index ++ ":" ++ value ++ "})")
+        (\((key, value), index') -> 
+            key ++ "(${" ++ show index' ++ ":" ++ value ++ "})")
         (zip kvs [1..]))
 
 
@@ -192,158 +192,189 @@ suggestCompletionItemsAt filename contents (lineNumber, columnNumber) =
 
 suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
 suggestCompletionItems rawDecls =
-    let (errors, env, _) = analyzeDecls initialEnv rawDecls in
+    -- TODO: need to include imported envs also
+    let (errors, env, _) = analyzeDecls [] initialEnv rawDecls in
     let symbols = extractSymbols env in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
-        -- if is triggered by pressing the dot operator
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
-            case thing of
-                First expr -> 
-                    let relatedFuncs =
-                            concatMap 
-                            (\s -> 
-                                case s of 
-                                    KeliSymFunc funcs ->
-                                        concatMap
-                                            (\f -> 
-                                                let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
-                                                -- instantiate type variables first
-                                                let (_, subst) = instantiateTypeVar (Context 999 emptyEnv) (V.funcDeclGenericParams f) in
-                                                case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
-                                                    Right _ ->
-                                                        [KeliSymFunc [f]]
-                                                    Left _ ->
-                                                        [])
-                                            funcs
-                                    _ -> 
-                                        [])
-                            symbols in
+            -- suggest functions
+            suggestCompletionItems' symbols (Just thing)
 
-                    let relatedFuncsCompletionItems = concatMap toCompletionItem relatedFuncs in
+        _ ->
+            -- suggest identifiers
+            suggestCompletionItems' symbols Nothing
 
-                    case expr of
-                        -- tag constructor prefix
-                        V.Expr _ (V.TypeTagConstructorPrefix _ tags typeParams) ->
-                            map 
-                                (\t -> 
-                                    case t of
-                                        V.CarryfulTag (_,tagname) propTypePairs _ ->
-                                            let text = tagname ++ "." ++ intercalate " "
-                                                            (map (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs) in
-                                                CompletionItem {
-                                                kind = 13, -- enum
-                                                label = text,
-                                                detail = "",
-                                                insertText = tagname 
-                                                    ++ "." 
-                                                    ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
-                                                insertTextFormat = 2,
-                                                documentation = ""
-                                            }
-                                        
-                                        V.CarrylessTag (_,tagname) _ ->
+
+-- suggest completion item based on `subjectExpr`
+suggestCompletionItems' :: [KeliSymbol] -> Maybe (OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag]) -> [CompletionItem]
+suggestCompletionItems' symbols subjectExpr  = case subjectExpr of
+    -- if not triggered by pressing the dot operator
+    Nothing ->
+        -- then only return only non-functions identifiers
+        concatMap 
+            toCompletionItem 
+            ((filter (\d -> case d of KeliSymFunc{} -> False; _ -> True) (symbols)))
+
+    -- if is triggered by pressing the dot operator
+    Just thing ->
+        case thing of
+            First expr -> 
+                let relatedFuncs =
+                        concatMap 
+                        (\s -> 
+                            case s of 
+                                KeliSymFunc funcs ->
+                                    concatMap
+                                        (\f -> 
+                                            let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
+                                            -- instantiate type variables first
+                                            let (_, subst) = instantiateTypeVar (Context 999 emptyEnv []) (V.funcDeclGenericParams f) in
+                                            case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
+                                                Right _ ->
+                                                    [KeliSymFunc [f]]
+                                                Left _ ->
+                                                    [])
+                                        funcs
+                                _ -> 
+                                    [])
+                        symbols in
+
+                let relatedFuncsCompletionItems = concatMap toCompletionItem relatedFuncs in
+
+                case expr of
+                    -- tag constructor prefix
+                    V.Expr _ (V.TypeTagConstructorPrefix _ tags typeParams) ->
+                        map 
+                            (\t -> 
+                                case t of
+                                    V.CarryfulTag (_,tagname) propTypePairs _ ->
+                                        let text = tagname ++ "." ++ intercalate " "
+                                                        (map (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs) in
                                             CompletionItem {
-                                                kind = 13, -- enum
-                                                label = tagname,
-                                                detail = "",
-                                                insertText = tagname,
-                                                insertTextFormat = 1,
-                                                documentation = ""
-                                            })
-                                tags 
-
-                        -- record constructor
-                        V.Expr _ (V.TypeRecordConstructor name propTypePairs) -> 
-                            let text = concat (map (\((_,prop), t) -> prop ++ "(" ++ V.stringifyType t ++ ") ") propTypePairs) in
-                            [CompletionItem {
-                                kind = 4, -- constructor
-                                label = text,
-                                detail = "constructor",
-                                insertText = makeKeyValuesSnippet (map (\(p, t) -> (snd p, V.stringifyType t)) propTypePairs),
-                                insertTextFormat = 2,
-                                documentation = ""
-                            }]
-
-
-                        -- lambda
-                        V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ _)) ->
-                            -- check if is shorthand lambda
-                            [CompletionItem {
-                                kind = 2,
-                                label = "apply",
-                                detail = "",
-                                insertText = "apply($1)",
-                                insertTextFormat = 2,
-                                documentation = ""
-                            }]
-
-                        -- tag matchers
-                        V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
-                            let insertText' = 
-                                    concatMap 
-                                        (\(t,index) -> "\n\t" ++ 
-                                            (case t of 
-                                                V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
-                                                    "if(" ++ tagname ++ "."
-                                                        ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
-                                                        ++ "):\n\t\t(${" ++ show index ++ ":undefined})"
-
-                                                V.CarrylessTag (_,tagname) _ ->
-                                                    "if(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
-                                        (zip tags [1..]) in
-                            [CompletionItem {
-                                kind = 12, -- value
-                                label = "if(...)",
-                                detail = "tag matcher",
-                                insertText = insertText',
-                                insertTextFormat = 2,
-                                documentation = ""
-                            }] ++ relatedFuncsCompletionItems
-
-                        -- record (getter/setter)
-                        V.Expr _ (V.TypeRecord _ propTypePairs) ->
-                            (concatMap 
-                                (\((_,prop), expectedType') ->
-                                        [CompletionItem {
-                                            kind = 10, -- property
-                                            label = prop,
-                                            detail = "getter",
-                                            insertText = prop,
-                                            insertTextFormat = 1,
-                                            documentation = ""
-                                        },
-                                        CompletionItem {
-                                            kind = 10, -- property
-                                            label = prop ++ "()",
-                                            detail = "setter",
-                                            insertText = prop ++ "(${1:undefined})",
+                                            kind = 13, -- enum
+                                            label = text,
+                                            detail = "",
+                                            insertText = tagname 
+                                                ++ "." 
+                                                ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
                                             insertTextFormat = 2,
                                             documentation = ""
-                                        }])
-                                propTypePairs) ++ relatedFuncsCompletionItems
+                                        }
+                                    
+                                    V.CarrylessTag (_,tagname) _ ->
+                                        CompletionItem {
+                                            kind = 13, -- enum
+                                            label = tagname,
+                                            detail = "",
+                                            insertText = tagname,
+                                            insertTextFormat = 1,
+                                            documentation = ""
+                                        })
+                            tags 
+
+                    -- record constructor
+                    V.Expr _ (V.TypeRecordConstructor name propTypePairs) -> 
+                        let text = concat (map (\((_,prop), t) -> prop ++ "(" ++ V.stringifyType t ++ ") ") propTypePairs) in
+                        [CompletionItem {
+                            kind = 4, -- constructor
+                            label = text,
+                            detail = "constructor",
+                            insertText = makeKeyValuesSnippet (map (\(p, t) -> (snd p, V.stringifyType t)) propTypePairs),
+                            insertTextFormat = 2,
+                            documentation = ""
+                        }]
+
+
+                    -- lambda
+                    V.Expr f (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ _)) ->
+                        case f of
+                            V.Lambda ((_,paramName), _) lambdaBody ->
+                                -- If the paramName contains no alphabet, then it must be an auto-generated name
+                                -- implying that it is a lambda shorthand
+                                if all (not . isAlpha) paramName then
+                                    -- is shorthand lambda
+                                    -- this is kind of a hack, but it works
+                                    -- give suggestion item based on the lambda body
+                                    suggestCompletionItems' symbols (Just (First lambdaBody))
+                                else
+                                    defaultResult
+
+                            _ ->
+                                defaultResult
+
+                            where
+                                defaultResult = 
+                                    -- is normal lambda
+                                    [CompletionItem {
+                                        kind = 2,
+                                        label = "apply",
+                                        detail = "",
+                                        insertText = "apply($1)",
+                                        insertTextFormat = 2,
+                                        documentation = ""
+                                    }]
+
+                    -- tag matchers
+                    V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
+                        let insertText' = 
+                                concatMap 
+                                    (\(t,index) -> "\n\t" ++ 
+                                        (case t of 
+                                            V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
+                                                "if(" ++ tagname ++ "."
+                                                    ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
+                                                    ++ "):\n\t\t(${" ++ show index ++ ":undefined})"
+
+                                            V.CarrylessTag (_,tagname) _ ->
+                                                "if(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
+                                    (zip tags [1..]) in
+                        [CompletionItem {
+                            kind = 12, -- value
+                            label = "if(...)",
+                            detail = "tag matcher",
+                            insertText = insertText',
+                            insertTextFormat = 2,
+                            documentation = ""
+                        }] ++ relatedFuncsCompletionItems
+
+                    -- record (getter/setter)
+                    V.Expr _ (V.TypeRecord _ propTypePairs) ->
+                        (concatMap 
+                            (\((_,prop), expectedType') ->
+                                    [CompletionItem {
+                                        kind = 10, -- property
+                                        label = prop,
+                                        detail = "getter",
+                                        insertText = prop,
+                                        insertTextFormat = 1,
+                                        documentation = ""
+                                    },
+                                    CompletionItem {
+                                        kind = 10, -- property
+                                        label = prop ++ "()",
+                                        detail = "setter",
+                                        insertText = prop ++ "(${1:undefined})",
+                                        insertTextFormat = 2,
+                                        documentation = ""
+                                    }])
+                            propTypePairs) ++ relatedFuncsCompletionItems
 
 
 
                     --     -- otherwise: scope related functions
-                        _ ->
-                            relatedFuncsCompletionItems
+                    _ ->
+                        relatedFuncsCompletionItems
 
-                Third tag ->
-                    []
+            Third tag ->
+                []
 
-                _ ->
-                    [CompletionItem {
-                        kind = 1,
-                        label = "Gotcha",
-                        detail = "Declare a carryful tag.",
-                        insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
-                        insertTextFormat = 1,
-                        documentation = ""
-                    }]
+            _ ->
+                [CompletionItem {
+                    kind = 1,
+                    label = "Gotcha",
+                    detail = "Declare a carryful tag.",
+                    insertText = "(tag.#(${1:tagName}) carry(${2:carryType}))",
+                    insertTextFormat = 1,
+                    documentation = ""
+                }]
 
-        -- if not triggered by pressing the dot operator
-        other ->
-            -- then only return only non-functions identifiers
-            concatMap 
-                toCompletionItem 
-                ((filter (\d -> case d of KeliSymFunc{} -> False; _ -> True) (symbols)))

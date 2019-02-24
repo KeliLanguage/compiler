@@ -2,6 +2,7 @@
 module TypeCheck where
 
 import Control.Monad
+import Data.Maybe
 import Data.List hiding (lookup)
 import Data.Map.Ordered ((|>), lookup, member) 
 import qualified Data.Map.Strict as Map
@@ -21,7 +22,7 @@ data Assumption
     deriving (Show)
 
 typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
-typeCheckExpr ctx@(Context _ env) assumption expression = case expression of 
+typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
         (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr 
         Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
@@ -37,8 +38,9 @@ typeCheckExpr ctx@(Context _ env) assumption expression = case expression of
     Raw.StringExpr (pos, str) -> 
         Right (ctx, First (V.Expr (V.StringExpr (pos, str)) ( V.TypeString)))
 
-    Raw.Id token@(_,id) -> 
-        case lookup id env of 
+    Raw.Id token@(_,id) -> do
+        lookupResult <- lookupEnvs id env importedEnvs
+        case lookupResult of 
             Just (KeliSymConst _ type') -> 
                 Right (ctx, First (V.Expr (V.Id token) type'))
         
@@ -475,9 +477,10 @@ typeCheckFuncCall
     -> [Raw.StringToken] 
     -> Either KeliError (Context, V.Expr)
 
-typeCheckFuncCall ctx@(Context _ env) assumption funcCallParams funcIds = 
-    let funcId = intercalate "$" (map snd funcIds) in
-    case lookup funcId env of
+typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
+    let funcId = intercalate "$" (map snd funcIds) 
+    lookupResult <- lookupEnvs funcId env importedEnvs
+    case lookupResult of
         Just (KeliSymFunc candidateFuncs) -> do
             case (foldl 
                     (\result currentFunc ->
@@ -630,7 +633,7 @@ data UnverifiedBranch
 insertSymbolIntoEnv :: KeliSymbol -> Env -> Either KeliError Env
 insertSymbolIntoEnv symbol env =
     case symbol of 
-        KeliSymFunc [f] -> 
+        KeliSymFunc [f] ->
             let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
             let funcsWithSameName = lookup funcid env in
             let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
@@ -762,8 +765,8 @@ instantiateTypeVar ctx boundedTypeVars =
     in (finalCtx, finalSubst)
 
 createNewTVar :: Context -> Maybe V.TypeConstraint -> (Context, V.Type)
-createNewTVar (Context nextInt env) constraint =
-    (Context (nextInt + 1) env, V.FreeTypeVar ("T$" ++ show nextInt) constraint)
+createNewTVar (Context nextInt env importedEnvs) constraint =
+    (Context (nextInt + 1) env importedEnvs, V.FreeTypeVar ("T$" ++ show nextInt) constraint)
 
 
 typeCheckTagBranch 
@@ -771,7 +774,7 @@ typeCheckTagBranch
     -> [V.Tag]
     -> (Raw.Expr, Raw.Expr) 
     -> Either KeliError (Context, V.TagBranch)
-typeCheckTagBranch ctx@(Context _ env) expectedTags (tag, branch) =
+typeCheckTagBranch ctx@(Context _ env importedEnvs) expectedTags (tag, branch) =
     case tag of
         Raw.Id actualTagname -> do
             (verifiedTagname,_) <- verifyTagname expectedTags actualTagname
@@ -849,3 +852,14 @@ allBranchTypeAreSame typeCheckedTagBranches = do
         Right _ ->
             Right expectedTypeOfEachBranches
                                         
+lookupEnvs :: String -> Env -> [Env] -> Either KeliError (Maybe KeliSymbol)
+lookupEnvs identifier currentEnv importedEnvs = 
+    let result = map (lookup identifier) (currentEnv:importedEnvs) in
+    let symbols = catMaybes result in
+    if length symbols <= 0 then
+        Right Nothing
+    else if length symbols == 1 then
+        Right (Just (symbols !! 0))
+    else -- if length symbols > 1 then
+        Left (KErrorAmbiguousUsage symbols)
+    

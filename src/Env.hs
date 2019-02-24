@@ -53,9 +53,10 @@ newFunctionType inputType outputType =
 
 data Context 
     = Context {
-        contextNextInt :: Int,
-        contextEnv :: Env
+        contextNextInt      :: Int,
+        contextEnv          :: Env,
+        contextImportedEnvs :: [Env]
     }
 
 emptyContext :: Context
-emptyContext = Context 0 emptyEnv
+emptyContext = Context 0 emptyEnv []

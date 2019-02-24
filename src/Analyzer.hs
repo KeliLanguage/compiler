@@ -17,22 +17,22 @@ import TypeCheck
 import Util
 import Unify
 
-analyze :: [Raw.Decl] -> Either [KeliError] [V.Decl]
-analyze decls = 
-    let (errors, _, analyzedDecls) = analyzeDecls initialEnv decls in
-    if length errors > 0 then
-        Left errors
-    else
-        -- sorting is necessary, so that the transpilation order will be correct
-        -- Smaller number means will be transpiled first
-        Right (sortOn (
+analyze :: [Env] -> [Raw.Decl] -> ([KeliError], Env, [V.Decl])
+analyze importedEnvs decls = 
+    let (errors, env, analyzedDecls) = analyzeDecls importedEnvs emptyEnv decls in
+
+    -- sorting is necessary, so that the transpilation order will be correct
+    -- Smaller number means will be transpiled first
+    let sortedDecls = sortOn (
                 \x -> case x of 
                     V.TaggedUnionDecl{}    -> 1
                     V.RecordAliasDecl{}    -> 2
                     V.FuncDecl{}           -> 3
                     V.ConstDecl{}          -> 4
                     V.IdlessDecl{}         -> 5
-                ) (analyzedDecls)) 
+                ) (analyzedDecls) in
+
+    (errors, env, sortedDecls)
 
 extractSymbols :: Env -> [KeliSymbol]
 extractSymbols env = map snd (assocs env)
@@ -43,18 +43,20 @@ data TypeDecl =
         V.Type          -- type body
 
 analyzeDecls 
-    :: Env -- previous env
+    :: [Env] -- imported env
+    -> Env -- previous env
     -> [Raw.Decl] -- parsed input
     -> ([KeliError], Env, [V.Decl]) -- (accumulatedErrors, newEnv, symbols)
 
-analyzeDecls env rawDecls = 
-    let (errors, updatedEnv, _, analyzedDecls) = analyzeDecls' env rawDecls [] in
+analyzeDecls importedEnvs env rawDecls = 
+    let (errors, updatedEnv, _, analyzedDecls) = analyzeDecls' importedEnvs env rawDecls [] in
     (errors, updatedEnv, analyzedDecls)
 
 -- this function will perform multipassing
 -- so that declaration order will be insignificant
 analyzeDecls' 
-    :: Env 
+    :: [Env]
+    -> Env 
     -> [Raw.Decl] 
     -> [V.Decl]       -- previous verified decls
     -> 
@@ -63,13 +65,13 @@ analyzeDecls'
         [Raw.Decl],   -- declarations that failed to pass the type checker
         [V.Decl])     -- declarations that passed the type checker
 
-analyzeDecls' env inputRawDecls prevVerifiedDecls =
+analyzeDecls' importedEnvs env inputRawDecls prevVerifiedDecls =
     let (currentErrors, updatedEnv, failedDecls, currentVerifiedDecls) =
             foldl'
                 ((\(errors, prevEnv, prevFailedDecls, prevPassedDecls) currentRawDecl -> 
                     let (newErrors, newEnv, newFailedDecls, newPassedDecls) = 
                             -- Do partial analyzation (to get function signature (if it's a function))
-                            case analyzeDecl currentRawDecl prevEnv of
+                            case analyzeDecl currentRawDecl prevEnv importedEnvs of
                                 Right partiallyAnalyzedDecl -> 
 
                                     -- add the function signature into env
@@ -84,7 +86,7 @@ analyzeDecls' env inputRawDecls prevVerifiedDecls =
 
                                     case updatedPrevEnv of
                                         Right updatedPrevEnv' ->
-                                            case analyzePaDecl partiallyAnalyzedDecl updatedPrevEnv' of
+                                            case analyzePaDecl partiallyAnalyzedDecl updatedPrevEnv' importedEnvs of
                                                 Right analyzedDecl ->
                                                     case toSymbol analyzedDecl of
                                                         Just symbol ->
@@ -118,7 +120,7 @@ analyzeDecls' env inputRawDecls prevVerifiedDecls =
     -- if the number of failedDecls had decreased, continue multipassing
     if length failedDecls < length inputRawDecls then
         -- note that the current errors will be ignored
-        analyzeDecls' updatedEnv failedDecls (prevVerifiedDecls ++ currentVerifiedDecls)
+        analyzeDecls' importedEnvs updatedEnv failedDecls (prevVerifiedDecls ++ currentVerifiedDecls)
 
     -- else stop multipassing
     else
@@ -143,8 +145,8 @@ data PaDecl
         [(Raw.StringToken, Raw.Expr)] -- type params
         Raw.Expr            -- type body
 
-analyzeDecl :: Raw.Decl -> Env -> Either KeliError PaDecl
-analyzeDecl rawDecl env = case rawDecl of
+analyzeDecl :: Raw.Decl -> Env -> [Env] -> Either KeliError PaDecl
+analyzeDecl rawDecl env importedEnvs = case rawDecl of
     Raw.ConstDecl c -> 
         Right (PaConstDecl c)
     
@@ -162,7 +164,7 @@ analyzeDecl rawDecl env = case rawDecl of
         Raw.funcDeclReturnType    = returnType,
         Raw.funcDeclBody          = funcBody
     }) -> do 
-            let ctx = Context 0 env
+            let ctx = Context 0 env importedEnvs
 
             -- 1.0 Verify implicit type params
             verifiedGenericParams <- mapM (verifyBoundedTypeVar ctx) genericParams
@@ -183,7 +185,7 @@ analyzeDecl rawDecl env = case rawDecl of
             verifiedFuncParams <-
                     mapM
                         (\(id, typeAnnot) -> do 
-                            (_, verifiedTypeAnnotation) <- verifyTypeAnnotation (Context 0 env1) typeAnnot
+                            (_, verifiedTypeAnnotation) <- verifyTypeAnnotation (Context 0 env1 importedEnvs) typeAnnot
                             return (id, verifiedTypeAnnotation)) 
                         funcParams
 
@@ -191,7 +193,7 @@ analyzeDecl rawDecl env = case rawDecl of
             verifiedReturnType <- 
                 (case returnType of 
                     Just t -> do
-                        (_, verifiedTypeAnnot) <- verifyTypeAnnotation (Context 0 env1) t
+                        (_, verifiedTypeAnnot) <- verifyTypeAnnotation (Context 0 env1 importedEnvs) t
                         Right (V.getTypeRef verifiedTypeAnnot)
 
                     Nothing ->
@@ -211,8 +213,8 @@ analyzeDecl rawDecl env = case rawDecl of
             Right (PaFuncDecl funcSig funcBody)
 
     
-analyzePaDecl :: PaDecl -> Env -> Either KeliError V.Decl
-analyzePaDecl paDecl env = case paDecl of
+analyzePaDecl :: PaDecl -> Env -> [Env] -> Either KeliError V.Decl
+analyzePaDecl paDecl env importedEnvs = case paDecl of
     PaConstDecl Raw.Const {
         Raw.constDeclId=id,
         Raw.constDeclValue=expr
@@ -225,6 +227,7 @@ analyzePaDecl paDecl env = case paDecl of
                         "interface",
                         "ffi",
                         "undefined",
+                        "module",
                         "Int",
                         "Float",
                         "String"] in
@@ -242,7 +245,7 @@ analyzePaDecl paDecl env = case paDecl of
             continueAnalyzeConstDecl = do
                 -- insert temporary types into env to allow declaraion of recursive types
                 let updatedEnv = env |> (snd id, KeliSymType V.TypeSelf)
-                (_, result) <- typeCheckExpr (Context 0 updatedEnv) CanBeAnything expr
+                (_, result) <- typeCheckExpr (Context 0 updatedEnv importedEnvs) CanBeAnything expr
                 case result of
                     First typeCheckedExpr ->
                         Right (V.ConstDecl id typeCheckedExpr)
@@ -279,7 +282,7 @@ analyzePaDecl paDecl env = case paDecl of
                 (V.funcDeclParams funcSignature)
             
             -- 6. type check the function body
-            (_, typeCheckedBody) <- verifyExpr (Context 0 env2) CanBeAnything funcBody
+            (_, typeCheckedBody) <- verifyExpr (Context 0 env2 importedEnvs) CanBeAnything funcBody
             let bodyType = getType typeCheckedBody
 
             let verifiedReturnType = V.funcDeclReturnType funcSignature
@@ -299,7 +302,7 @@ analyzePaDecl paDecl env = case paDecl of
                             Right (V.FuncDecl funcSignature typeCheckedBody)
     
     PaIdlessDecl expr -> do
-        (_, result) <- typeCheckExpr (Context 0 env) CanBeAnything expr
+        (_, result) <- typeCheckExpr (Context 0 env importedEnvs) CanBeAnything expr
         case result of
             First checkedExpr ->
                 Right (V.IdlessDecl checkedExpr)
@@ -312,7 +315,7 @@ analyzePaDecl paDecl env = case paDecl of
         
     PaGenericTypeDecl typeConstructorName ids typeParams typeBody -> do
         -- 1. verify all type params
-        verifiedTypeParams <- mapM (verifyBoundedTypeVar (Context 0 env)) typeParams 
+        verifiedTypeParams <- mapM (verifyBoundedTypeVar (Context 0 env importedEnvs)) typeParams 
 
         -- 2. populate symbol table with type params
         env2 <- 
@@ -337,7 +340,7 @@ analyzePaDecl paDecl env = case paDecl of
                     KeliSymTaggedUnion (V.TaggedUnion typeConstructorName ids [] verifiedTypeParams')))
 
         -- 4. type check the body
-        (_, typeCheckedBody) <- (typeCheckExpr (Context 0 env3) StrictlyAnalyzingType typeBody) 
+        (_, typeCheckedBody) <- (typeCheckExpr (Context 0 env3 importedEnvs) StrictlyAnalyzingType typeBody) 
         case typeCheckedBody of
             Third tag -> do
                 taggedUnion <- linkTagsTogether typeConstructorName ids tag verifiedTypeParams'

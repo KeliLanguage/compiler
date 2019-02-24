@@ -210,6 +210,9 @@ toDiagnostic err = case err of
     KErrorExpectedTypeAnnotButGotExpr expr ->
         getDiagnostic [expr] ("Expected a type annotation but got an expression.")
 
+    KErrorCannotImport filePath ->
+        getDiagnostic [filePath] ("Cannot import this file. Maybe it does not exist, or you don't have the right to access it.")
+
     KErrorNotAllBranchHaveTheSameType actualExpr actualType expectedType firstBranch ->
         let locationOfFirstBranch = 
                 case firstBranch of

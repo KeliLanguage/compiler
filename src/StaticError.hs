@@ -10,6 +10,7 @@ import Text.Parsec.Error
 -- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import qualified Ast.Verified as Verified
+import Env
 import qualified Ast.Raw as Raw
 import Util
 
@@ -135,6 +136,12 @@ data KeliError
         Verified.Expr'
         String
         Verified.Type
+
+    | KErrorCannotImport
+        Raw.StringToken
+
+    | KErrorAmbiguousUsage
+        [KeliSymbol]
     
     deriving (Show)
 

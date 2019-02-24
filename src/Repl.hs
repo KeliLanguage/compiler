@@ -33,7 +33,7 @@ keliEval (prevEnv, prevBytecode) input
             -> [Raw.Decl] -- parsed input
             -> Either [KeliError] (Env, [V.Decl]) -- (accumulatedErrors, newEnv, newDecls)
         analyzeDecls'' env decls = 
-            let (errors, env', decls') = analyzeDecls env decls in
+            let (errors, env', decls') = analyzeDecls [] env decls in
             if length errors > 0 then
                 Left errors
             else 

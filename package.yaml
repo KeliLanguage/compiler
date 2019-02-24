@@ -35,6 +35,8 @@ dependencies:
 - optparse-applicative
 - aeson
 - bytestring
+- filepath
+ 
 
 library:
   source-dirs: src

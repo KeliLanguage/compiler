@@ -1,6 +1,0 @@
-(i Int) .plus (j Int)|Int=123
-(i Int) .plus (j Int)|Int=123
-
-====
-
-KErrorDuplicatedFunc

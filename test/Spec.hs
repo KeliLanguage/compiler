@@ -67,7 +67,7 @@ runTest' testCases =
                                     case filename of
                                         -- is testing for invalid case
                                         '@':_ -> do
-                                            result <- keliInterpret filename code 
+                                            result <- keliInterpretForTesting filename code 
                                             case result of 
                                                 Right _ ->
                                                     error "No error is thrown"
@@ -77,7 +77,7 @@ runTest' testCases =
 
                                         -- is testing for valid case
                                         _ -> do
-                                            result <- keliInterpret filename code
+                                            result <- keliInterpretForTesting filename code
                                             case result of
                                                 Right output ->
                                                     strip output `shouldBe` strip expectedOutput
@@ -216,6 +216,16 @@ otherTest = hspec $ do
             case result of
                 Right actual ->
                     map label actual `shouldBe` expected
+
+                Left err ->
+                    error (show err)
+    
+    describe "module system" $ do
+        it "case 1" $ do
+            result <- keliInterpret "./test/for-testing-module/File3.keli"
+            case result of 
+                Right {} ->
+                    putStr "ok"
 
                 Left err ->
                     error (show err)
