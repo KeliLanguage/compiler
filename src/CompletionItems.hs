@@ -64,7 +64,7 @@ data CompletionItem = CompletionItem {
                             -- For snippet format, refer https://github.com/Microsoft/vscode/blob/master/src/vs/editor/contrib/snippet/snippet.md
 
     documentation :: String
-} deriving (Show, Generic, Eq)
+} deriving (Show, Generic, Eq, Read)
 
 instance ToJSON CompletionItem where
 

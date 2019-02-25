@@ -1,0 +1,9 @@
+[
+    CompletionItem {
+        kind = 3, 
+        label = "+()", 
+        detail = "(this Int).+(that Int) | Int", 
+        insertText = "+(${1:this})", 
+        insertTextFormat = 2, 
+        documentation = ""}
+]

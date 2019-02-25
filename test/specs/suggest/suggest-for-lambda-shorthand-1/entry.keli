@@ -1,0 +1,6 @@
+(this Int).zero = 0
+
+(this String).transformBy(f Function.in(Int) out(Int)) | Int =
+    f.apply(this)
+
+= "hello".transformBy(.)

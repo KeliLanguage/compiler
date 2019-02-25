@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 import Test.Hspec
 import Parser
 import Debug.Trace
@@ -47,17 +49,61 @@ runTestCases_compile = do
                             Left err ->
                                 strip err `shouldBe` strip expectedOutput)
 
+    where
 
--- This function is to make sure the following files exist
--- * entry.keli
--- * output
-validateTestCase :: String -> String -> IO ()
-validateTestCase parentDir testCaseName = do
-    filenames <- listDirectory (parentDir ++ testCaseName)
-    if ["entry.keli", "output"] `isSubListOf` filenames then
-        return ()
-    else
-        error ("The file `entry.keli` and `output` should be created inside " ++ parentDir ++ testCaseName)
+        -- This function is to make sure the following files exist
+        -- * entry.keli
+        -- * output
+        validateTestCase :: String -> String -> IO ()
+        validateTestCase parentDir testCaseName = do
+            filenames <- listDirectory (parentDir ++ testCaseName)
+            if ["entry.keli", "output"] `isSubListOf` filenames then
+                return ()
+            else
+                error ("The file `entry.keli` and `output` should be created inside " ++ parentDir ++ testCaseName)
+
+
+runTestCases_suggest :: IO ()
+runTestCases_suggest = do
+    let parentDir = "./test/specs/suggest/"
+    allTestCases <- listDirectory parentDir
+
+    -- search for test cases prefix with `ONLY:`
+    let onlyTestCases = filter (\t -> t `strStartsWith` "ONLY:") allTestCases
+    let finalTestCases = if length onlyTestCases > 0 then onlyTestCases else allTestCases
+    hspec $ do
+        forM_
+            finalTestCases 
+            (\t -> do
+                describe "~" $ do
+                    it t $ do
+                        -- 1. validate if the test cases is structured in the correct format
+                        validateTestCase parentDir t
+
+                        -- 2. extract position
+                        position <- readFile (parentDir ++ t ++ "/where")
+                        let [lineNumber, columnNumber] = map (\x -> (read x) :: Int) (lines position)
+
+                        -- 3. look for suggestion at the entry file of this test cases
+                        output <- suggestCompletionItemsAt (parentDir ++ t ++ "/entry.keli") (lineNumber, columnNumber)
+
+                        -- 4. compare the output with expected output
+                        expectedOutput <- readFile (parentDir ++ t ++ "/output")
+                        output `shouldBe` (read expectedOutput :: [CompletionItem]))
+
+    where
+
+        -- This function is to make sure the following files exist
+        -- * entry.keli
+        -- * output
+        -- * where
+        validateTestCase :: String -> String -> IO ()
+        validateTestCase parentDir testCaseName = do
+            filenames <- listDirectory (parentDir ++ testCaseName)
+            if sort ["entry.keli", "output", "where"] `isSubListOf` sort filenames then
+                return ()
+            else
+                error ("The file `entry.keli`, `where` and `output` should be created inside " ++ parentDir ++ testCaseName)
 
 -- copied from https://stackoverflow.com/questions/47232335/check-if-list-is-a-sublist-of-another-list
 isSubListOf :: Eq a => [a] -> [a] -> Bool
@@ -136,7 +182,10 @@ runTest' testCases =
                                 error $ "\n\n\tERROR at " ++ filename ++ " : Each test file needs to contain ====\n\n"))
 
 main :: IO ()
-main = runTestCases_compile
+main = do 
+    otherTest
+    runTestCases_compile
+    runTestCases_suggest
 
 targetTags :: [StringToken]
 targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]
@@ -213,68 +262,3 @@ otherTest = hspec $ do
             testParseKeli "=compiler.import(x)" 
             testParseKeli "=x.replace(a) with (b)" 
             testParseKeli "=x.+(y)" 
-
-    describe "completion item suggestion" $ do
-        it "for recursive function" $ do
-            let code = "(this Int).factorial = this."
-            let expected = [CompletionItem {
-                                kind = 3, 
-                                label = "factorial", 
-                                detail = "(this Int).factorial | Undefined", 
-                                insertText = "factorial", 
-                                insertTextFormat = 2, 
-                                documentation = ""
-                            }] 
-            let lineNumber = 0
-            let columnNumber = 27
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
-            case result of
-                Right actual ->
-                    actual `shouldBe` expected
-
-                Left err ->
-                    error (show err)
-
-
-        it "function documentation" $ do
-            let code = "\"This function will bomb you\"(this Int).bomb = 999 = 123."
-            let expected = [CompletionItem {
-                                kind = 3, 
-                                label = "bomb", 
-                                detail = "(this Int).bomb | Int", 
-                                insertText = "bomb", 
-                                insertTextFormat = 2, 
-                                documentation = "This function will bomb you"
-                            }] 
-            let lineNumber = 0
-            let columnNumber = 56
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
-            case result of
-                Right actual ->
-                    actual `shouldBe` expected
-
-                Left err ->
-                    error (show err)
-
-        it "suggesting primitive types" $ do
-            let code = "=I"
-            let expected = ["Int","Float","String","Type","Function"] 
-            let lineNumber = 0
-            let columnNumber = 1
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
-            case result of
-                Right actual ->
-                    map label actual `shouldBe` expected
-
-                Left err ->
-                    error (show err)
-    
-    describe "module system" $ do
-        it "case 1" $ do
-            result <- keliInterpret "./test/for-testing-module/File3.keli"
-            case result of 
-                Right {} ->
-                    putStr "ok"
-
-                Left err ->
-                    error (show err)

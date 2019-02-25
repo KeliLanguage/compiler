@@ -24,8 +24,13 @@ Similarly, each directory name in `suggest` also represent the test description.
 
 Within each test description directory, the following 2 files must be present:
 
-- `entry.L.C.keli` , which is the source file where the test runner will search for suggestion at L (line number) and C (column number)
-- `output`, which is the STDOUT after performing the action on the entry file
+- `entry.keli` , which is the source file where the test runner will search for suggestion
+
+- `output`, which is a Haskell data literal of type `[CompletionItem]`, after performing the action on the entry file
+
+- `where`, which specify the lineNumber and columnNumber, first line is lineNumber, second line is columnNumber, columnNumber is actually the position of the dot operator
+    - note that lineNumber and columnNumber are zero-based index
+    - so, lineNumber 2 actually means line 3, columnNumber 0 means column 1 in text editor
 
 
 # How to run specific test case?
