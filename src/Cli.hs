@@ -100,23 +100,13 @@ handleCliInput input =
             keliRepl
         
         Analyze filename -> do
-            (errors, _, _) <- keliCompile filename
+            contents <- readFile filename
+            (errors, _, _) <- keliCompile filename contents
             putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
 
         Suggest filename lineNumber columnNumber -> do
-            contents <- readFile filename
-            (errors, envs, decls) <- keliCompile filename
-
-            case suggestCompletionItemsAt filename contents (lineNumber, columnNumber) envs of
-                Right completionItems ->
-                    putStr (Char8.unpack (encode completionItems))
-
-                Left errs ->
-                    putStr "[]"
- 
-
-        
-
+            completionItems <- suggestCompletionItemsAt filename (lineNumber, columnNumber)
+            putStr (Char8.unpack (encode completionItems))
 
 
 

@@ -14,9 +14,8 @@ import qualified Ast.Verified as V
 import System.FilePath
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
-keliCompile :: String -> IO ([KeliError], [Env], [V.Decl])
-keliCompile filepath = do  
-    contents <- readFile filepath
+keliCompile :: String -> String -> IO ([KeliError], [Env], [V.Decl])
+keliCompile filepath contents = do  
     case keliParse filepath contents of
         Right rawDecls -> do
             let (importStatements, nonImportRawDecls) = 
@@ -36,7 +35,8 @@ keliCompile filepath = do
                                         takeDirectory absoluteFilePath ++ "/" ++ snd importFilePath
                             yes <- doesFileExist importedFilePath
                             if yes then do
-                                (errors', envs', decls') <- keliCompile importedFilePath
+                                importedContents <- readFile importedFilePath
+                                (errors', envs', decls') <- keliCompile importedFilePath importedContents
 
                                 -- filter out idless decls, as specified at https://keli-language.gitbook.io/doc/specification/section-5-declarations#5-0-evaluated-declarations
                                 let idfulDecls = filter (\d -> case d of V.IdlessDecl{} -> False; _ -> True ) decls'

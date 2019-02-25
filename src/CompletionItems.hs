@@ -9,6 +9,7 @@ import Data.Aeson
 import Data.Foldable
 import Data.Char
 import Env
+import Compiler
 import Analyzer
 import Util
 import Data.List
@@ -142,14 +143,14 @@ bracketize str = "(" ++ str ++ ")"
 
 suggestCompletionItemsAt 
     :: String -- filename
-    -> String -- file contents
     -> (Int,Int) -- (lineNumber, columnNumber)
-    -> Either [KeliError] [CompletionItem]
+    -> IO [CompletionItem]
 
-suggestCompletionItemsAt filename contents (lineNumber, columnNumber) =
-    let lines' = lines contents in
-    let currentChar = lines' !! lineNumber !! columnNumber in
-    let contents' = 
+suggestCompletionItemsAt filename (lineNumber, columnNumber) = do
+    contents <- readFile filename
+    let lines' = lines contents 
+    let currentChar = lines' !! lineNumber !! columnNumber 
+    let modifiedContents = 
             -- if the current character is a dot(.)
                 -- replace it with semicolon(;)
                 -- so that we can parse KeliIncompleteFuncCall properly
@@ -178,36 +179,34 @@ suggestCompletionItemsAt filename contents (lineNumber, columnNumber) =
             else
                 contents
 
-    in case keliParse filename contents' of
+    (errors, envs, _) <- keliCompile filename modifiedContents
+    case keliParse filename modifiedContents of
         Right decls ->
-            let items = suggestCompletionItems decls in
+            let items = suggestCompletionItems envs errors in
 
             -- remove duplicates
-            let uniqueItems = nubBy (\x y -> label x == label y) items in
-            Right (uniqueItems)
+            return (nubBy (\x y -> label x == label y) items)
 
         Left err ->
-            Left err
+            return []
 
 
-suggestCompletionItems :: [Raw.Decl] -> [CompletionItem]
-suggestCompletionItems rawDecls =
-    -- TODO: need to include imported envs also
-    let (errors, env, _) = analyzeDecls [] initialEnv rawDecls in
-    let symbols = extractSymbols env in
+suggestCompletionItems :: [Env] -> [KeliError] -> [CompletionItem]
+suggestCompletionItems importedEnvs errors =
+    let symbols = concatMap extractSymbols importedEnvs in
     case find (\e -> case e of KErrorIncompleteFuncCall{} -> True; _ -> False) errors of
         Just (KErrorIncompleteFuncCall thing positionOfDotOperator) -> 
             -- suggest functions
-            suggestCompletionItems' symbols (Just thing)
+            suggestCompletionItems' importedEnvs symbols (Just thing)
 
         _ ->
             -- suggest identifiers
-            suggestCompletionItems' symbols Nothing
+            suggestCompletionItems' importedEnvs symbols Nothing
 
 
 -- suggest completion item based on `subjectExpr`
-suggestCompletionItems' :: [KeliSymbol] -> Maybe (OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag]) -> [CompletionItem]
-suggestCompletionItems' symbols subjectExpr  = case subjectExpr of
+suggestCompletionItems' :: [Env] -> [KeliSymbol] -> Maybe (OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag]) -> [CompletionItem]
+suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
     -- if not triggered by pressing the dot operator
     Nothing ->
         -- then only return only non-functions identifiers
@@ -295,7 +294,7 @@ suggestCompletionItems' symbols subjectExpr  = case subjectExpr of
                                     -- is shorthand lambda
                                     -- this is kind of a hack, but it works
                                     -- give suggestion item based on the lambda body
-                                    suggestCompletionItems' symbols (Just (First lambdaBody))
+                                    suggestCompletionItems' importedEnvs symbols (Just (First lambdaBody))
                                 else
                                     defaultResult
 

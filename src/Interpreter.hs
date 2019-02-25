@@ -19,7 +19,8 @@ getPreludeJs = readFile "/home/hou32hou/Repos/keli/compiler/kelilib/prelude.js"
 keliInterpret :: String -> IO (Either String String) -- Left means Error, Right means Output
 keliInterpret filename = do
     preludeJsCode <- getPreludeJs
-    (errors, _, analyzedDecls) <- keliCompile filename
+    contents <- readFile filename
+    (errors, _, analyzedDecls) <- keliCompile filename contents
     if length errors > 0 then
         let diagnostics = concatMap toDiagnostic errors in
         return (Left (intercalate "\n" (map message diagnostics)))
