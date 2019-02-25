@@ -1,6 +1,6 @@
 List.of(A Type) = tags.
-    #(new)
-    #(cons.current(A) next(List.of(A)))
+    case(new)
+    case(cons.current(A) next(List.of(A)))
 
 (this Int).+(that Int) = ffi.javascript("$this + $that").as(Int)
 

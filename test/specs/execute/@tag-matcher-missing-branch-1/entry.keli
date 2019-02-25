@@ -1,6 +1,6 @@
 Answer = tags.
-    #(yes)
-    #(no)
+    case(yes)
+    case(no)
 
 a= Answer.yes
 =a.

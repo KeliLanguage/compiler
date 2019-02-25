@@ -1,10 +1,10 @@
 Boolean = tags.
-    #(true)
-    #(false)
+    case(true)
+    case(false)
 
 List.of(A Type) = tags.
-    #(cons.current(A) next(List.of(A)))
-    #(nil)
+    case(cons.current(A) next(List.of(A)))
+    case(nil)
 
 {A Type}
 (this Int).hey | record.accepted(List.of(A)) notAccepted(List.of(A))

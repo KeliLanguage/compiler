@@ -1,8 +1,8 @@
 (x Int).plus(y Int) | Int  = ffi.javascript("$x  + $y").as(Int)
 
 IntList = tags.
-    #(nil) 
-    #(cons.current(Int) next(IntList))
+    case(nil) 
+    case(cons.current(Int) next(IntList))
 
 myList=IntList.cons.
     current (1) 

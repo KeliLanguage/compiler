@@ -1,6 +1,6 @@
 Shape = tags.
-    #(circle)
-    #(square)
+    case(circle)
+    case(square)
 
 (this Shape).hello = "yo"
 

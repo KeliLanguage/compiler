@@ -1,5 +1,5 @@
 IntList= tags.
-    #(nothing)
-    #(cons.value(Int))
+    case(nothing)
+    case(cons.value(Int))
 
 = IntList.cons.value(123)

@@ -1,6 +1,6 @@
 Boolean = tags.
-    #(true) 
-    #(false)
+    case(true) 
+    case(false)
 
 (x Int).minus   (y Int) | Int  = ffi.javascript("$x - $y").as(Int)
 (x Int).times   (y Int) | Int  = ffi.javascript("$x * $y").as(Int)

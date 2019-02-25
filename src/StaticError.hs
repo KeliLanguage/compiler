@@ -102,7 +102,7 @@ data KeliError
     | KErrorExpectedId
         Raw.Expr
 
-    | KErrorExpectedHashTag 
+    | KErrorExpectedKeywordCase 
         Raw.StringToken
 
     | KErrorExpectedPropDefOrId

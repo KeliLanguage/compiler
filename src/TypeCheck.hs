@@ -90,9 +90,9 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                 case firstParamId of
                 -- 1. Check if user wants to create a tagged union
                 "tags" ->
-                    case find (\(_,x) -> x /= "#") funcIds of
+                    case find (\(_,x) -> x /= "case") funcIds of
                         Just x ->
-                            Left (KErrorExpectedHashTag x)
+                            Left (KErrorExpectedKeywordCase x)
                         Nothing -> do
                             (ctx2, tags) <- foldM 
                                     (\(prevCtx, prevTags) currentExpr -> 

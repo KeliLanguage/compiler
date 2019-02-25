@@ -75,8 +75,8 @@ toDiagnostic err = case err of
     KErrorExpectedTagBindings x ->
         getDiagnostic [x] "Expected this to be a tag binding expression."
 
-    KErrorExpectedHashTag x ->
-        getDiagnostic [x] "Expected this to be a `#` symbol."
+    KErrorExpectedKeywordCase x ->
+        getDiagnostic [x] "Expected this to be the keyword `case`."
 
     KErrorExpectedPropDefOrId x ->
         getDiagnostic [x] "Expected this to be properties definition or an identifier."

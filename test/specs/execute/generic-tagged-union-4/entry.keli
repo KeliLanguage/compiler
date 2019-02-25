@@ -1,6 +1,6 @@
 Result.ok(A Type) fail(B Type) = tags.
-    #(ok.value(A))
-    #(fail.with(B))
+    case(ok.value(A))
+    case(fail.with(B))
 
 {A Type} {B Type} {C Type}
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
@@ -12,8 +12,8 @@ Result.ok(A Type) fail(B Type) = tags.
             (Result.fail.with(error))
 
 Boolean = tags.
-    #(true) 
-    #(false) 
+    case(true) 
+    case(false) 
 
 (x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
 

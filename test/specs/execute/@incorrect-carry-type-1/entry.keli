@@ -1,5 +1,5 @@
 Color = tags.
-    #(red)
-    #(green.value(Int))
+    case(red)
+    case(green.value(Int))
 
 x=Color.green.value("123")

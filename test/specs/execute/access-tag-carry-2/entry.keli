@@ -1,7 +1,7 @@
 Human = tags.
-    #(boy)
-    #(baby.cuteness(Int))
-    #(worker.salary(Int))
+    case(boy)
+    case(baby.cuteness(Int))
+    case(worker.salary(Int))
 
 julia=Human.baby.cuteness(2)
 

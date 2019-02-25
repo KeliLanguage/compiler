@@ -1,6 +1,6 @@
 List.of(A Type) = tags.
-    #(new)
-    #(cons.current(A) next(List.of(A)))
+    case(new)
+    case(cons.current(A) next(List.of(A)))
 
 
 z = List.cons.
