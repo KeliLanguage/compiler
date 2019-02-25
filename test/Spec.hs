@@ -19,6 +19,46 @@ testParseKeli x =
         Right _   -> True
         Left  err -> trace (show err) $ False) `shouldBe` True
 
+runTestCases_compile :: IO ()
+runTestCases_compile = do
+    let parentDir = "./test/specs/execute/"
+    testCases <- listDirectory parentDir
+    hspec $ do
+        forM_
+            testCases 
+            (\t -> do
+                describe t $ do
+                    it ":" $ do
+                        validateTestCase parentDir t
+                        result <- keliInterpret (parentDir ++ t ++ "/entry.keli")
+                        case result of
+                            Right output -> do
+                                expectedOutput <- readFile (parentDir ++ t ++ "/output")
+                                output `shouldBe` expectedOutput
+                            Left err ->
+                                error (show err))
+
+
+-- This function is to make sure the following files exist
+-- * entry.keli
+-- * output
+validateTestCase :: String -> String -> IO ()
+validateTestCase parentDir testCaseName = do
+    filenames <- listDirectory (parentDir ++ testCaseName)
+    if ["entry.keli", "output"] `isSubListOf` filenames then
+        return ()
+    else
+        error ("The file `entry.keli` and `output` should be created inside " ++ parentDir)
+
+-- copied from https://stackoverflow.com/questions/47232335/check-if-list-is-a-sublist-of-another-list
+isSubListOf :: Eq a => [a] -> [a] -> Bool
+isSubListOf [] [] = True
+isSubListOf _ []    = False
+isSubListOf [] _    = True
+isSubListOf (x:xs) (y:ys) 
+    | x == y    = isSubListOf xs ys   
+    | otherwise = isSubListOf (x:xs) ys
+
 runTest :: IO ()
 runTest = do
     testSubjects <- listDirectory "./test/specs"
@@ -87,7 +127,7 @@ runTest' testCases =
                                 error $ "\n\n\tERROR at " ++ filename ++ " : Each test file needs to contain ====\n\n"))
 
 main :: IO ()
-main = runTest
+main = runTestCases_compile
 
 targetTags :: [StringToken]
 targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]
@@ -178,7 +218,7 @@ otherTest = hspec $ do
                             }] 
             let lineNumber = 0
             let columnNumber = 27
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
             case result of
                 Right actual ->
                     actual `shouldBe` expected
@@ -199,7 +239,7 @@ otherTest = hspec $ do
                             }] 
             let lineNumber = 0
             let columnNumber = 56
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
             case result of
                 Right actual ->
                     actual `shouldBe` expected
@@ -212,7 +252,7 @@ otherTest = hspec $ do
             let expected = ["Int","Float","String","Type","Function"] 
             let lineNumber = 0
             let columnNumber = 1
-            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber)
+            let result = suggestCompletionItemsAt "<test>" code (lineNumber, columnNumber) []
             case result of
                 Right actual ->
                     map label actual `shouldBe` expected

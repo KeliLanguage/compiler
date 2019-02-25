@@ -2,29 +2,26 @@
 
 New test can be added by adding new directories and files in the `test/specs` folder.
 
-Each directory name in the `test/specs` represent the test description, while each file within each directory is a test case.
+Within `test/specs`, there are two directories, namely `compile` and `suggest`.
 
-Filename that does not starts with `@` are test cases that test for valid Raw.'s code.
+- `execute` is for testing executing a Keli source file
+- `suggest` is for testing Intellisense (code completion)
 
-Filename that starts with `@` are test cases that test for invalid Raw.'s code.
+## For `execute`
+Each directory name in `execute` represent the test description, while each file within each directory is a test case.
 
-To test valid codes, you have to format the file in the following format:
+Within each test description directory, the following 2 files must be present:
 
-```
-<keli code>
-====
-<expected output>
-```
+- `entry.keli` , which is the source file where the test runner will execute as the entry point
+- `output`, which is the STDOUT after performing the action on the entry file
 
-To show output in Raw., simply use anonymous constant, for example:
+## For `suggest`
+Similarly, each directory name in `suggest` also represent the test description. 
 
-```
-= "hello world"
-```
+Within each test description directory, the following 2 files must be present:
 
-Will log "hello world".
-
-
+- `entry.L.C.keli` , which is the source file where the test runner will search for suggestion at L (line number) and C (column number)
+- `output`, which is the STDOUT after performing the action on the entry file
 
 
 # How to run specific test case?

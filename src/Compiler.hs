@@ -17,10 +17,6 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 keliCompile :: String -> IO ([KeliError], [Env], [V.Decl])
 keliCompile filepath = do  
     contents <- readFile filepath
-    -- keliParse filepath contents
-    -- >>= analyze 
-    -- >>= \decls -> return (keliTranspile decls)
-
     case keliParse filepath contents of
         Right rawDecls -> do
             let (importStatements, nonImportRawDecls) = 

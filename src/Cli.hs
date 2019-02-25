@@ -7,6 +7,7 @@ import Data.Semigroup ((<>))
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import System.IO
 
 import Interpreter
 import Repl
@@ -90,10 +91,10 @@ handleCliInput input =
             result <- keliInterpret filename 
             case result of 
                 Right output ->
-                    putStrLn output
+                    hPutStrLn stdout output
                 
                 Left err ->
-                    print (err)
+                    hPutStrLn stderr err
         
         Interactive {} -> 
             keliRepl
@@ -104,7 +105,9 @@ handleCliInput input =
 
         Suggest filename lineNumber columnNumber -> do
             contents <- readFile filename
-            case suggestCompletionItemsAt filename contents (lineNumber, columnNumber) of
+            (errors, envs, decls) <- keliCompile filename
+
+            case suggestCompletionItemsAt filename contents (lineNumber, columnNumber) envs of
                 Right completionItems ->
                     putStr (Char8.unpack (encode completionItems))
 

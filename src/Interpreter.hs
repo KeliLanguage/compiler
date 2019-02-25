@@ -10,17 +10,19 @@ import Data.List
 import Env
 import Transpiler
 import qualified Ast.Raw as Raw
+import Diagnostics
 
 
 getPreludeJs :: IO String 
 getPreludeJs = readFile "/home/hou32hou/Repos/keli/compiler/kelilib/prelude.js"
 
-keliInterpret :: String -> IO (Either [KeliError] String)
+keliInterpret :: String -> IO (Either String String) -- Left means Error, Right means Output
 keliInterpret filename = do
     preludeJsCode <- getPreludeJs
     (errors, _, analyzedDecls) <- keliCompile filename
     if length errors > 0 then
-        return (Left errors)
+        let diagnostics = concatMap toDiagnostic errors in
+        return (Left (intercalate "\n" (map message diagnostics)))
     else do
         let code = keliTranspile analyzedDecls
         output <- keliExecute (preludeJsCode ++ code)
