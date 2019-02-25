@@ -1,0 +1,2 @@
+The expected type of `next` is List.of(T$0).
+But the given expression have type of List.of(String)

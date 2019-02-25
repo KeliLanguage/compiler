@@ -1,0 +1,2 @@
+The expected type of `value` is Int.
+But the given expression have type of String

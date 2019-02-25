@@ -7,7 +7,8 @@ a= Answer.yes
     if(yes): 
         (2) 
     
+    if(lol): 
+        (3)
 
-====
-
-KErrorMissingTags
+    else:
+        (4)

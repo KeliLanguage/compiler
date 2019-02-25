@@ -15,6 +15,10 @@ Within each test description directory, the following 2 files must be present:
 - `entry.keli` , which is the source file where the test runner will execute as the entry point
 - `output`, which is the STDOUT after performing the action on the entry file
 
+### Naming convention
+Use the `kebab-case` convention. 
+For testing invalid case, prefix the description with `@`.
+
 ## For `suggest`
 Similarly, each directory name in `suggest` also represent the test description. 
 

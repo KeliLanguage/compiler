@@ -8,7 +8,3 @@ z = List.cons.
         next    (List.cons.
             current ("123") 
             next    (List.new))
-
-==== 
-
-KErrorPropertyTypeMismatch

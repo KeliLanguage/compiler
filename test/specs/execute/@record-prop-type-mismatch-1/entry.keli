@@ -1,7 +1,3 @@
 people=record.name(String) age(Int)
 
 x = people.name(123) age(9)
-
-====
-
-KErrorPropertyTypeMismatch

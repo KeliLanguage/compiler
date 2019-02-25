@@ -22,21 +22,30 @@ testParseKeli x =
 runTestCases_compile :: IO ()
 runTestCases_compile = do
     let parentDir = "./test/specs/execute/"
-    testCases <- listDirectory parentDir
+    allTestCases <- listDirectory parentDir
+
+    -- search for test cases prefix with `ONLY:`
+    let onlyTestCases = filter (\t -> t `strStartsWith` "ONLY:") allTestCases
+    let finalTestCases = if length onlyTestCases > 0 then onlyTestCases else allTestCases
     hspec $ do
         forM_
-            testCases 
+            finalTestCases 
             (\t -> do
                 describe "~" $ do
                     it t $ do
+                        -- 1. validate if the test cases is structured in the correct format
                         validateTestCase parentDir t
+
+                        -- 2. interpret the entry file of this test cases
                         result <- keliInterpret (parentDir ++ t ++ "/entry.keli")
-                        case result of
-                            Right output -> do
-                                expectedOutput <- readFile (parentDir ++ t ++ "/output")
+
+                        -- 3. compare the output with expected output
+                        expectedOutput <- readFile (parentDir ++ t ++ "/output")
+                        case result of 
+                            Right output ->
                                 strip output `shouldBe` strip expectedOutput
                             Left err ->
-                                error (show err))
+                                strip err `shouldBe` strip expectedOutput)
 
 
 -- This function is to make sure the following files exist

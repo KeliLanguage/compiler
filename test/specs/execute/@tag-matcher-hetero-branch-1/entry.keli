@@ -6,14 +6,5 @@ a= Answer.yes
 =a.
     if(yes): 
         (2) 
-    
-    if(lol): 
-        (3)
-
-    else:
-        (4)
-
-====
-
-KErrorUnknownTag
-
+    if(no):
+        ("hello")

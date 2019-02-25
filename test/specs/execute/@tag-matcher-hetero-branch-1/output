@@ -1,0 +1,2 @@
+The expected type of each branch is `Int` (based on the type of first branch at Line 8)
+But this branch has type of `String`

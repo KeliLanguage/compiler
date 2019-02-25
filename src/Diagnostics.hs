@@ -55,7 +55,7 @@ toDiagnostic err = case err of
         getDiagnostic actualIds "Ambiguous usage"
 
     KErrorUnknownProp x ->
-        getDiagnostic [x] ("Unkown property: " ++ backtick (snd x))
+        getDiagnostic [x] ("Unknown property: " ++ backtick (snd x))
 
     KErrorMoreThanOneElseBranch xs ->
         getDiagnostic xs "Should not have more than one `else` branch."
@@ -67,7 +67,7 @@ toDiagnostic err = case err of
         getDiagnostic [x] "Expected this to be a `:` symbol."
 
     KErrorUnknownTag t ->
-        getDiagnostic [t] ("Unkown tag: " ++ backtick (snd t))
+        getDiagnostic [t] ("Unknown tag: " ++ backtick (snd t))
 
     KErrorBindingCarrylessTag x ->
         getDiagnostic [x] "Carryless tag does not contains value to be binded to variables."
@@ -104,7 +104,7 @@ toDiagnostic err = case err of
         getDiagnostic actualIds ("Expected type constructor ids is " ++ combine expectedIds ++ " but got " ++ combine actualIds)
 
     KErrorUnknownFFITarget x ->
-        getDiagnostic [x] ("Unkown FFI target: " ++ backtick (snd x))
+        getDiagnostic [x] ("Unknown FFI target: " ++ backtick (snd x))
 
     KErrorFFIValueShouldBeString x ->
         getDiagnostic [x] "FFI value should be type of String."

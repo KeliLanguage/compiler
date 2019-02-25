@@ -3,7 +3,3 @@ Color = tags.
     #(green.value(Int))
 
 x=Color.green.value("123")
-
-====
-
-KErrorPropertyTypeMismatch

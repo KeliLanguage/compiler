@@ -12,7 +12,3 @@ List.of(A Type) = tags.
             (List.cons.current(c) next(n.add(element)))
     
 =List.new.add(1).add("4")
-
-====
-
-KErrorTypeMismatch

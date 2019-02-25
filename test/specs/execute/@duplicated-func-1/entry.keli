@@ -1,0 +1,2 @@
+(this Int).equals(that Int) = 0
+(x Int).equals(y Int) = 0

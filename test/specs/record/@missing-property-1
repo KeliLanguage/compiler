@@ -1,7 +1,0 @@
-people=record.name(String) age(Int)
-
-x = people.name("Hello")
-
-====
-
-KErrorMissingProperties

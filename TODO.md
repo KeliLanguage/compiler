@@ -1,3 +1,6 @@
+# THIS FILE IS OBSOLETED
+# PLEASE REFER TO GITHUB ISSUES
+
 [x] implement intellisense (refer Haskero)
     - the intellisense should show every possible function for a type
     - For example, if I type `1.`, a list of functions that takes `Int` as any parameter should show up
@@ -54,3 +57,9 @@
 [x] return context whenever typechecking expr
 
 [] change transpile prefix from "$" to "k$" to reduce conflicts
+
+[] Add docstring for functions and completion items
+
+[] Add button for running a keli file
+
+[] When completing a function with lambda, automatically writes out `x | x`
