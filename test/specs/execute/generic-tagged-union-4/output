@@ -1,0 +1,2 @@
+Line 27 = fail.with("Not a zero")
+Line 28 = ok.value(0)

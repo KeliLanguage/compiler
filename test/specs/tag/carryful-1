@@ -1,9 +1,0 @@
-IntList= tags.
-    #(nothing)
-    #(cons.value(Int))
-
-= IntList.cons.value(123)
-
-====
-
-Line 5 = cons.value(123)

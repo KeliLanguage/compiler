@@ -1,0 +1,33 @@
+(x Int).plus(y Int) | Int  = ffi.javascript("$x  + $y").as(Int)
+
+IntList = tags.
+    #(nil) 
+    #(cons.current(Int) next(IntList))
+
+myList=IntList.cons.
+    current (1) 
+    next    (IntList.cons.
+        current (2) 
+        next    (IntList.cons.
+            current (3) 
+            next    (IntList.nil)))
+
+
+(this IntList).length | Int =
+    this.
+        if(nil):
+            (0) 
+
+        if(cons.next(n)):
+            (1.plus(n.length))
+
+(this IntList).sum | Int = 
+    this.
+        if(nil):
+            (0)
+
+        if(cons.current(c) next(n)):
+            (c.plus(n.sum))
+
+=myList.length
+=myList.sum

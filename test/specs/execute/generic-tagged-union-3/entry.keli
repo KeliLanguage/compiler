@@ -1,0 +1,20 @@
+List.of(A Type) = tags.
+    #(new)
+    #(cons.current(A) next(List.of(A)))
+
+(this Int).+(that Int) = ffi.javascript("$this + $that").as(Int)
+
+{A Type} {B Type}
+(this List.of(A)).map(f Function.in(A) out(B)) | List.of(B) =
+    this.
+        if(new):
+            (List.new)
+        if(cons.current(c) next(n)):
+            (List.cons.current(f.apply(c)) next(n.map(f)))
+        
+
+= List.cons.
+    current(1) 
+    next(List.cons.
+        current(2)
+        next(List.new)).map(x | x.+(2)).map(x | x.+(3))

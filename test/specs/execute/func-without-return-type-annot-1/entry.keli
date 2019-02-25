@@ -1,0 +1,4 @@
+(x Int).plus(y Int) = 3
+
+=3 .plus(3)
+

@@ -1,8 +1,0 @@
-x=record.name("dog") age(9).name("cat")
-=x
-y=x.age(10)
-=y
-
-====
-Line 2 = record.name("cat") age(9)
-Line 4 = record.name("cat") age(10)

@@ -1,0 +1,23 @@
+Boolean = tags.#(true) #(false)
+
+(x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+
+(x Int).-(y Int) = ffi.javascript("$x - $y").as(Int)
+
+(this Int).isEven | Boolean = 
+    this.==(0).
+        if(true):
+            (Boolean.true)
+        if(false):
+            (this.-(1).isOdd)
+
+(this Int).isOdd | Boolean = 
+    this.==(0).
+        if(true):
+            (Boolean.false)
+        if(false):
+            (this.-(1).isEven)
+
+= 20.isEven
+= 9.isOdd
+= 8.isOdd

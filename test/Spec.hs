@@ -27,14 +27,14 @@ runTestCases_compile = do
         forM_
             testCases 
             (\t -> do
-                describe t $ do
-                    it ":" $ do
+                describe "~" $ do
+                    it t $ do
                         validateTestCase parentDir t
                         result <- keliInterpret (parentDir ++ t ++ "/entry.keli")
                         case result of
                             Right output -> do
                                 expectedOutput <- readFile (parentDir ++ t ++ "/output")
-                                output `shouldBe` expectedOutput
+                                strip output `shouldBe` strip expectedOutput
                             Left err ->
                                 error (show err))
 
@@ -48,7 +48,7 @@ validateTestCase parentDir testCaseName = do
     if ["entry.keli", "output"] `isSubListOf` filenames then
         return ()
     else
-        error ("The file `entry.keli` and `output` should be created inside " ++ parentDir)
+        error ("The file `entry.keli` and `output` should be created inside " ++ parentDir ++ testCaseName)
 
 -- copied from https://stackoverflow.com/questions/47232335/check-if-list-is-a-sublist-of-another-list
 isSubListOf :: Eq a => [a] -> [a] -> Bool

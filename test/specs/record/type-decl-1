@@ -1,5 +1,0 @@
-Fruit=record.taste(Int)
-=Fruit.taste(3)
-
-====
-Line 2 = record.taste(3)

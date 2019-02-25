@@ -1,0 +1,5 @@
+Fruit = record.name(String)
+
+(this String).asFruit | Fruit = Fruit.name(this)
+
+="pineapple".asFruit

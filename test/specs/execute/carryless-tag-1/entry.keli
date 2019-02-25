@@ -1,0 +1,3 @@
+Boolean = tags.#(true)
+x = Boolean.true
+=x

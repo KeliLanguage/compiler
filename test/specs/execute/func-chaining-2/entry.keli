@@ -1,0 +1,3 @@
+(this Int).+(that Int) | Int = (ffi.javascript("$this + $that")).as(Int)
+
+= 1.+(2).+(3)

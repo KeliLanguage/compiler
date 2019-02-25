@@ -1,0 +1,11 @@
+Answer = tags.
+    #(yes)
+    #(no)
+
+a= Answer.no
+=a.
+    if(yes): 
+        (2) 
+    
+    else: 
+        (1)

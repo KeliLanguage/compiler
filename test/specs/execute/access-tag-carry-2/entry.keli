@@ -1,0 +1,14 @@
+Human = tags.
+    #(boy)
+    #(baby.cuteness(Int))
+    #(worker.salary(Int))
+
+julia=Human.baby.cuteness(2)
+
+=julia.
+    if(boy): 
+        (0) 
+    if(baby.cuteness(c)): 
+        (c) 
+    if(worker.salary(s)): 
+        (s)

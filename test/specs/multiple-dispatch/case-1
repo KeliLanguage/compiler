@@ -1,9 +1,0 @@
-(x String).bom|String="yoyo"
-(x Int).bom|Int=999
-=1 .bom
-="1".bom
-
-====
-
-Line 3 = 999
-Line 4 = "yoyo"

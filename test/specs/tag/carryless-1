@@ -1,7 +1,0 @@
-Boolean = tags.#(true)
-x = Boolean.true
-=x
-
-====
-
-Line 3 = true

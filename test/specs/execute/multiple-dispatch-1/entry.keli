@@ -1,0 +1,4 @@
+(x String).bom|String="yoyo"
+(x Int).bom|Int=999
+=1 .bom
+="1".bom

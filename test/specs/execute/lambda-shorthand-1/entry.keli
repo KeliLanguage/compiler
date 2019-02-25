@@ -1,0 +1,6 @@
+(this Int).+(that Int) = ffi.javascript("$this + $that").as(Int)
+
+(this Int).transformBy(f Function.in(Int) out(Int)) | Int =
+    f.apply(this)
+
+= 1.transformBy(.+(2).+(3).+(4))

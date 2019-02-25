@@ -1,0 +1,6 @@
+// should work even `hey` is defined after `hello`
+
+(this Int).hello = this.hey
+(this Int).hey = 123
+
+= 0.hello

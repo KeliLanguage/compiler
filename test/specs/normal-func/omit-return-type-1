@@ -1,6 +1,0 @@
-(x Int).plus(y Int) = 3
-
-=3 .plus(3)
-
-====
-Line 3 = 3

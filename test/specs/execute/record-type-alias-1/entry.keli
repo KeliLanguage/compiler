@@ -1,0 +1,2 @@
+Fruit=record.taste(Int)
+=Fruit.taste(3)
