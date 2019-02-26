@@ -111,7 +111,7 @@ data KeliError
     | KErrorExpectedTypeAnnotationAfterThis
         Raw.StringToken
 
-    | KErrorExpectedIfOrElse
+    | KErrorExpectedKeywordCaseOrDefault
         Raw.StringToken
 
     | KErrorExpectedColon

@@ -6,16 +6,16 @@ Boolean = tags.case(true) case(false)
 
 (this Int).isEven | Boolean = 
     this.==(0).
-        if(true):
+        case(true):
             (Boolean.true)
-        if(false):
+        case(false):
             (this.-(1).isOdd)
 
 (this Int).isOdd | Boolean = 
     this.==(0).
-        if(true):
+        case(true):
             (Boolean.false)
-        if(false):
+        case(false):
             (this.-(1).isEven)
 
 = 20.isEven

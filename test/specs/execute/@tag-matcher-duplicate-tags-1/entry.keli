@@ -4,6 +4,6 @@ Answer = tags.
 
 a= Answer.yes
 =a.
-    if(yes): (2) 
-    if(no):  (1)
-    if(no):  (1)
+    case(yes): (2) 
+    case(no):  (1)
+    case(no):  (1)

@@ -320,16 +320,16 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                     (\(t,index) -> "\n\t" ++ 
                                         (case t of 
                                             V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
-                                                "if(" ++ tagname ++ "."
+                                                "case(" ++ tagname ++ "."
                                                     ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
                                                     ++ "):\n\t\t(${" ++ show index ++ ":undefined})"
 
                                             V.CarrylessTag (_,tagname) _ ->
-                                                "if(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
+                                                "case(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
                                     (zip tags [1..]) in
                         [CompletionItem {
                             kind = 12, -- value
-                            label = "if(...)",
+                            label = "case(...)",
                             detail = "tag matcher",
                             insertText = insertText',
                             insertTextFormat = 2,

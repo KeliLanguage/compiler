@@ -6,9 +6,9 @@ Human = tags.
 julia=Human.baby.cuteness(2)
 
 =julia.
-    if(boy): 
+    case(boy): 
         (0) 
-    if(baby.cuteness(c)): 
+    case(baby.cuteness(c)): 
         (c) 
-    if(worker.salary(s)): 
+    case(worker.salary(s)): 
         (s)

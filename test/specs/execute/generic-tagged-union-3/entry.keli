@@ -7,9 +7,9 @@ List.of(A Type) = tags.
 {A Type} {B Type}
 (this List.of(A)).map(f Function.in(A) out(B)) | List.of(B) =
     this.
-        if(new):
+        case(new):
             (List.new)
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (List.cons.current(f.apply(c)) next(n.map(f)))
         
 

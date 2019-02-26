@@ -4,7 +4,7 @@ Answer = tags.
 
 a= Answer.yes
 =a.
-    if(yes): 
+    case(yes): 
         (2) 
-    if(no):
+    case(no):
         ("hello")

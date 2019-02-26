@@ -3,4 +3,4 @@ Answer = tags.
     case(no)
 
 a= Answer.yes
-=a.if(yes):(2) if(no):(1)
+=a.case(yes):(2) case(no):(1)

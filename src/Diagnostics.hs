@@ -84,8 +84,8 @@ toDiagnostic err = case err of
     KErrorExpectedTypeAnnotationAfterThis x ->
         getDiagnostic [x] "Expected a type annotation after this."
         
-    KErrorExpectedIfOrElse x ->
-        getDiagnostic [x] "Expected this to be `if` or `else`"
+    KErrorExpectedKeywordCaseOrDefault x ->
+        getDiagnostic [x] "Expected this to be the keyword `case` or `default`"
 
     KErrorInvalidBoundedTypeVarDecl x ->
         getDiagnostic [x] "Invalid bounded type variable."

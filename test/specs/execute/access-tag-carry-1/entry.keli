@@ -8,13 +8,13 @@ x = Color.green.value(2)
 y = Color.green.value(5)
 
 =x.
-    if(red):
+    case(red):
         (10) 
         
-    if(green.value(v1)):
+    case(green.value(v1)):
         (y.
-            if(red):
+            case(red):
                 (99)
-            if(green.value(v2)):
+            case(green.value(v2)):
                 (v1.+(v2)))
 

@@ -7,17 +7,17 @@ List.of(A Type) = tags.
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        if(new):
+        case(new):
             (0)
-        if(cons.next(n)):
+        case(cons.next(n)):
             (1.+(n.length))
 
 {A Type}
 (xs List.of(A)).add(x A) | List.of(A) = 
     xs.
-        if(new):
+        case(new):
             (List.cons.current(x) next(List.new))
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (List.cons.current(c) next(n.add(x)))
     
 =List.new.add(1).add(2).add(3).add(4).length

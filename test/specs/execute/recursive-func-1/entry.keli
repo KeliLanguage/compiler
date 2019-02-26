@@ -8,9 +8,9 @@ Boolean = tags.
 
 (x Int).factorial | Int =  
     x.equals(0).
-        if(true):
+        case(true):
             (1)
-        if(false):
+        case(false):
             (x.times((x.minus(1)).factorial))
 
 = 3.factorial

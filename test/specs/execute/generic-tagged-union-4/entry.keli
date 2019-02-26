@@ -6,9 +6,9 @@ Result.ok(A Type) fail(B Type) = tags.
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
     | Result.ok(C) fail(B)
     = this.
-        if(ok.value(v)):
+        case(ok.value(v)):
             (Result.ok.value(f.apply(v)))
-        if(fail.with(error)):
+        case(fail.with(error)):
             (Result.fail.with(error))
 
 Boolean = tags.
@@ -19,9 +19,9 @@ Boolean = tags.
 
 (this Int).isZero | Result.ok(Int) fail(String) = 
     this.==(0).
-        if(true):
+        case(true):
             (Result.ok.value(0))
-        if(false):
+        case(false):
             (Result.fail.with("Not a zero"))
             
 = 123.isZero

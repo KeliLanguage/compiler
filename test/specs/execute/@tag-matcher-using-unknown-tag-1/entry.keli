@@ -4,11 +4,11 @@ Answer = tags.
 
 a= Answer.yes
 =a.
-    if(yes): 
+    case(yes): 
         (2) 
     
-    if(lol): 
+    case(lol): 
         (3)
 
-    else:
+    default:
         (4)

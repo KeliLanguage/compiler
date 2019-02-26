@@ -7,9 +7,9 @@ List.of(A Type) = tags.
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        if(new):
+        case(new):
             (0)
-        if(cons.next(n)):
+        case(cons.next(n)):
             (1.+(n.length))
 
 z = List.cons.current(1) next(List.cons.current(2) next(List.new))

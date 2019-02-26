@@ -4,8 +4,8 @@ Answer = tags.
 
 a= Answer.no
 =a.
-    if(yes): 
+    case(yes): 
         (2) 
     
-    else: 
+    default: 
         (1)

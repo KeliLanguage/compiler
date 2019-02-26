@@ -15,18 +15,18 @@ myList=IntList.cons.
 
 (this IntList).length | Int =
     this.
-        if(nil):
+        case(nil):
             (0) 
 
-        if(cons.next(n)):
+        case(cons.next(n)):
             (1.plus(n.length))
 
 (this IntList).sum | Int = 
     this.
-        if(nil):
+        case(nil):
             (0)
 
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (c.plus(n.sum))
 
 =myList.length
