@@ -1,114 +1,150 @@
 Boolean = tags.
-    #(true) 
-    #(false) 
+    case(true) 
+    case(false) 
 
 (this Boolean).or(that Boolean) = 
     this.
-        if(true):
+        case(true):
             (Boolean.true)
-        if(false):
+        case(false):
             (that)
 
 (this Boolean).and(that Boolean) = 
     this.
-        if(true):
+        case(true):
             (that)
-        if(false):
+        case(false):
             (Boolean.false)
 
 (this Boolean).not = 
     this.
-        if(true):
+        case(true):
             (Boolean.false)
-        if(false):
+        case(false):
             (Boolean.true)
 
 
-(x Int).-(y Int)  = ffi.javascript("$x - $y").as(Int)
-(x Int).+(y Int)  = ffi.javascript("$x + $y").as(Int)
-(x Int).*(y Int)  = ffi.javascript("$x * $y").as(Int)
-(x Int).^(y Int) =  ffi.javascript("Math.pow($x, $y)").as(Int)
-(x Int).>(y Int)  = ffi.javascript("$x > $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Int).<(y Int)  = ffi.javascript("$x < $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Int).>=(y Int) = ffi.javascript("$x >= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Int).<=(y Int) = ffi.javascript("$x <= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+"minus"
+(x Int).-(y Int)  = ffi.javascript("k$x - k$y").as(Int)
+
+"plus"
+(x Int).+(y Int)  = ffi.javascript("k$x + k$y").as(Int)
+
+"multiply"
+(x Int).*(y Int)  = ffi.javascript("k$x * k$y").as(Int)
+
+"integral divide, the decimal point would be truncated"
+(x Int)./(y Int)  = ffi.javascript("Math.trunc(k$x / k$y)").as(Int)
+
+"power"
+(x Int).^(y Int) =  ffi.javascript("Math.pow(k$x, k$y)").as(Int)
+
+"more than"
+(x Int).>(y Int)  = ffi.javascript("k$x > k$y   ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+"less than"
+(x Int).<(y Int)  = ffi.javascript("k$x < k$y   ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+"more than or equals to"
+(x Int).>=(y Int) = ffi.javascript("k$x >= k$y  ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+"less than or equals to"
+(x Int).<=(y Int) = ffi.javascript("k$x <= k$y  ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+"equals"
+(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+"negate a number"
+(x Int).- = ffi.javascript("(-k$x)").as(Int)
 
 
-(x Float).-(y Float)  = ffi.javascript("$x - $y").as(Float)
-(x Float).+(y Float)  = ffi.javascript("$x + $y").as(Float)
-(x Float).*(y Float)  = ffi.javascript("$x * $y").as(Float)
-(x Float).^(y Float) =  ffi.javascript("Math.pow($x, $y)").as(Float)
-(x Float).>(y Float)  = ffi.javascript("$x > $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Float).<(y Float)  = ffi.javascript("$x < $y   ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Float).>=(y Float) = ffi.javascript("$x >= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Float).<=(y Float) = ffi.javascript("$x <= $y  ? $Boolean.$true : $Boolean.$false").as(Boolean)
-(x Float).==(y Float) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Float).-(y Float)  = ffi.javascript("k$x - k$y").as(Float)
+(x Float).+(y Float)  = ffi.javascript("k$x + k$y").as(Float)
+(x Float).*(y Float)  = ffi.javascript("k$x * k$y").as(Float)
+(x Float).^(y Float) =  ffi.javascript("Math.pow(k$x, k$y)").as(Float)
+(x Float).^(y Int) =  ffi.javascript("Math.pow(k$x, k$y)").as(Float)
+(x Float).>(y Float)  = ffi.javascript("k$x > k$y   ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Float).<(y Float)  = ffi.javascript("k$x < k$y   ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Float).>=(y Float) = ffi.javascript("k$x >= k$y  ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Float).<=(y Float) = ffi.javascript("k$x <= k$y  ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Float).==(y Float) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Float).sqrt = ffi.javascript("Math.sqrt(k$x)").as(Float)
 
-(x Int).toFloat = ffi.javascript("Math.trunc($x)").as(Float)
-(x Float).toInt = ffi.javascript("$x").as(Int)
+(x Int).toFloat = ffi.javascript("Math.trunc(k$x)").as(Float)
+(x Float).toInt = ffi.javascript("k$x").as(Int)
 
 {A Type}
-(x A).toString = ffi.javascript("$x.toString()").as(String)
+(x A).toString = ffi.javascript("KELI_PRELUDE$show(k$x)").as(String)
 
-(this String).++(that String) = ffi.javascript("$this + $that").as(String)
+{A Type}
+(x A).equals(y A) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+
+
+(this String).==(that String) = ffi.javascript("k$this === k$that ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(this String).++(that String) = ffi.javascript("k$this + k$that").as(String)
+(this String).replace(old String) with(new String) =
+    ffi.javascript("k$this.replace(new RegExp(k$old, 'g'), k$new)").as(String)
+
+Optional.of(A Type) = tags.
+    case(got.value(A))
+    case(nothing)
 
 Result.ok(A Type) fail(B Type) = tags.
-    #(ok.value(A))
-    #(fail.with(B))
+    case(ok.value(A))
+    case(fail.with(B))
 
 {A Type} {B Type} {C Type}
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
     | Result.ok(C) fail(B)
     = this.
-        if(ok.value(v)):
+        case(ok.value(v)):
             (Result.ok.value(f.apply(v)))
-        if(fail.with(error)):
+        case(fail.with(error)):
             (Result.fail.with(error))
 
 List.of(A Type) = tags.
-    #(nil)
-    #(cons.current(A) next(List.of(A)))
+    case(nil)
+    case(cons.current(A) next(List.of(A)))
 
 {A Type}
 (this List.of(A)).length 
     | Int 
     = this.
-        if(nil):
+        case(nil):
             (0)
-        if(cons.next(n)):
+        case(cons.next(n)):
             (1.+(n.length))
 
 {A Type}
-(this List.of(A)).add(element A) 
+(this List.of(A)).append(element A) 
     | List.of(A)
     = this.
-        if(nil):
+        case(nil):
             (List.cons.current(element) next(List.nil))
-        if(cons.current(c) next(n)):
-            (List.cons.current(c) next(n.add(element)))
+        case(cons.current(c) next(n)):
+            (List.cons.current(c) next(n.append(element)))
+
 
 {A Type}
 (this List.of(A)).filter(f Function.in(A) out(Boolean))
     | List.of(A)
     = this.
-        if(nil):
+        case(nil):
             (List.nil)
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (f.apply(c).
-                if(true):
+                case(true):
                     (List.cons.current(c) next(n.filter(f)))
-                if(false):
+                case(false):
                     (n.filter(f)))
-
 {A Type} {B Type}
 (this List.of(A)).map(f Function.in(A) out(B))
     | List.of(B)
     = this.
-        if(nil):
+        case(nil):
             (List.nil)
-        if(cons.current(c) next(n)):
-            (List.cons.current(f.apply(this)) next(n.map(f)))
+        case(cons.current(c) next(n)):
+            (List.cons.current(f.apply(c)) next(n.map(f)))
 
 {A Type} {B Type}
 (this List.of(A)).
@@ -116,15 +152,15 @@ List.of(A Type) = tags.
     where(g Function.in(A) out(Boolean))
     | List.of(B)
     = this.
-        if(nil):
+        case(nil):
             (List.nil)
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (g.apply(c).
-                if(true):
+                case(true):
                     (List.cons.
                         current(f.apply(c)) 
                         next(n.select(f) where(g)))
-                if(false):
+                case(false):
                     (n.select(f) where(g)))
 
 
@@ -132,12 +168,264 @@ List.of(A Type) = tags.
 (this List.of(A))._show
     | String
     = this.
-        if(nil):
+        case(nil):
             ("")
-        if(cons.current(c) next(n)):
+        case(cons.current(c) next(n)):
             (c.toString.++(",").++(n._show))
 
 {A Type}
 (this List.of(A)).show
     | String
     = "[".++(this._show).++("]")
+
+"Concat two list together."
+{A Type}
+(this List.of(A)).concat(that List.of(A))
+    | List.of(A)
+    = this.
+        case(nil):
+            (that)
+        case(cons.current(c) next(n)):
+            (List.cons.current(c) next(n.concat(that)))
+
+"Reverse a list."
+{A Type}
+(this List.of(A)).reverse 
+    | List.of(A)
+    = this.
+        case(nil):
+            (List.nil)
+        case(cons.current(c) next(n)):
+            (n.reverse.concat(List.cons.current(c) next(List.nil)))
+
+"Lookup an element."
+{A Type}
+(this List.of(A)).contains(value A)
+    | Boolean
+    = this.
+        case(nil):
+            (Boolean.false)
+        case(cons.current(c) next(n)):
+            (c.equals(value).
+                case(true):
+                    (Boolean.true)
+                case(false):
+                    (n.contains(value)))
+
+"Get the first element of a list"
+{A Type}
+(this List.of(A)).head
+    | Optional.of(A)
+    = this.
+        case(nil):
+            (Optional.nothing)
+        case(cons.current(c) next(n)):
+            (Optional.got.value(c))
+
+"Get the last element of a list"
+{A Type}
+(this List.of(A)).last
+    | Optional.of(A)
+    = this.
+        case(nil):
+            (Optional.nothing)
+        case(cons.current(c) next(n)):
+            (Optional.nothing)
+            // (n.
+            //     case(nil):
+            //         (Optional.got.value(c))
+            //     case(cons.current(c2) next(n2)):
+            //         (n2.last))
+
+{A Type}
+(this List.of(A))._at(index Int) currentIndex(value Int)
+    | Optional.of(A)
+    = this.
+        case(nil):
+            (Optional.nothing)
+        case(cons.current(c) next(n)):
+            (index.equals(value).
+                case(true):
+                    (Optional.got.value(c))
+                case(false):
+                    (n._at(index) currentIndex(value.+(1))))
+
+"Retrieve a value at a speccaseied zero-based index."
+{A Type}
+(this List.of(A)).at(index Int)
+    | Optional.of(A)
+    = this._at(index) currentIndex(0)
+
+People = record.name(String) age(Int)
+
+people = List.nil
+    .append(People.name("Wong") age(21))
+    .append(People.name("Lee") age(12))
+    .append(People.name("koko") age(99))
+    .append(People.name("jojo") age(20).name("haha"))
+
+
+= people.select(.name) where(.age.>(20)).show
+
+= people.select(.age) where(_ | Boolean.true).show
+
+Shape = tags.
+    case(circle.radius(Float))
+    case(square.side(Float))
+    case(rectangle.width(Float) height(Float))
+
+"Calculate the area of a shape"
+(this Shape).area =
+    this.
+        case(circle.radius(r)):
+            (3.14.*(r.^(2)))
+        case(square.side(s)):
+            (s.^(2))
+        case(rectangle.width(w) height(h)):
+            (w.*(h))
+
+= Shape.circle.radius(12.0)
+
+= List.nil.append("12").append("!23").map(x | x.++("@")).show
+
+Dict.key(K Type) value(V Type) = tags.
+    case(nodes.
+        key(K)
+        value(V)
+        left(Dict.key(K) value(V))
+        right(Dict.key(K) value(V)))
+    case(leaf)
+
+// {K Type} {V Type} 
+// (this Dict.key(K) value(V)).lookup(key K)
+//     | Optional.of(V)
+//     = this.
+//         case(nodes.key(k) value(v) left(l) right(r)):
+//             (key.==(k).
+//                 case(true):
+//                     (Optional.got.value(v))
+//                 case(false):
+//                     (l.lookup(k)))
+//         case(leaf):
+//             (Optional.nothing)
+
+// {K Type} {V Type}
+// (this Dict.key(K) value(V)).at(key K) put(value V)
+//     | Dict.key(K) value(V)
+//     = this.
+
+// = Dict.nil
+//     .at("ah ming") put("012345678")
+//     .at("john") put("0123456")
+//     .at("yo") put("hi")
+
+(this Int).factorial | Int =
+    this.<=(0).
+        case(true):
+            (1)
+        case(false):
+            (this.*(this.-(1).factorial))
+
+= 300.<=(123).
+    case(true):
+        ("hello")
+    case(false):
+        ("bye")
+
+= "Hello world".++(" and say goodbye")
+
+= "Hello world".replace("Hello") with("bye")
+
+
+// Definition
+(n Int).fibonacci 
+    | Int 
+    = n.==(0).or(n.==(1)).
+        case(true):  
+            (n)
+        case(false):
+            (n.-(1).fibonacci.+(n.-(2).fibonacci))
+
+// Usage
+= 999.-.-.-.-.-.-.-.-.-.-
+
+(this Int).! = this.factorial
+
+Point = record.x(Float) y(Float)
+
+(p1 Point).distanceTo(p2 Point) = 
+    p1.x.-(p2.x).^(2).+(p1.y.-(p2.y).^(2)).sqrt
+
+= Point.x(0.0) y(0.0).distanceTo(Point.x(3.0) y(4.0))
+
+
+= 12.!
+
+= List.nil.append(3).append(4).append(5).append(6).map(.^(2).+(2)).show
+
+= Shape.circle.radius(12.0).area
+
+{A Type}
+(this List.of(A)).partitionBy(f Function.in(A) out(Boolean))
+    | record.included(List.of(A)) excluded(List.of(A))
+    = this._partitionBy(f) startingWith(record.included(List.nil) excluded(List.nil))
+
+{A Type}
+(this List.of(A)).
+    _partitionBy(f Function.in(A) out(Boolean))
+    startingWith(previousResult record.included(List.of(A)) excluded(List.of(A)))
+    | record.included(List.of(A)) excluded(List.of(A))
+    = this.
+        case(nil):
+            (previousResult)
+        case(cons.current(c) next(n)):
+            (f.apply(c).
+                case(true):
+                    (n._partitionBy(f) startingWith(previousResult.included(.append(c))))
+                case(false):
+                    (n._partitionBy(f) startingWith(previousResult.excluded(.append(c)))))
+
+xs = List.nil.append(1).append(2).append(3).append(4)
+
+result= xs.partitionBy(.>(2))
+
+= result.included.show
+= result.excluded.show
+
+(this Int).div(that Int)
+    | Result.ok(Int) fail(String)
+    = that.==(0).
+        case(true):
+            (Result.fail.with("Division by zero"))
+        case(false):
+            (Result.ok.value(this./(that)))
+
+= 123.div(2).then(.div(2))
+
+ComparisonResult = tags.
+    case(leftLessThanRight)
+    case(leftEqualsRight)
+    case(leftMoreThanRight)
+
+(this Int).compare(that Int) =
+    this.==(that).
+        case(true):
+            (ComparisonResult.leftEqualsRight)
+        case(false):
+            (this.>(that).
+                case(true):
+                    (ComparisonResult.leftMoreThanRight)
+                case(false):
+                    (ComparisonResult.leftLessThanRight))
+
+= Boolean.false.
+    case(true):
+        ("hello")
+    case(false):
+        ("yo")
+
+= Boolean.false.
+    case(true):
+        (123)
+    case(false):
+        (123)
