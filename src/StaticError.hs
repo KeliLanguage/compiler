@@ -5,6 +5,7 @@
 module StaticError where 
 
 
+import Module
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Error
 -- import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
@@ -141,8 +142,8 @@ data KeliError
         Raw.StringToken
 
     | KErrorAmbiguousUsage
-        [Raw.StringToken]
-        [KeliSymbol]
+        [Raw.StringToken] 
+        [(ModuleName, KeliSymbol)]
     
     deriving (Show)
 

@@ -10,7 +10,11 @@ data KeliSymbol
     = KeliSymFunc 
         [V.FuncSignature]
 
-    | KeliSymConst          
+    | KeliSymGlobalConst          
+        V.StringToken -- this field is used for enhancing DuplicatedIdentifiers error message
+        V.Type
+
+    | KeliSymLocalConst          
         V.StringToken -- this field is used for enhancing DuplicatedIdentifiers error message
         V.Type
 
@@ -50,13 +54,3 @@ newFunctionType inputType outputType =
         [builtinPos "in", builtinPos "out"]
         []
         [inputType, outputType]
-
-data Context 
-    = Context {
-        contextNextInt      :: Int,
-        contextEnv          :: Env,
-        contextImportedEnvs :: [Env]
-    }
-
-emptyContext :: Context
-emptyContext = Context 0 emptyEnv []

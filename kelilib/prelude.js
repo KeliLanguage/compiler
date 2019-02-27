@@ -9,7 +9,7 @@ function KELI_PRELUDE$show(o) {
                 result += ".";
                 const keys = Object.keys(o.__carry);
                 for (let i = 0; i < keys.length; i++) {
-                    result += `${keys[i].slice(1)}(${KELI_PRELUDE$show(o.__carry[keys[i]])})`
+                    result += `${keys[i]}(${KELI_PRELUDE$show(o.__carry[keys[i]])})`
                     if (i < keys.length - 1) {
                         result += " ";
                     }
@@ -19,7 +19,7 @@ function KELI_PRELUDE$show(o) {
             result += "record.";
             const keys = Object.keys(o);
             for (let i = 0; i < keys.length; i++) {
-                result += `${keys[i].slice(1)}(${KELI_PRELUDE$show(o[keys[i]])})`
+                result += `${keys[i]}(${KELI_PRELUDE$show(o[keys[i]])})`
                 if (i < keys.length - 1) {
                     result += " ";
                 }

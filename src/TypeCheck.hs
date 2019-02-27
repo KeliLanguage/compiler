@@ -4,6 +4,7 @@ module TypeCheck where
 import Control.Monad
 import Data.Maybe
 import Data.List hiding (lookup)
+import Module
 import Data.Map.Ordered ((|>), lookup, member) 
 import qualified Data.Map.Strict as Map
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
@@ -41,10 +42,13 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
     Raw.Id token@(_,id) -> do
         lookupResult <- lookupEnvs [token] id env importedEnvs
         case lookupResult of 
-            Just (KeliSymConst _ type') -> 
-                Right (ctx, First (V.Expr (V.Id token) type'))
+            Just (scope, KeliSymGlobalConst ref type') -> 
+                Right (ctx, First (V.Expr (V.GlobalId token ref scope) type'))
+
+            Just (_, KeliSymLocalConst ref type') -> 
+                Right (ctx, First (V.Expr (V.LocalId token ref) type'))
         
-            Just (KeliSymType t@(V.TypeRecord name propTypePairs)) -> 
+            Just (scope, KeliSymType t@(V.TypeRecord name propTypePairs)) -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
                 -- Answer: Using assumptions
                 case assumption of
@@ -55,17 +59,20 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                     CanBeAnything ->
                         (Right (ctx, First (V.Expr (V.RecordConstructor name propTypePairs) ((V.TypeRecordConstructor name propTypePairs)))))
 
-            Just (KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))) ->
+            Just (scope, KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))) ->
                 case assumption of
                     StrictlyAnalyzingType -> 
                         (Right (ctx, Second (V.TypeAnnotSimple token t)))
+
                     CanBeAnything ->
-                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix name) ( (V.TypeTagConstructorPrefix name tags innerTypes)))))
+                        (Right (ctx, First 
+                            (V.Expr (V.TagConstructorPrefix name) 
+                            (V.TypeTagConstructorPrefix name tags innerTypes scope))))
             
-            Just (KeliSymType t) ->
+            Just (scope, KeliSymType t) ->
                 (Right (ctx, Second (V.TypeAnnotSimple token t)))
             
-            Just (KeliSymTaggedUnion t@(V.TaggedUnion _ _ tags typeParams)) ->
+            Just (scope, KeliSymTaggedUnion t@(V.TaggedUnion _ _ tags typeParams)) ->
                 let name = token in
                 case assumption of
                     StrictlyAnalyzingType ->
@@ -75,7 +82,9 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             Right (ctx, Second (V.TypeAnnotSimple name (V.TypeTaggedUnion t)))
 
                     CanBeAnything -> 
-                        (Right (ctx, First (V.Expr (V.TagConstructorPrefix name) ( (V.TypeTagConstructorPrefix name tags typeParams)))))
+                        (Right (ctx, First 
+                            (V.Expr (V.TagConstructorPrefix name) 
+                            (V.TypeTagConstructorPrefix name tags typeParams scope))))
 
             Nothing -> 
                 Left (KErrorUsingUndefinedId token)
@@ -304,7 +313,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                                 -- TODO: need to check if expectedType is Function
                                                 -- something squishy is happening
                                                 Raw.Lambda lambdaParam lambdaBody -> do
-                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymConst lambdaParam expectedType) env 
+                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) env 
                                                     (ctx3, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
 
                                                     substitution <- unify verifiedLambdaBody expectedType
@@ -332,7 +341,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         continuePreprocessFuncCall2
 
                         -- (E) check if user is invoking tag constructor prefix
-                        V.TypeTagConstructorPrefix taggedUnionName tags _ ->
+                        V.TypeTagConstructorPrefix taggedUnionName tags _ scope ->
                             if length funcIds == 1 then
                                 let tagname = head funcIds in
                                 case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
@@ -342,7 +351,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes in
                                         let belongingUnion = V.TaggedUnion name ids tags resultingInnerTypes in
                                         (Right (ctx3, First (V.Expr 
-                                            (V.CarrylessTagExpr tag tagname) 
+                                            (V.CarrylessTagExpr tag tagname scope) 
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
@@ -352,7 +361,8 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                             ((V.TypeCarryfulTagConstructor 
                                                 tagname
                                                 expectedPropTypePairs
-                                                belongingUnion)))))
+                                                belongingUnion
+                                                scope)))))
                                     Nothing ->
                                         Left (KErrorTagNotFound tagname taggedUnionName tags)
 
@@ -373,7 +383,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         (V.TypeTaggedUnion (V.TaggedUnion name ids tags (map V.getTypeRef types)))))
 
                         -- (G) check if user is invoking carryful tag constructor
-                        V.TypeCarryfulTagConstructor tagname expectedPropTypePairs (V.TaggedUnion name ids tags innerTypes) -> do
+                        V.TypeCarryfulTagConstructor tagname expectedPropTypePairs (V.TaggedUnion name ids tags innerTypes) scope -> do
                             let (ctx3, subst1) = instantiateTypeVar ctx innerTypes 
                             (ctx4, values) <- verifyExprs ctx3 assumption (tail params')
                             let actualPropValuePairs = zip funcIds values
@@ -384,7 +394,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             let innerTypes' = map (applySubstitutionToType subst1) innerTypes
                             let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
                             Right (ctx4, First (V.Expr 
-                                (V.CarryfulTagExpr tagname actualPropValuePairs)
+                                (V.CarryfulTagExpr tagname actualPropValuePairs scope)
                                 (V.TypeTaggedUnion (V.TaggedUnion name ids tags resultingInnerTypes))))
 
                         -- otherwise
@@ -480,7 +490,7 @@ typeCheckFuncCall
 typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
     lookupResult <- lookupEnvs funcIds (intercalate "$" (map snd funcIds)) env importedEnvs
     case lookupResult of
-        Just (KeliSymFunc candidateFuncs) -> do
+        Just (scope, KeliSymFunc candidateFuncs) -> do
             case (foldl 
                     (\result currentFunc ->
                         case result of
@@ -519,7 +529,7 @@ typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams fun
                                                                 (V.TypeTaggedUnion (V.TaggedUnion _ _ _ [inputType, outputType])) -> do
                                                                 let inputType' = applySubstitutionToType subst4 inputType 
                                                                 let outputType' = applySubstitutionToType subst4 outputType 
-                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymConst paramName inputType') env 
+                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst paramName inputType') env 
                                                                 -- QUESTION: Should I ignore this new context?
                                                                 (_, body') <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption body
                                                                 tempSubst <- unify body' outputType'
@@ -537,7 +547,7 @@ typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams fun
                                                             
                                                             Right subst5 ->
                                                                 let expectedReturnType' = applySubstitutionToType subst5 expectedReturnType in
-                                                                let funcCall = V.Expr (V.FuncCall funcCallParams' funcIds currentFunc) (expectedReturnType') in
+                                                                let funcCall = V.Expr (V.FuncCall funcCallParams' funcIds (scope,currentFunc)) (expectedReturnType') in
                                                                 PerfectlyMatchedFuncFound ctx2 funcCall
                                                     
                                                     Left err ->
@@ -682,7 +692,10 @@ insertSymbolIntoEnv symbol env =
             in
             insert' typeId
 
-        KeliSymConst id _ ->
+        KeliSymGlobalConst id _ ->
+            insert' id
+
+        KeliSymLocalConst id _ ->
             insert' id
 
         KeliSymTaggedUnion (V.TaggedUnion name _ _ _) ->
@@ -814,7 +827,7 @@ typeCheckTagBranch ctx@(Context _ env importedEnvs) expectedTags (tag, branch) =
                             updatedEnv <- 
                                 foldM 
                                     (\prevSymtab (_,bindingId, expectedType) -> 
-                                        insertSymbolIntoEnv (KeliSymConst bindingId expectedType) prevSymtab)
+                                        insertSymbolIntoEnv (KeliSymLocalConst bindingId expectedType) prevSymtab)
                                     env
                                     verifiedPropBindings
 
@@ -851,14 +864,31 @@ allBranchTypeAreSame typeCheckedTagBranches = do
         Right _ ->
             Right expectedTypeOfEachBranches
                                         
-lookupEnvs :: [V.StringToken] -> String -> Env -> [Env] -> Either KeliError (Maybe KeliSymbol)
+lookupEnvs :: [V.StringToken] -> String -> Env -> [(ModuleName,Env)] -> Either KeliError (Maybe (V.Scope,KeliSymbol))
 lookupEnvs actualIds identifier currentEnv importedEnvs = 
-    let result = map (lookup identifier) (currentEnv:importedEnvs) in
-    let symbols = catMaybes result in
-    if length symbols <= 0 then
-        Right Nothing
-    else if length symbols == 1 then
-        Right (Just (symbols !! 0))
-    else -- if length symbols > 1 then
-        Left (KErrorAmbiguousUsage actualIds symbols)
-    
+    case lookup identifier currentEnv of
+        Just s ->
+            Right (Just (V.FromCurrentScope, s))
+        
+        Nothing ->
+            let result = 
+                        map 
+                            (\(modulename, env) ->
+                                case lookup identifier env of
+                                    Just s ->
+                                        Just (modulename, s)
+                                    Nothing ->
+                                        Nothing) 
+                            importedEnvs in
+
+            let symbols = catMaybes result in
+            case symbols of
+                [] ->
+                    Right Nothing
+                (modulename,symbol):otherSymbols ->
+                    case otherSymbols of
+                        [] ->
+                            Right (Just (V.FromImports modulename, symbol))
+
+                        _ ->
+                            Left (KErrorAmbiguousUsage actualIds symbols)

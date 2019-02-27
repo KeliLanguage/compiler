@@ -295,10 +295,10 @@ instance HaveRange V.Expr' where
         V.RecordConstructor Nothing kvs ->
             getRange (fst (kvs !! 0))
         
-        V.CarrylessTagExpr _ x ->
+        V.CarrylessTagExpr _ x _ ->
             getRange x
 
-        V.CarryfulTagExpr name x ->
+        V.CarryfulTagExpr name x _ ->
             mergeRanges [getRange name, getRange (PropValuePairs x)]
 
         V.TagMatcher subject branches _ ->
@@ -325,7 +325,10 @@ instance HaveRange V.Expr' where
         V.StringExpr (sourcePos, value) ->
             buildRange sourcePos (length value + 2)
         
-        V.Id (sourcePos, value) ->
+        V.GlobalId (sourcePos, value) _ _ ->
+            buildRange sourcePos (length value)
+
+        V.LocalId (sourcePos, value) _ ->
             buildRange sourcePos (length value)
 
         V.FuncCall params ids _ ->

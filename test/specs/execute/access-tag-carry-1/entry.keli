@@ -1,4 +1,4 @@
-(this Int).+(that Int) | Int = ffi.javascript("$this + $that").as(Int)
+(this Int).+(that Int) | Int = ffi.javascript("k$this + k$that").as(Int)
 
 Color = tags.
     case(red)

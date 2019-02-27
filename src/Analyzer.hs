@@ -12,12 +12,13 @@ import Prelude hiding (lookup,id)
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
+import Module
 import Env
 import TypeCheck
 import Util
 import Unify
 
-analyze :: [Env] -> [Raw.Decl] -> ([KeliError], Env, [V.Decl])
+analyze :: [(ModuleName,Env)] -> [Raw.Decl] -> ([KeliError], Env, [V.Decl])
 analyze importedEnvs decls = 
     let (errors, env, analyzedDecls) = analyzeDecls importedEnvs emptyEnv decls in
 
@@ -43,7 +44,7 @@ data TypeDecl =
         V.Type          -- type body
 
 analyzeDecls 
-    :: [Env] -- imported env
+    :: [(ModuleName,Env)] -- imported envs
     -> Env -- previous env
     -> [Raw.Decl] -- parsed input
     -> ([KeliError], Env, [V.Decl]) -- (accumulatedErrors, newEnv, symbols)
@@ -55,9 +56,9 @@ analyzeDecls importedEnvs env rawDecls =
 -- this function will perform multipassing
 -- so that declaration order will be insignificant
 analyzeDecls' 
-    :: [Env]
-    -> Env 
-    -> [Raw.Decl] 
+    :: [(ModuleName,Env)]          -- imported envs
+    -> Env            -- current envs 
+    -> [Raw.Decl]     -- input raw decls
     -> [V.Decl]       -- previous verified decls
     -> 
         ([KeliError], -- errors
@@ -145,7 +146,7 @@ data PaDecl
         [(Raw.StringToken, Raw.Expr)] -- type params
         Raw.Expr            -- type body
 
-analyzeDecl :: Raw.Decl -> Env -> [Env] -> Either KeliError PaDecl
+analyzeDecl :: Raw.Decl -> Env -> [(ModuleName,Env)] -> Either KeliError PaDecl
 analyzeDecl rawDecl env importedEnvs = case rawDecl of
     Raw.ConstDecl c -> 
         Right (PaConstDecl c)
@@ -213,7 +214,7 @@ analyzeDecl rawDecl env importedEnvs = case rawDecl of
             Right (PaFuncDecl funcSig funcBody)
 
     
-analyzePaDecl :: PaDecl -> Env -> [Env] -> Either KeliError V.Decl
+analyzePaDecl :: PaDecl -> Env -> [(ModuleName,Env)] -> Either KeliError V.Decl
 analyzePaDecl paDecl env importedEnvs = case paDecl of
     PaConstDecl Raw.Const {
         Raw.constDeclId=id,
@@ -277,7 +278,7 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                         if member (snd id) acc then
                             Left (KErrorDuplicatedId [id])
                         else
-                            Right (acc |> (snd id, KeliSymConst id (V.getTypeRef typeAnnot))))
+                            Right (acc |> (snd id, KeliSymLocalConst id (V.getTypeRef typeAnnot))))
                 env
                 (V.funcDeclParams funcSignature)
             
@@ -408,7 +409,7 @@ toSymbol ::  V.Decl -> Maybe KeliSymbol
 toSymbol decl = 
     case decl of
         V.ConstDecl id expr ->
-            Just (KeliSymConst id (getType expr))
+            Just (KeliSymGlobalConst id (getType expr))
 
         V.FuncDecl signature _ ->
             Just (KeliSymFunc [signature])

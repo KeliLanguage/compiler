@@ -16,6 +16,14 @@ newStringToken value = (newPos "" (-1) (-1), value)
 
 newStringToken' :: (Int,Int,String) -> StringToken
 newStringToken' (line,col,value) = (newPos "" line col, value)
+
+data Scope 
+    = FromCurrentScope
+    | FromImports 
+        String -- imporeted module name
+    deriving (Show)
+
+
 data Decl 
     = ConstDecl 
         StringToken
@@ -80,6 +88,7 @@ data Type
         StringToken           -- tagname
         [(StringToken, Type)] -- expected prop-type pairs
         TaggedUnion           -- belongingType
+        Scope
 
     | TypeRecordConstructor 
         (Maybe StringToken)   -- record type alias name
@@ -89,6 +98,7 @@ data Type
         StringToken -- name
         [Tag]       -- available tags
         [Type]      -- type params
+        Scope
 
     | TypeTypeParam StringToken (Maybe TypeConstraint)
     | TypeType -- type of type
@@ -117,10 +127,10 @@ instance Show Type where
     show TypeFloat                                           = "*float"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
-    show (TypeRecord name _)                               = "*record:" ++ show name
+    show (TypeRecord name _)                                 = "*record:" ++ show name
     show (TypeUndefined)                                     = "undefined"
-    show (TypeCarryfulTagConstructor name _ _)               = "*carryful tag constructor:" ++ show name
-    show (TypeRecordConstructor _ _)                       = undefined -- "*record constructorshow:" ++ show kvs
+    show (TypeCarryfulTagConstructor name _ _ _)             = "*carryful tag constructor:" ++ show name
+    show (TypeRecordConstructor _ _)                         = undefined -- "*record constructorshow:" ++ show kvs
     show (TypeTypeParam name _)                              = "*type param:" ++ show name
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
@@ -175,11 +185,19 @@ data Expr'
     = IntExpr   (SourcePos, Integer) 
     | DoubleExpr (SourcePos, Double)
     | StringExpr StringToken
-    | Id     StringToken
+    | GlobalId -- for global constants
+        StringToken -- actual usage
+        StringToken -- reference (where is this id originally defined)
+        Scope
+
+    | LocalId  -- for function and lambda parameters
+        StringToken -- actual usage
+        StringToken -- reference (where is this id originally defined)
+
     | FuncCall {
-        funcCallParams :: [Expr],
-        funcCallIds    :: [StringToken],
-        funcCallRef    :: FuncSignature
+        funcCallParams :: [Expr], -- for transpilation
+        funcCallIds    :: [StringToken], -- for reporting error
+        funcCallRef    :: (Scope, FuncSignature) -- for transpilation
     }
     | FuncApp {
         funcAppFunc :: Expr,
@@ -220,15 +238,17 @@ data Expr'
     | CarrylessTagExpr 
         StringToken -- where is it defined?
         StringToken -- where is it used?
+        Scope 
 
+    | CarryfulTagExpr
+        StringToken -- tag name
+        [(StringToken, Expr)] -- key-value pairs
+        Scope
 
     | CarryfulTagConstructor 
         StringToken             -- tag name
         [(StringToken, Type)]   -- expected prop-type pairs
     
-    | CarryfulTagExpr
-        StringToken -- tag name
-        [(StringToken, Expr)] -- key-value pairs
 
     | RecordConstructor 
         (Maybe StringToken)   -- record type alias name
@@ -284,5 +304,5 @@ stringifyType t = case t of
         BoundedTypeVar name _ -> snd name
         FreeTypeVar name _ -> name
         TypeUndefined -> "Undefined"
-        TypeCarryfulTagConstructor name _ _ -> snd name
+        TypeCarryfulTagConstructor name _ _ _ -> snd name
         _ -> error (show t)

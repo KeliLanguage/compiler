@@ -101,7 +101,7 @@ handleCliInput input =
         
         Analyze filename -> do
             contents <- readFile filename
-            (errors, _, _) <- keliCompile filename contents
+            (errors, _) <- keliCompile filename contents
             putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
 
         Suggest filename lineNumber columnNumber -> do

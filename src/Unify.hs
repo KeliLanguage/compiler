@@ -82,8 +82,8 @@ unify'
 -- unify' carryful tag counstructor
 unify' 
     actualExpr 
-    actualType@(V.TypeCarryfulTagConstructor x _ _ )
-    expectedType@(V.TypeCarryfulTagConstructor y _ _ ) = 
+    actualType@(V.TypeCarryfulTagConstructor x _ _ _)
+    expectedType@(V.TypeCarryfulTagConstructor y _ _ _) = 
     if x == y then 
         Right (emptySubstitution)  
     else 

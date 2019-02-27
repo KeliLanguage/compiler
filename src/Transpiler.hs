@@ -8,19 +8,50 @@ import Text.ParserCombinators.Parsec.Pos
 import Data.Char
 import Diagnostics
 
-
 import qualified Ast.Verified as V
-import Env
+import Module
 
-keliTranspile :: [V.Decl] -> String
-keliTranspile decls = (intercalate ";\n" (map transpile decls)) ++ ";\n"
+prefix :: String -> String
+prefix s = "k$" ++ s -- k means Keli, this is to prevent conflicts with other JS libraries
+
+transpileModule :: Bool -> Module -> String
+transpileModule isEntryFile (Module name importedModules _ decls) = 
+    "const " 
+        ++ prefix name 
+        ++ "=(()=>{" ++ transpiledModules ++ transpiledDecls ++ "return{" ++ exports ++ "}})();"
+    where
+        transpiledModules = 
+            concatMap (transpileModule False) importedModules
+
+        transpiledDecls = 
+            let decls' = 
+                    if isEntryFile then 
+                        decls 
+                    else -- remove all idless decls, accoding to specification 
+                        filter (\d -> case d of V.IdlessDecl _ -> False; _ -> True) decls in
+            (intercalate ";" (map transpile decls')) ++ ";"
+
+        exports = 
+            intercalate "," (
+                concatMap 
+                    (\d -> 
+                        case d of
+                            V.ConstDecl (_,id) _ ->
+                                [prefix id]
+                            V.FuncDecl signature _ ->
+                                [getFuncName signature]
+
+                            V.TaggedUnionDecl (V.TaggedUnion (_,name) _ _ _) ->
+                                [prefix name]
+
+                            _ ->
+                                [])
+                    decls)
+
 
 
 class Transpilable a where
     transpile :: a -> String
-
-prefix :: String -> String
-prefix s = "$" ++ s
 
 quote :: String -> String
 quote s = "\"" ++ s ++ "\""
@@ -30,38 +61,49 @@ squareBracket s = "[" ++ s ++ "]"
 
 instance Transpilable V.Tag where
     transpile tag = case tag of 
-        -- `tail id` is for removing leading hashtag `#`
         V.CarrylessTag (_,id) _ -> 
-            quote (prefix id) ++ ":({__tag:\"" ++ id ++ "\"})"
+            quote id ++ ":({__tag:\"" ++ id ++ "\"})"
 
         V.CarryfulTag (_,id) _ _ -> 
-            quote (prefix id) ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
+            quote id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
 
 joinIds :: [V.StringToken] -> String
 joinIds ids = intercalate "_" (map snd ids)
 
 instance Transpilable V.Decl where
-    transpile decl = case decl of 
-        V.ConstDecl (_,id) expr  -> 
-            "const " ++ prefix id ++ "=" ++ (transpile expr)
+    transpile decl = 
+        case decl of 
+            V.ConstDecl (_, id) expr  -> 
+                "const " ++ prefix id ++ "=" ++ (transpile expr)
 
-        V.IdlessDecl x -> 
-            let lineNumber = line (start (getRange x)) in 
-            "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
-            "KELI_PRELUDE$show(" ++ transpile x ++ "))" 
+            V.IdlessDecl expr -> 
+                let lineNumber = line (start (getRange expr)) in 
+                "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
+                "KELI_PRELUDE$show(" ++ transpile expr ++ "))" 
 
-        V.FuncDecl signature body -> 
-            transpile signature ++ "(" ++ transpile body ++ ");"
+            V.FuncDecl signature body -> 
+                transpile signature ++ "(" ++ transpile body ++ ");"
 
-        V.TaggedUnionDecl (V.TaggedUnion (_,id) _ tags _) ->
-            "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
-        
-        V.RecordAliasDecl{} ->
-            ""
+            V.TaggedUnionDecl (V.TaggedUnion (_,id) _ tags _) ->
+                "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+            
+            V.RecordAliasDecl{} ->
+                ""
+
+
+instance Transpilable V.Scope where
+    transpile scope = 
+        case scope of
+            V.FromCurrentScope ->
+                ""
+
+            V.FromImports modulename ->
+                prefix modulename ++ "."
+
 
 instance Transpilable V.FuncSignature where
     transpile f@(V.FuncSignature _ _ params _ _) = 
-        let params' = intercalate "," (map ((prefix ) . snd . fst) params) in
+        let params' = intercalate "," (map (\((_,id),_) -> prefix id) params) in
         "const " ++ getFuncName f ++ "=(" ++ params' ++ ")=>"
 
 instance Transpilable V.Expr where
@@ -75,27 +117,32 @@ instance Transpilable V.Expr where
         V.Expr(V.StringExpr (_,value)) _
             -> show value
 
-        V.Expr(V.Id     (_,value)) _
-            -> prefix value
+        V.Expr(V.GlobalId _ (_, id) scope) _
+            -> transpile scope ++ prefix id
 
-        V.Expr(V.Lambda ((_,param),_) body) _                      
-            -> "(" ++ prefix param ++ ")=>(" ++ transpile body ++ ")"
+        V.Expr(V.LocalId _ (_, id)) _
+            -> prefix id
+
+        V.Expr(V.Lambda ((_, paramId),_) body) _                      
+            -> "(" ++ prefix paramId ++ ")=>(" ++ transpile body ++ ")"
 
         V.Expr(V.Record kvs) _                              
-            -> transpileKeyValuePairs False (kvs)
+            -> transpileKeyValuePairs False kvs
 
         V.Expr(V.RecordGetter expr prop) _                  
-            -> transpile expr ++ "." ++ prefix (snd prop)
+            -> transpile expr ++ "." ++  (snd prop)
 
         V.Expr(V.RecordSetter subject prop newValue) _      
-            -> "({...(" ++ transpile subject ++ ")," ++ prefix (snd prop) ++ ":(" ++ transpile newValue ++ ")})"
+            -> "({...(" ++ transpile subject ++ ")," ++ (snd prop) 
+                ++ ":(" ++ transpile newValue ++ ")})"
 
-        V.Expr (V.RecordLambdaSetter subject prop lambdaParam lambdaBody) _
+        V.Expr (V.RecordLambdaSetter subject (_,prop) (_, lambdaParamId) lambdaBody) _
             -> 
                 "({...(" ++ transpile subject ++ ")," 
-                ++ prefix (snd prop) ++ ":("
-                ++ "((" ++ prefix (snd lambdaParam) ++ ")=>(" ++ transpile lambdaBody ++ "))"
-                ++ "((" ++ transpile subject ++ ")." ++ prefix (snd prop) ++ ")"
+                ++ prop ++ ":("
+                ++ "((" ++ prefix lambdaParamId ++ ")=>(" 
+                ++ transpile lambdaBody ++ "))"
+                ++ "((" ++ transpile subject ++ ")." ++ prop ++ ")"
                 ++ ")})"
 
 
@@ -103,26 +150,29 @@ instance Transpilable V.Expr where
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
-            "(($$=>({" ++ intercalate "," (map transpile branches) ++ "})[$$.__tag])(" ++ transpile subject ++ ")" ++
-                (case elseBranch of
+            "(($$=>({" ++ intercalate "," (map transpile branches) 
+                ++ "})[$$.__tag])(" ++ transpile subject ++ ")" 
+                ++ (case elseBranch of
                     Just expr' -> " || " ++ "(" ++ (lazify (transpile expr')) ++ ")"
                     Nothing   -> "") ++ ")()"
 
-        V.Expr(V.FuncCall params _ ref) _ -> 
-            getFuncName ref ++ "(" ++ intercalate "," (map transpile params) ++")"
+        V.Expr(V.FuncCall params _ (scope,ref)) _ -> 
+            transpile scope ++ getFuncName ref ++ "(" ++ intercalate "," (map transpile params) ++")"
 
         V.Expr(V.FFIJavascript (_,code)) _ ->
             code
 
         V.Expr 
-            (V.CarryfulTagExpr (_,tag) carry)  
-            ( (V.TypeTaggedUnion (V.TaggedUnion (_,id) _ _ _)))
-                -> prefix id ++ squareBracket (quote (prefix tag)) ++ "("++ transpileKeyValuePairs False carry ++")"
+            (V.CarryfulTagExpr (_,tag) carry scope)  
+            ( (V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+                -> transpile scope 
+                    ++ prefix taggedUnionName ++ squareBracket (quote tag) 
+                    ++ "("++ transpileKeyValuePairs False carry ++")"
 
         V.Expr 
-            (V.CarrylessTagExpr(_,tag) _)
-            ( (V.TypeTaggedUnion (V.TaggedUnion(_,id) _ _ _)))
-                -> prefix id ++ squareBracket (quote (prefix tag))
+            (V.CarrylessTagExpr(_,tag) _ scope)
+            ( (V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+                -> transpile scope ++ prefix taggedUnionName ++ squareBracket (quote tag)
 
         V.Expr (V.FuncApp f arg) _ ->
             transpile f ++ "(" ++ transpile arg ++ ")"
@@ -139,14 +189,14 @@ instance Transpilable V.TagBranch where
         V.CarryfulTagBranch (V.VerifiedTagname (_,tagname)) propBindings expr ->
             -- Refer https://codeburst.io/renaming-destructured-variables-in-es6-807549754972
             tagname ++ ":" ++ lazify ("(({" 
-                ++ (concatMap (\((_,from), (_,to), _) -> prefix from ++ ":" ++ prefix to ++ ",") propBindings)
+                ++ (concatMap (\((_,from), (_,to), _) -> from ++ ":" ++ prefix to ++ ",") propBindings)
                 ++ "})=>" 
                 ++ transpile expr ++ ")($$.__carry)")
 
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String
 transpileKeyValuePairs lazifyExpr kvs 
-    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ (prefix (snd key)) ++ ":" 
+    = "({" ++ (foldl' (\acc (key,expr) -> acc ++ snd key ++ ":" 
         ++ (if lazifyExpr then lazify (transpile expr) else (transpile expr))
         ++ ",") "" kvs) ++ "})"
 
@@ -172,10 +222,10 @@ lazify str = "()=>(" ++ str ++ ")"
 --  especially when looking up generic functions
 getFuncName :: V.FuncSignature -> String
 getFuncName (V.FuncSignature{V.funcDeclIds=ids}) = 
-    let hash =sourceLine (fst (head ids)) in
+    let hash = sourceLine (fst (head ids)) in
     intercalate "$" (map (toValidJavaScriptId . snd) ids) ++ "$$" ++ show hash
 
 -- Basically, this function will convert all symbols to its corresponding ASCII code
--- e.g. toValidJavaScriptId "$" = "_36"
+-- e.g. toValidJavaScriptId "$" = "k$36"
 toValidJavaScriptId :: String -> String
-toValidJavaScriptId s = "_" ++ concat (map (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)
+toValidJavaScriptId s = prefix (concatMap (\x -> if (not . isAlphaNum) x then show (ord x) else [x]) s)

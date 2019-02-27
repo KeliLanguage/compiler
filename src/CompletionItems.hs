@@ -3,6 +3,7 @@
 module CompletionItems where
 
 import GHC.Generics
+import Module
 import Parser
 import Data.Sequence(fromList, update, index)
 import Data.Aeson
@@ -72,7 +73,7 @@ instance ToJSON CompletionItem where
 toCompletionItem ::KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
-        KeliSymConst (_, id) _ -> 
+        KeliSymGlobalConst (_, id) _ -> 
             [CompletionItem  6 id  "Constant" id 1 ""]
         
         KeliSymType t ->
@@ -179,10 +180,12 @@ suggestCompletionItemsAt filename (lineNumber, columnNumber) = do
             else
                 contents
 
-    (errors, envs, _) <- keliCompile filename modifiedContents
+    (errors, currentModule) <- keliCompile filename modifiedContents
     case keliParse filename modifiedContents of
         Right decls ->
+            let envs = [moduleEnv currentModule] ++ map moduleEnv (moduleImported currentModule) in
             let items = suggestCompletionItems envs errors in
+
 
             -- remove duplicates
             return (nubBy (\x y -> label x == label y) items)
@@ -242,7 +245,7 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
 
                 case expr of
                     -- tag constructor prefix
-                    V.Expr _ (V.TypeTagConstructorPrefix _ tags typeParams) ->
+                    V.Expr _ (V.TypeTagConstructorPrefix _ tags typeParams _) ->
                         map 
                             (\t -> 
                                 case t of

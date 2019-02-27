@@ -15,7 +15,7 @@ Boolean = tags.
     case(true) 
     case(false) 
 
-(x Int).==(y Int) = ffi.javascript("$x === $y ? $Boolean.$true : $Boolean.$false").as(Boolean)
+(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
 
 (this Int).isZero | Result.ok(Int) fail(String) = 
     this.==(0).

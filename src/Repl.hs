@@ -19,25 +19,26 @@ keliRead
 
 keliEval :: (Env, String) -> String -> Either [KeliError] (IO String, (Env, String))
 keliEval (prevEnv, prevBytecode) input 
-    =   keliParse "<repl>" input >>= 
-        analyzeDecls'' prevEnv  >>= \(newEnv, decls) ->
-        let newBytecodeToBeExecuted = keliTranspile decls in 
+    = undefined 
+    --      keliParse "<repl>" input >>= 
+    --     analyzeDecls'' prevEnv  >>= \(newEnv, decls) ->
+    --     let newBytecodeToBeExecuted = transpileModule [] decls in 
         
-        let onlyDeclarationDecls = filter (\s -> case s of V.IdlessDecl {} -> False; _ -> True) decls in
-        let newByteCodeToBePassFoward = keliTranspile onlyDeclarationDecls in
-        Right (keliExecute (prevBytecode ++ newBytecodeToBeExecuted), (newEnv, newByteCodeToBePassFoward))
+    --     let onlyDeclarationDecls = filter (\s -> case s of V.IdlessDecl {} -> False; _ -> True) decls in
+    --     let newByteCodeToBePassFoward = transpileModule [] onlyDeclarationDecls in
+    --     Right (keliExecute (prevBytecode ++ newBytecodeToBeExecuted), (newEnv, newByteCodeToBePassFoward))
         
-    where 
-        analyzeDecls''
-            :: Env -- previous env
-            -> [Raw.Decl] -- parsed input
-            -> Either [KeliError] (Env, [V.Decl]) -- (accumulatedErrors, newEnv, newDecls)
-        analyzeDecls'' env decls = 
-            let (errors, env', decls') = analyzeDecls [] env decls in
-            if length errors > 0 then
-                Left errors
-            else 
-                Right (env', decls')
+    -- where 
+    --     analyzeDecls''
+    --         :: Env -- previous env
+    --         -> [Raw.Decl] -- parsed input
+    --         -> Either [KeliError] (Env, [V.Decl]) -- (accumulatedErrors, newEnv, newDecls)
+    --     analyzeDecls'' env decls = 
+    --         let (errors, env', decls') = analyzeDecls [] env decls in
+    --         if length errors > 0 then
+    --             Left errors
+    --         else 
+    --             Right (env', decls')
         
 
 keliPrint :: String -> IO ()

@@ -1,0 +1,4 @@
+= module.import("a.keli")
+= module.import("b.keli")
+
+= 123

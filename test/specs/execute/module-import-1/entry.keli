@@ -1,3 +1,7 @@
 = module.import("./src/File2.keli")
 
 = 123.doubleNegate
+
+= pi
+
+= Shape.square

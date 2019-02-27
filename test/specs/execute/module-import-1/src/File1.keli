@@ -1,1 +1,1 @@
-(this Int).negate = ffi.javascript("(-$this)").as(Int)
+(this Int).negate = ffi.javascript("(-k$this)").as(Int)

@@ -1,4 +1,4 @@
-(x Int).plus(y Int) | Int  = ffi.javascript("$x  + $y").as(Int)
+(x Int).plus(y Int) | Int  = ffi.javascript("k$x  + k$y").as(Int)
 
 IntList = tags.
     case(nil) 
