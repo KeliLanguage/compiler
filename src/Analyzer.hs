@@ -363,6 +363,7 @@ linkTagsTogether taggedUnionName ids tags typeParams =
     case findDuplicates tagnames of
         Just duplicates -> 
             Left (KErrorDuplicatedTags duplicates)
+
         Nothing ->
             let 
                 -- circular structure. Refer https://wiki.haskell.org/Tying_the_Knot
@@ -376,7 +377,7 @@ linkTagsTogether taggedUnionName ids tags typeParams =
                                 (V.CarrylessTag tag tagUnionType)
                             V.UnlinkedCarryfulTag tag carryTypes -> 
                                 let carryType' = map (\(key, typeAnnot) ->
-                                        (key, substituteSelfType ( (V.TypeTaggedUnion tagUnionType)) (V.getTypeRef typeAnnot))) 
+                                        (key, substituteSelfType (V.TypeTaggedUnion tagUnionType) (V.getTypeRef typeAnnot))) 
                                         carryTypes in
                                 (V.CarryfulTag tag carryType' tagUnionType)) 
                         tags
@@ -400,6 +401,18 @@ substituteSelfType source target =
                             (prop, substituteSelfType source type'))
                         propTypePairs
             in  (V.TypeRecord name updatedPropTypePairs)
+
+        V.TypeTaggedUnion (V.TaggedUnion (_,name1) _ _ _) ->
+            -- TODO: something fishy here, not sure if got bug or not
+            case source of
+                V.TypeTaggedUnion (V.TaggedUnion (_,name2) _ _ _) ->
+                    if name1 == name2 then
+                        source
+                    else 
+                        target
+
+                _ ->
+                    target
 
         _ ->
             target

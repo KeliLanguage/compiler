@@ -230,12 +230,11 @@ List.of(A Type) = tags.
         case(nil):
             (Optional.nothing)
         case(cons.current(c) next(n)):
-            (Optional.nothing)
-            // (n.
-            //     case(nil):
-            //         (Optional.got.value(c))
-            //     case(cons.current(c2) next(n2)):
-            //         (n2.last))
+            (n.
+                case(nil):
+                    (Optional.got.value(c))
+                default:
+                    (Optional.nothing))
 
 {A Type}
 (this List.of(A))._at(index Int) currentIndex(value Int)

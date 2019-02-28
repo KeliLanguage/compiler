@@ -1,0 +1,23 @@
+List.of(A Type) = tags.
+    case(nil)
+    case(cons.current(A) next(List.of(A)))
+
+Optional.of(A Type) = tags.
+    case(got.value(A))
+    case(nothing)
+
+"Get the last element of a list"
+{A Type}
+(this List.of(A)).last
+    | Optional.of(A)
+    = this.
+        case(nil):
+            (Optional.nothing)
+        case(cons.current(c) next(n)):
+            (n.
+                case(nil):
+                    (Optional.got.value(c))
+                default:
+                    (Optional.nothing))
+
+= List.cons.current(1) next(List.nil).last

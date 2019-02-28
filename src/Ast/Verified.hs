@@ -120,8 +120,8 @@ data TaggedUnion =
         [Type] -- type params
 
 instance Show TaggedUnion where
-    show (TaggedUnion (_,name) ids _ _) = 
-        name ++ "." ++ intercalate "$" (map snd ids)
+    show (TaggedUnion (_,name) ids tags typeParams) = 
+        "*taggedunion{"++name++","++concat (map show typeParams) ++ "," ++ show (length tags) ++ "}"
 
 instance Show Type where
     show TypeFloat                                           = "*float"
@@ -135,7 +135,7 @@ instance Show Type where
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
     show TypeTypeConstructor{}                               = "*type constructor"
-    show (TypeTaggedUnion (TaggedUnion name _ _ typeParams)) = "*taggedunion{"++snd name++","++concat (map show typeParams) ++"}"
+    show (TypeTaggedUnion t) = show t
     show (FreeTypeVar name _) = "*freetypevar:" ++ name
     show (BoundedTypeVar name _) = "*boundedtypevar:" ++ snd name
     show (TypeTagConstructorPrefix{}) = "TypeTagConstructorPrefix"
