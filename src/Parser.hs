@@ -153,8 +153,21 @@ keliAtomicExpr
     =  parens keliExpr
    <|> (getPosition >>= \pos -> try float   >>= \n   -> return (Raw.NumberExpr (pos, Right n)))
    <|> (getPosition >>= \pos -> try natural >>= \n   -> return (Raw.NumberExpr (pos, Left n)))
-   <|> (                        keliFuncId  >>= \id  -> return (Raw.Id id))
    <|> (getPosition >>= \pos -> stringLit   >>= \str -> return (Raw.StringExpr (pos, str)))
+   <|> (                        keliFuncId  >>= \id  -> return (Raw.Id id))
+
+stringLit :: Parser String
+stringLit 
+    =   try multilineString
+    <|> singlelineString
+    
+
+multilineString :: Parser String
+multilineString 
+    =   string "\"\"\"" >>= \_
+    ->  manyTill anyChar (try (string "\"\"\"" >> whiteSpace))
+    <?> "end of multiline string literal"
+
 
 keliFuncDecl :: Parser Raw.Decl
 keliFuncDecl 

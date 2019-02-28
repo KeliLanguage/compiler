@@ -35,6 +35,7 @@ natural    = Token.natural        lexer
 semi       = Token.semi           lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace     lexer -- parses whitespace
 symbol     = Token.symbol         lexer -- custom symbol
-stringLit  = Token.stringLiteral  lexer
 dot        = Token.dot            lexer
 operator   = Token.operator       lexer
+singlelineString = Token.stringLiteral  lexer
+

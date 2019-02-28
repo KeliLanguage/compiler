@@ -162,9 +162,9 @@ otherTest = hspec $ do
             testParseKeli "_=0"
             testParseKeli "even?=0"
 
-        it "comments" $ do
+        it "string expr" $ do
             -- comments are just string expressions!
-            testParseKeli "=\"this is a comment\" pi=3.142"
+            testParseKeli "=\"this is a string\" pi=3.142"
 
         it "lambda expr" $ do
             testParseKeli "hi = x | console.log(x)"

@@ -85,9 +85,9 @@ Boolean = tags.
 (this String).replace(old String) with(new String) =
     ffi.javascript("k$this.replace(new RegExp(k$old, 'g'), k$new)").as(String)
 
-Optional.of(A Type) = tags.
-    case(got.value(A))
-    case(nothing)
+Box.of(A Type) = tags.
+    case(with.value(A))
+    case(empty)
 
 Result.ok(A Type) fail(B Type) = tags.
     case(ok.value(A))
@@ -106,6 +106,7 @@ List.of(A Type) = tags.
     case(nil)
     case(cons.current(A) next(List.of(A)))
 
+"The number of elements in this list"
 {A Type}
 (this List.of(A)).length 
     | Int 
@@ -163,6 +164,33 @@ List.of(A Type) = tags.
                 case(false):
                     (n.select(f) where(g)))
 
+"To check if some element of a List fulfils the given predicate"
+{A Type}
+(this List.of(A)).some(predicate Function.in(A) out(Boolean))
+    | Boolean
+    = this.
+        case(nil):
+            (Boolean.false)
+        case(cons.current(c) next(n)):
+            (predicate.apply(c).
+                case(true):
+                    (Boolean.true)
+                case(false):
+                    (n.some(predicate)))
+
+"To check if every element of a List fulfils the given predicate"
+{A Type}
+(this List.of(A)).every(predicate Function.in(A) out(Boolean))
+    | Boolean
+    = this.
+        case(nil):
+            (Boolean.true)
+        case(cons.current(c) next(n)):
+            (predicate.apply(c).
+                case(true):
+                    (n.every(predicate))
+                case(false):
+                    (Boolean.false))
 
 {A Type}
 (this List.of(A))._show
@@ -212,48 +240,126 @@ List.of(A Type) = tags.
                 case(false):
                     (n.contains(value)))
 
+
+
 "Get the first element of a list"
 {A Type}
 (this List.of(A)).head
-    | Optional.of(A)
+    | Box.of(A)
     = this.
         case(nil):
-            (Optional.nothing)
+            (Box.empty)
         case(cons.current(c) next(n)):
-            (Optional.got.value(c))
+            (Box.with.value(c))
 
 "Get the last element of a list"
 {A Type}
 (this List.of(A)).last
-    | Optional.of(A)
+    | Box.of(A)
     = this.
         case(nil):
-            (Optional.nothing)
+            (Box.empty)
         case(cons.current(c) next(n)):
             (n.
                 case(nil):
-                    (Optional.got.value(c))
+                    (Box.with.value(c))
                 default:
-                    (Optional.nothing))
+                    (n.last))
+
+"Get all elements of this List, except the first element."
+{A Type}
+(this List.of(A)).tail
+    | List.of(A)
+    = this.
+        case(nil):
+            (List.nil)
+        case(cons.current(c) next(n)):
+            (n)
+
+= List.nil.append(1).append(2).append(3).tail.show
+
+
+"Get a range of integers"
+(start Int).to(end Int) 
+    | List.of(Int)
+    = end.<(start).
+        case(true):
+            (end._forwardTo(start).reverse)
+        case(false):
+            (start._forwardTo(end))
+
+(start Int)._forwardTo(end Int)
+    | List.of(Int)
+    = end.<(start).
+        case(true):
+            (List.nil)
+        case(false):
+            (List.cons.current(start) next(start.+(1)._forwardTo(end)))
+
+= 99.to(87).show
+
+= 0.to(10).show
+
+= 10.to(10).show
+
+= 0.to(10).some(.>(5))
+
+= 0.to(2).every(.<(1))
+
+= 0.to(10)
 
 {A Type}
 (this List.of(A))._at(index Int) currentIndex(value Int)
-    | Optional.of(A)
+    | Box.of(A)
     = this.
         case(nil):
-            (Optional.nothing)
+            (Box.empty)
         case(cons.current(c) next(n)):
             (index.equals(value).
                 case(true):
-                    (Optional.got.value(c))
+                    (Box.with.value(c))
                 case(false):
                     (n._at(index) currentIndex(value.+(1))))
 
 "Retrieve a value at a speccaseied zero-based index."
 {A Type}
 (this List.of(A)).at(index Int)
-    | Optional.of(A)
+    | Box.of(A)
     = this._at(index) currentIndex(0)
+
+"Drop the specified number of elements from the front of a List."
+{A Type}
+(this List.of(A)).drop(x Int)
+    | List.of(A)
+    = x.<(1).
+        case(true):
+            (this)
+        case(false):
+            ((this.
+                case(nil):
+                    (List.nil)
+                case(cons.current(c) next(n)):
+                    (n.drop(x.-(1)))))
+
+"Take the specified number of elements from the front of a List."
+{A Type}
+(this List.of(A)).take(x Int)
+    | List.of(A)
+    = this.reverse.drop(this.length.-(x)).reverse
+
+
+
+= 0.to(10).drop(4).show
+
+= 0.to(10).take(5).show
+
+"Take elements from index a until inlcuding index b from a List."
+{A Type}
+(this List.of(A)).from(a Int) to(b Int)
+    | List.of(A)
+    = this.drop(a).take(b.-(a).+(1))
+
+= 100.to(200).from(0) to(10).show
 
 People = record.name(String) age(Int)
 
@@ -267,6 +373,8 @@ people = List.nil
 = people.select(.name) where(.age.>(20)).show
 
 = people.select(.age) where(_ | Boolean.true).show
+
+
 
 Shape = tags.
     case(circle.radius(Float))
@@ -297,16 +405,16 @@ Dict.key(K Type) value(V Type) = tags.
 
 // {K Type} {V Type} 
 // (this Dict.key(K) value(V)).lookup(key K)
-//     | Optional.of(V)
+//     | Box.of(V)
 //     = this.
 //         case(nodes.key(k) value(v) left(l) right(r)):
 //             (key.==(k).
 //                 case(true):
-//                     (Optional.got.value(v))
+//                     (Box.with.value(v))
 //                 case(false):
 //                     (l.lookup(k)))
 //         case(leaf):
-//             (Optional.nothing)
+//             (Box.empty)
 
 // {K Type} {V Type}
 // (this Dict.key(K) value(V)).at(key K) put(value V)
@@ -386,6 +494,8 @@ Point = record.x(Float) y(Float)
 
 xs = List.nil.append(1).append(2).append(3).append(4)
 
+= xs.last
+
 result= xs.partitionBy(.>(2))
 
 = result.included.show
@@ -416,15 +526,3 @@ ComparisonResult = tags.
                     (ComparisonResult.leftMoreThanRight)
                 case(false):
                     (ComparisonResult.leftLessThanRight))
-
-= Boolean.false.
-    case(true):
-        ("hello")
-    case(false):
-        ("yo")
-
-= Boolean.false.
-    case(true):
-        (123)
-    case(false):
-        (123)
