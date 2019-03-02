@@ -185,7 +185,7 @@ toDiagnostic err = case err of
                             V.CarrylessTag (_,name) _ ->
                                 name)
                     missingTags in
-        getDiagnostic [expr] ("Missing cases:\n\t" ++ intercalate "\n\t" missingTags')
+        getDiagnostic [expr] ("Missing cases:\n  " ++ intercalate "\n  " missingTags')
 
     KErrorMissingProperties expr missingProps ->
         getDiagnostic [expr] ("Missing properties: " ++ intercalate ", " missingProps)
