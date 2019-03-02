@@ -169,7 +169,23 @@ toDiagnostic err = case err of
         getDiagnostic [id] ("Incorrect usage of ffi.")
 
     KErrorMissingTags (V.Expr expr _) missingTags ->
-        getDiagnostic [expr] ("Missing tags: " ++ intercalate ", " missingTags)
+        let missingTags' = 
+                map 
+                    (\t ->
+                        case t of
+                            V.CarryfulTag (_,name) expectedPropTypePairs _ ->
+                                name ++ "." ++ keyPropsBindings
+                                where
+                                    keyPropsBindings =
+                                        concatMap
+                                            (\((_,prop), _) -> 
+                                                prop ++ "(" ++ [head prop] ++ ") ")
+                                            expectedPropTypePairs
+
+                            V.CarrylessTag (_,name) _ ->
+                                name)
+                    missingTags in
+        getDiagnostic [expr] ("Missing cases:\n\t" ++ intercalate "\n\t" missingTags')
 
     KErrorMissingProperties expr missingProps ->
         getDiagnostic [expr] ("Missing properties: " ++ intercalate ", " missingProps)

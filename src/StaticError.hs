@@ -34,7 +34,7 @@ data KeliError
     | KErrorIncorrectUsageOfFFI Verified.StringToken
     | KErrorMissingTags 
         Verified.Expr -- subject
-        [String] -- missing tags
+        [Verified.Tag] -- missing tags
 
     | KErrorMissingProperties 
         Verified.Expr' -- for telling where is the record constructor

@@ -276,10 +276,15 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                                 GotDuplicates duplicates ->
                                                     Left (KErrorDuplicatedTags duplicates)
 
-                                                Missing missingTags ->
+                                                Missing missingTagnames ->
                                                     case length typeCheckedElseBranches of
                                                         0 ->
-                                                            Left (KErrorMissingTags subject missingTags)
+                                                            let missingTags = 
+                                                                    filter 
+                                                                        (\t -> snd (V.tagnameOf t) `elem` missingTagnames)
+                                                                        expectedTags
+
+                                                            in Left (KErrorMissingTags subject missingTags)
 
                                                         1 ->
                                                             let elseBranch = head typeCheckedElseBranches in
