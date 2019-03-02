@@ -1,4 +1,9 @@
 function KELI_PRELUDE$show(o) {
+    // if o is an array
+    if (Array.isArray(o)) {
+        return "[" + o.map(KELI_PRELUDE$show) + "]"
+    }
+
     if (typeof o === "object") {
         let result = "";
 

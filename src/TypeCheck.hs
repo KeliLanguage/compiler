@@ -28,6 +28,21 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
         (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr 
         Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
 
+    Raw.Array exprs ->
+        case exprs of
+            [] ->
+                undefined
+
+            x:xs -> do
+                (ctx2, headElement) <- verifyExpr ctx assumption x 
+                (ctx3, tailElements) <- verifyExprs ctx2 assumption xs
+                let typeOfFirstElem = getType headElement
+                -- make sure every element have the same type as the first element 
+                !_ <- forM tailElements (\el -> unify el typeOfFirstElem)
+                Right (ctx3, First (V.Expr
+                    (V.Array (headElement:tailElements))
+                    (V.TypeTaggedUnion (newArrayType typeOfFirstElem))))
+
     Raw.NumberExpr(pos,n) -> 
         case n of 
             Left intValue ->

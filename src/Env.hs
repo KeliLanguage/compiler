@@ -46,6 +46,10 @@ initialEnv =
                     (newFunctionType 
                         (V.BoundedTypeVar (builtinPos "A") Nothing) 
                         (V.BoundedTypeVar (builtinPos "B") Nothing)))
+        |> ("Array", 
+                KeliSymTaggedUnion 
+                    (newArrayType 
+                        (V.BoundedTypeVar (builtinPos "A") Nothing)))
 
 newFunctionType :: V.Type -> V.Type -> V.TaggedUnion
 newFunctionType inputType outputType =
@@ -54,3 +58,11 @@ newFunctionType inputType outputType =
         [builtinPos "in", builtinPos "out"]
         []
         [inputType, outputType]
+
+newArrayType :: V.Type -> V.TaggedUnion
+newArrayType elementType = 
+    V.TaggedUnion 
+        (builtinPos "Array")
+        [builtinPos "of"]
+        []
+        [elementType]

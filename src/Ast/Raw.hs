@@ -52,5 +52,7 @@ data Expr
         Expr 
         SourcePos -- position of the dot operator
 
+    | Array [Expr]
+
     deriving (Show,Eq)
 

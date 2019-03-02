@@ -287,6 +287,9 @@ instance HaveRange V.UnlinkedTag where
 
 instance HaveRange V.Expr' where
     getRange expression = case expression of
+        V.Array exprs ->
+            mergeRanges (map getRange exprs)
+
         V.PartiallyInferredLambda param body ->
             mergeRanges [getRange param, getRange body]
 

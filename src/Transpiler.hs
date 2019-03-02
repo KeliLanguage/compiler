@@ -178,8 +178,8 @@ instance Transpilable V.Expr where
             transpile f ++ "(" ++ transpile arg ++ ")"
 
 
-        other -> 
-            error (show other)
+        V.Expr (V.Array exprs) _ -> 
+            "[" ++ intercalate "," (map transpile exprs) ++ "]"
 
 instance Transpilable V.TagBranch where
     transpile b = case b of

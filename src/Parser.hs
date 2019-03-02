@@ -151,10 +151,19 @@ keliPartialFuncCall
 keliAtomicExpr :: Parser Raw.Expr
 keliAtomicExpr 
     =  parens keliExpr
-   <|> (getPosition >>= \pos -> try float   >>= \n   -> return (Raw.NumberExpr (pos, Right n)))
-   <|> (getPosition >>= \pos -> try natural >>= \n   -> return (Raw.NumberExpr (pos, Left n)))
-   <|> (getPosition >>= \pos -> stringLit   >>= \str -> return (Raw.StringExpr (pos, str)))
-   <|> (                        keliFuncId  >>= \id  -> return (Raw.Id id))
+   <|> (getPosition >>= \pos -> arrayLit    >>= \exprs -> return (Raw.Array exprs)) 
+   <|> (getPosition >>= \pos -> try float   >>= \n   　-> return (Raw.NumberExpr (pos, Right n)))
+   <|> (getPosition >>= \pos -> try natural >>= \n   　-> return (Raw.NumberExpr (pos, Left n)))
+   <|> (getPosition >>= \pos -> stringLit   >>= \str 　-> return (Raw.StringExpr (pos, str)))
+   <|> (                        keliFuncId  >>= \id  　-> return (Raw.Id id))
+
+arrayLit :: Parser [Raw.Expr]
+arrayLit 
+    = between 
+        (symbol "[") 
+        (symbol "]") 
+        (keliExpr `sepBy` (symbol ","))
+
 
 stringLit :: Parser String
 stringLit 
