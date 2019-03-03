@@ -1,0 +1,10 @@
+List.of(A Type) = tags.
+    case(nil)
+    case(cons.current(A) next(List.of(A)))
+
+{A Type}
+(this Array.of(A)).toList
+    | List.of(A)
+    = ffi.javascript("123").as(List.of(A))
+
+= [1,2].toList

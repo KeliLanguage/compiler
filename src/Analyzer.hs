@@ -80,7 +80,7 @@ analyzeDecls' importedEnvs env inputRawDecls prevVerifiedDecls =
                                     -- this is to allow recursive (even mutually recursive) functio to be type checked
                                     let updatedPrevEnv = 
                                             case partiallyAnalyzedDecl of
-                                                PaFuncDecl f _ ->
+                                                PaFuncDecl f _ _ ->
                                                     insertSymbolIntoEnv (KeliSymFunc [f]) prevEnv
 
                                                 _ ->
@@ -137,6 +137,7 @@ data PaDecl
     | PaFuncDecl
         V.FuncSignature
         Raw.Expr
+        Env -- previous env that stores implicit type parameters (e.g. A)
 
     | PaIdlessDecl
         SourcePos
@@ -213,7 +214,7 @@ analyzeDecl rawDecl env importedEnvs = case rawDecl of
                         V.funcDeclReturnType = verifiedReturnType
                     }
 
-            Right (PaFuncDecl funcSig funcBody)
+            Right (PaFuncDecl funcSig funcBody env1)
 
     
 analyzePaDecl :: PaDecl -> Env -> [(ModuleName,Env)] -> Either KeliError V.Decl
@@ -271,8 +272,7 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                         taggedUnionType <- linkTagsTogether id [] tag []
                         Right (V.TaggedUnionDecl taggedUnionType)
 
-
-    PaFuncDecl funcSignature funcBody -> do
+    PaFuncDecl funcSignature funcBody prevEnv -> do
             -- 5. populate symbol table with function parameters
             env2 <- 
                 foldM 
@@ -281,7 +281,7 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                             Left (KErrorDuplicatedId [id])
                         else
                             Right (acc |> (snd id, KeliSymLocalConst id (V.getTypeRef typeAnnot))))
-                env
+                prevEnv
                 (V.funcDeclParams funcSignature)
             
             -- 6. type check the function body
