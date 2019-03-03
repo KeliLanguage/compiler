@@ -70,7 +70,7 @@ data DifferentiationResult
 
 differentiateRawDecl :: Raw.Decl -> DifferentiationResult
 differentiateRawDecl 
-    (Raw.IdlessDecl (Raw.FuncCall ((Raw.Id (_,"module"):(Raw.StringExpr filePath):[])) ((_,"import"):[])))  = 
+    (Raw.IdlessDecl _ (Raw.FuncCall ((Raw.Id (_,"module"):(Raw.StringExpr filePath):[])) ((_,"import"):[])))  = 
     ImportDecl filePath
 
 differentiateRawDecl other = NonImportDecl other

@@ -3,6 +3,7 @@
 
 module Analyzer where
 
+import Text.Parsec.Pos
 import Control.Monad
 import Data.List hiding (lookup)
 import Data.Map.Ordered ((|>), assocs, member) 
@@ -138,6 +139,7 @@ data PaDecl
         Raw.Expr
 
     | PaIdlessDecl
+        SourcePos
         Raw.Expr
 
     | PaGenericTypeDecl 
@@ -151,8 +153,8 @@ analyzeDecl rawDecl env importedEnvs = case rawDecl of
     Raw.ConstDecl c -> 
         Right (PaConstDecl c)
     
-    Raw.IdlessDecl expr ->
-        Right (PaIdlessDecl expr)
+    Raw.IdlessDecl pos expr ->
+        Right (PaIdlessDecl pos expr)
 
     Raw.GenericTypeDecl typeConstructorName ids typeParams typeBody ->
         Right (PaGenericTypeDecl typeConstructorName ids typeParams typeBody)
@@ -302,11 +304,38 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                         -- if body type match expected return types
                             Right (V.FuncDecl funcSignature typeCheckedBody)
     
-    PaIdlessDecl expr -> do
+    PaIdlessDecl pos expr -> do
         (_, result) <- typeCheckExpr (Context 0 env importedEnvs) CanBeAnything expr
         case result of
-            First checkedExpr ->
-                Right (V.IdlessDecl checkedExpr)
+            First checkedExpr -> do
+                -- search for the `toString` function that match the type of this expr
+                lookupResult <- lookupEnvs [] ("toString") env importedEnvs
+                case lookupResult of
+                    Just (scope, KeliSymFunc candidateFuncs) -> do
+                        case find 
+                                (\f -> 
+                                    let (_,typeAnnot) =  V.funcDeclParams f !! 0 in
+                                    case unify checkedExpr (V.getTypeRef typeAnnot) of 
+                                        Right{} -> True
+                                        Left{}  -> False) candidateFuncs of
+                            Just f ->
+                                let finalExpr = 
+                                        V.Expr 
+                                            (V.FuncCall {
+                                                V.funcCallParams = [checkedExpr],
+                                                V.funcCallIds    = [(pos,"toString")],
+                                                V.funcCallRef    = (scope, f)
+                                            }) 
+                                            V.TypeString
+                                in Right (V.IdlessDecl finalExpr)
+
+                            -- if no `toString` function is defined for the particular type
+                            Nothing ->
+                                Right (V.IdlessDecl checkedExpr)
+
+                    -- if no `toString` function is defined for the particular type
+                    _ ->
+                        Right (V.IdlessDecl checkedExpr)
 
             Second typeAnnot -> 
                 Left (KErrorCannotDeclareTypeAsAnonymousConstant typeAnnot)

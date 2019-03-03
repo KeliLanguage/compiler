@@ -35,11 +35,12 @@ keliDecl'
 keliConstDecl :: Parser Raw.Decl
 keliConstDecl 
     =  optionMaybe (keliFuncId)   >>= \token
-    -> reservedOp "="             >>= \_
+    -> getPosition                >>= \pos
+    -> reservedOp "="             >>= \_ 
     -> keliExpr                   >>= \expr
     -> case token of 
         Just t  -> return (Raw.ConstDecl (Raw.Const t expr))
-        Nothing -> return (Raw.IdlessDecl expr)
+        Nothing -> return (Raw.IdlessDecl pos expr)
 
 keliExpr :: Parser Raw.Expr
 keliExpr 

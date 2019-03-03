@@ -1,0 +1,9 @@
+Shape = tags.
+    case(circle.radius(Float))
+
+(this Shape).toString =
+    this.
+        case(circle.radius(r)):
+            ("It is a circle dude")
+
+= Shape.circle.radius(5.0)

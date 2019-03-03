@@ -10,7 +10,9 @@ type NumberToken = (SourcePos, (Either Integer Double))
 data Decl 
     = ConstDecl Const
     | FuncDecl Func
-    | IdlessDecl Expr
+    | IdlessDecl 
+        SourcePos -- the position of the `=` symbol
+        Expr
     | GenericTypeDecl 
         StringToken     -- name
         [StringToken]   -- trailing ids
