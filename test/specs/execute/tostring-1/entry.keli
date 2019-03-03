@@ -1,9 +1,14 @@
-Shape = tags.
-    case(circle.radius(Float))
+List.of(A Type) = tags.
+    case(nil)
+    case(cons.current(A) next(List.of(A)))
 
-(this Shape).toString =
+{A Type}
+(this List.of(A)).toString =
     this.
-        case(circle.radius(r)):
-            ("It is a circle dude")
+        case(nil):
+            ("It is a nil")
+        case(cons.current(c) next(n)):
+            ("It is not empty dude")
 
-= Shape.circle.radius(5.0)
+= List.nil
+= List.cons.current(1) next(List.nil)

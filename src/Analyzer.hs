@@ -305,7 +305,8 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                             Right (V.FuncDecl funcSignature typeCheckedBody)
     
     PaIdlessDecl pos expr -> do
-        (_, result) <- typeCheckExpr (Context 0 env importedEnvs) CanBeAnything expr
+        let ctx = Context 0 env importedEnvs
+        (_, result) <- typeCheckExpr ctx CanBeAnything expr
         case result of
             First checkedExpr -> do
                 -- search for the `toString` function that match the type of this expr
@@ -314,8 +315,14 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                     Just (scope, KeliSymFunc candidateFuncs) -> do
                         case find 
                                 (\f -> 
-                                    let (_,typeAnnot) =  V.funcDeclParams f !! 0 in
-                                    case unify checkedExpr (V.getTypeRef typeAnnot) of 
+                                    -- (A) instantiate type variables  
+                                    let (_, subst1) = instantiateTypeVar ctx (V.funcDeclGenericParams f) in
+
+                                    -- (B) apply substitution to every expected func param types
+                                    let [typeAnnot] = map (\(_,paramTypeAnnot) -> 
+                                            applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams f) in
+
+                                    case unify checkedExpr typeAnnot of 
                                         Right{} -> True
                                         Left{}  -> False) candidateFuncs of
                             Just f ->
