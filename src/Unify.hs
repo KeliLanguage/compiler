@@ -91,8 +91,8 @@ unify'
 
 unify' 
     actualExpr
-    actualType@(V.TypeRecordConstructor name1 _)
-    expectedType@(V.TypeRecordConstructor name2 _) = 
+    actualType@(V.TypeObjectConstructor name1 _)
+    expectedType@(V.TypeObjectConstructor name2 _) = 
     if name1 == name2 then
         Right (emptySubstitution)
     else
@@ -117,10 +117,10 @@ unify'
         Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
 
--- unfify record type
--- record type is handled differently, because we want to have structural typing
+-- unfify object type
+-- object type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
-unify' actualExpr (V.TypeRecord _ kts1) (V.TypeRecord _ kts2) = 
+unify' actualExpr (V.TypeObject _ kts1) (V.TypeObject _ kts2) = 
     let (actualKeys, actualTypes) = unzip kts1 in
     let (expectedKeys, expectedTypes) = unzip kts2 in
     -- TODO: get the set difference of expectedKeys with actualKeys
@@ -245,9 +245,9 @@ applySubstitutionToType subst type' =
         V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes) ->
             V.TypeTaggedUnion (V.TaggedUnion name ids tags (map (applySubstitutionToType subst) innerTypes))
 
-        V.TypeRecord name propTypePairs ->
+        V.TypeObject name propTypePairs ->
             let (props, types) = unzip propTypePairs in
-            V.TypeRecord name (zip props (map (applySubstitutionToType subst) types))
+            V.TypeObject name (zip props (map (applySubstitutionToType subst) types))
         
         other ->
             other

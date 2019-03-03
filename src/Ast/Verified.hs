@@ -36,7 +36,7 @@ data Decl
     | IdlessDecl 
         Expr
 
-    | RecordAliasDecl
+    | ObjectAliasDecl
         StringToken
         [(StringToken, Type)]
 
@@ -74,10 +74,10 @@ data Type
     = TypeFloat
     | TypeInt
     | TypeString
-    | TypeRecord 
+    | TypeObject 
         (Maybe StringToken)   -- associated name
         [(StringToken, Type)] -- prop-type pairs
-        -- TODO: implement generic record 
+        -- TODO: implement generic object 
         -- (Maybe TypeParams) -- type params
 
 
@@ -90,8 +90,8 @@ data Type
         TaggedUnion           -- belongingType
         Scope
 
-    | TypeRecordConstructor 
-        (Maybe StringToken)   -- record type alias name
+    | TypeObjectConstructor 
+        (Maybe StringToken)   -- object type alias name
         [(StringToken, Type)] -- expected key-type pairs
 
     | TypeTagConstructorPrefix 
@@ -127,10 +127,10 @@ instance Show Type where
     show TypeFloat                                           = "*float"
     show TypeInt                                             = "*Int"
     show TypeString                                          = "*String"
-    show (TypeRecord name _)                                 = "*record:" ++ show name
+    show (TypeObject name _)                                 = "*object:" ++ show name
     show (TypeUndefined)                                     = "undefined"
     show (TypeCarryfulTagConstructor name _ _ _)             = "*carryful tag constructor:" ++ show name
-    show (TypeRecordConstructor _ _)                         = undefined -- "*record constructorshow:" ++ show kvs
+    show (TypeObjectConstructor _ _)                         = undefined -- "*object constructorshow:" ++ show kvs
     show (TypeTypeParam name _)                              = "*type param:" ++ show name
     show TypeType                                            = "*type type"
     show TypeSelf                                            = "*self"
@@ -213,19 +213,19 @@ data Expr'
         (StringToken, Type) -- param
         Expr        -- body
     
-    | Record {
-        recordKeyValues             :: [(StringToken, Expr)]
+    | Object {
+        objectKeyValues             :: [(StringToken, Expr)]
     }
-    | RecordGetter {
-        recordGetterSubject      :: Expr,
-        recordGetterPropertyName :: StringToken
+    | ObjectGetter {
+        objectGetterSubject      :: Expr,
+        objectGetterPropertyName :: StringToken
     }
-    | RecordSetter {
-        recordSetterSubject      :: Expr,
-        recordSetterPropertyName :: StringToken,
-        recordSetterNewValue     :: Expr
+    | ObjectSetter {
+        objectSetterSubject      :: Expr,
+        objectSetterPropertyName :: StringToken,
+        objectSetterNewValue     :: Expr
     }
-    | RecordLambdaSetter 
+    | ObjectLambdaSetter 
         Expr        -- subject
         StringToken -- property name
         StringToken -- lambda param
@@ -251,8 +251,8 @@ data Expr'
         [(StringToken, Type)]   -- expected prop-type pairs
     
 
-    | RecordConstructor 
-        (Maybe StringToken)   -- record type alias name
+    | ObjectConstructor 
+        (Maybe StringToken)   -- object type alias name
         [(StringToken, Type)]
 
     | TagConstructorPrefix StringToken
@@ -285,12 +285,12 @@ stringifyType t = case t of
         TypeFloat  -> "Float"
         TypeInt    -> "Int"
         TypeString -> "String"
-        TypeRecord name propTypePairs ->  
+        TypeObject name propTypePairs ->  
             case name of 
                 Just n ->
                     snd n
                 Nothing ->
-                    "record." ++ 
+                    "object." ++ 
                     intercalate " " 
                         (map (\((_,prop),type') ->
                             prop ++ "(" ++ stringifyType type' ++  ")")

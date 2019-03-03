@@ -28,7 +28,7 @@ analyze importedEnvs decls =
     let sortedDecls = sortOn (
                 \x -> case x of 
                     V.TaggedUnionDecl{}    -> 1
-                    V.RecordAliasDecl{}    -> 2
+                    V.ObjectAliasDecl{}    -> 2
                     V.FuncDecl{}           -> 3
                     V.ConstDecl{}          -> 4
                     V.IdlessDecl{}         -> 5
@@ -226,7 +226,7 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
             Raw.Id _ -> 
                 let reservedConstants = [
                         "tags",
-                        "record",
+                        "object",
                         "interface",
                         "ffi",
                         "undefined",
@@ -255,8 +255,8 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
 
                     Second (V.TypeAnnotCompound _ _ t) -> do
                         case t of
-                            V.TypeRecord _ expectedPropTypePairs ->
-                                Right (V.RecordAliasDecl id expectedPropTypePairs)
+                            V.TypeObject _ expectedPropTypePairs ->
+                                Right (V.ObjectAliasDecl id expectedPropTypePairs)
 
                             V.TypeTaggedUnion taggedUnion ->
                                 Right (V.TaggedUnionDecl taggedUnion)
@@ -423,13 +423,13 @@ substituteSelfType source target =
         V.TypeSelf ->
             source
     
-        V.TypeRecord name propTypePairs ->
+        V.TypeObject name propTypePairs ->
             let updatedPropTypePairs = 
                     map 
                         (\(prop, type') -> 
                             (prop, substituteSelfType source type'))
                         propTypePairs
-            in  (V.TypeRecord name updatedPropTypePairs)
+            in  (V.TypeObject name updatedPropTypePairs)
 
         V.TypeTaggedUnion (V.TaggedUnion (_,name1) _ _ _) ->
             -- TODO: something fishy here, not sure if got bug or not
@@ -459,8 +459,8 @@ toSymbol decl =
         V.IdlessDecl _ ->
             Nothing
 
-        V.RecordAliasDecl id expectedPropTypePairs ->
-            Just (KeliSymType (V.TypeRecord (Just id) expectedPropTypePairs))
+        V.ObjectAliasDecl id expectedPropTypePairs ->
+            Just (KeliSymType (V.TypeObject (Just id) expectedPropTypePairs))
 
         V.TaggedUnionDecl t ->
             Just (KeliSymTaggedUnion t)

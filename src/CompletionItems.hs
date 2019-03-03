@@ -274,8 +274,8 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                         })
                             tags 
 
-                    -- record constructor
-                    V.Expr _ (V.TypeRecordConstructor name propTypePairs) -> 
+                    -- object constructor
+                    V.Expr _ (V.TypeObjectConstructor name propTypePairs) -> 
                         let text = concat (map (\((_,prop), t) -> prop ++ "(" ++ V.stringifyType t ++ ") ") propTypePairs) in
                         [CompletionItem {
                             kind = 4, -- constructor
@@ -339,8 +339,8 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                             documentation = ""
                         }] ++ relatedFuncsCompletionItems
 
-                    -- record (getter/setter)
-                    V.Expr _ (V.TypeRecord _ propTypePairs) ->
+                    -- object (getter/setter)
+                    V.Expr _ (V.TypeObject _ propTypePairs) ->
                         (concatMap 
                             (\((_,prop), expectedType') ->
                                     [CompletionItem {

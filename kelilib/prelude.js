@@ -20,8 +20,8 @@ function KELI_PRELUDE$show(o) {
                     }
                 }
             }
-        } else { // if is a record
-            result += "record.";
+        } else { // if is a object
+            result += "object.";
             const keys = Object.keys(o);
             for (let i = 0; i < keys.length; i++) {
                 result += `${keys[i]}(${KELI_PRELUDE$show(o[keys[i]])})`

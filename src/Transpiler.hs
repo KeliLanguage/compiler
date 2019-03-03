@@ -87,7 +87,7 @@ instance Transpilable V.Decl where
             V.TaggedUnionDecl (V.TaggedUnion (_,id) _ tags _) ->
                 "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
             
-            V.RecordAliasDecl{} ->
+            V.ObjectAliasDecl{} ->
                 ""
 
 
@@ -126,17 +126,17 @@ instance Transpilable V.Expr where
         V.Expr(V.Lambda ((_, paramId),_) body) _                      
             -> "(" ++ prefix paramId ++ ")=>(" ++ transpile body ++ ")"
 
-        V.Expr(V.Record kvs) _                              
+        V.Expr(V.Object kvs) _                              
             -> transpileKeyValuePairs False kvs
 
-        V.Expr(V.RecordGetter expr prop) _                  
+        V.Expr(V.ObjectGetter expr prop) _                  
             -> transpile expr ++ "." ++  (snd prop)
 
-        V.Expr(V.RecordSetter subject prop newValue) _      
+        V.Expr(V.ObjectSetter subject prop newValue) _      
             -> "({...(" ++ transpile subject ++ ")," ++ (snd prop) 
                 ++ ":(" ++ transpile newValue ++ ")})"
 
-        V.Expr (V.RecordLambdaSetter subject (_,prop) (_, lambdaParamId) lambdaBody) _
+        V.Expr (V.ObjectLambdaSetter subject (_,prop) (_, lambdaParamId) lambdaBody) _
             -> 
                 "({...(" ++ transpile subject ++ ")," 
                 ++ prop ++ ":("

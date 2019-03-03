@@ -1,4 +1,4 @@
-Fruit = record.name(String)
+Fruit = object.name(String)
 
 (this String).asFruit | Fruit = Fruit.name(this)
 

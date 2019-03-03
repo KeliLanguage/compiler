@@ -1,1 +1,1 @@
-Line 2 = record.taste(3)
+Line 2 = object.taste(3)

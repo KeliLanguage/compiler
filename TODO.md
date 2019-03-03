@@ -42,7 +42,7 @@
 
 [x] update syntax of carryful tag and tag matcher
 
-[] implement generic record
+[] implement generic object
 
 [] implement interface
 

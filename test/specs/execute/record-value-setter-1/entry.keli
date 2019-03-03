@@ -1,4 +1,4 @@
-x=record.name("dog") age(9).name("cat")
+x=object.name("dog") age(9).name("cat")
 =x
 y=x.age(10)
 =y

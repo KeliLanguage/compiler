@@ -1,4 +1,4 @@
-a:any .with b:any | type = record.first a second b
+a:any .with b:any | type = object.first a second b
 
 {a:any b:any}
-x:a ., y:b | a.with b = record.first x second y
+x:a ., y:b | a.with b = object.first x second y

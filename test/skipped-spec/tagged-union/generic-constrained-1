@@ -12,6 +12,6 @@ this:a .lessThan that:a | bool = this.moreThan(that).not.and(this.equals(that).n
 
 a:(Type.thatis comparable).btree | Type 
     =  (tag.# leaf)
-    .or(tag.# node carry (record.current a left (a.btree) right (a.btree)))
+    .or(tag.# node carry (object.current a left (a.btree) right (a.btree)))
 
 ====

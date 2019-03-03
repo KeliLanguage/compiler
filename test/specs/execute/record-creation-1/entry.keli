@@ -1,3 +1,3 @@
-=record.name("dog") age(5)
+=object.name("dog") age(5)
 
 

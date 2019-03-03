@@ -1,5 +1,5 @@
 (x Int).+(y Int)  = ffi.javascript("k$x + k$y").as(Int)
-x=record.name("dog") age(9)
+x=object.name("dog") age(9)
 y=x.age(a | a.+(10))
 
 =y

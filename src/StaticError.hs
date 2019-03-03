@@ -29,7 +29,7 @@ data KeliError
     | KErrorIncorrectCarryType 
         Verified.Type -- expected type
         Verified.Expr -- actual expr
-    | KErrorIncorrectUsageOfRecord Verified.StringToken
+    | KErrorIncorrectUsageOfObject Verified.StringToken
     | KErrorIncorrectUsageOfTag Verified.StringToken
     | KErrorIncorrectUsageOfFFI Verified.StringToken
     | KErrorMissingTags 
@@ -37,7 +37,7 @@ data KeliError
         [Verified.Tag] -- missing tags
 
     | KErrorMissingProperties 
-        Verified.Expr' -- for telling where is the record constructor
+        Verified.Expr' -- for telling where is the object constructor
         [String] -- missing props
 
     | KErrorUnmatchingFuncReturnType 

@@ -159,8 +159,8 @@ toDiagnostic err = case err of
     KErrorIncorrectCarryType expectedCarryType expr ->
         typeMismatchError expr expectedCarryType
 
-    KErrorIncorrectUsageOfRecord id ->
-        getDiagnostic [id] ("Incorrect usage of record.")
+    KErrorIncorrectUsageOfObject id ->
+        getDiagnostic [id] ("Incorrect usage of object.")
     
     KErrorIncorrectUsageOfTag id ->
         getDiagnostic [id] ("Incorrect usage of tag.")
@@ -293,7 +293,7 @@ instance HaveRange V.Expr' where
         V.PartiallyInferredLambda param body ->
             mergeRanges [getRange param, getRange body]
 
-        V.RecordLambdaSetter subject _ _ lambdaBody ->
+        V.ObjectLambdaSetter subject _ _ lambdaBody ->
             mergeRanges [getRange subject, getRange lambdaBody]
 
         V.FFIJavascript code ->
@@ -308,10 +308,10 @@ instance HaveRange V.Expr' where
         V.CarryfulTagConstructor name _ ->
             getRange name
 
-        V.RecordConstructor (Just name) _ ->
+        V.ObjectConstructor (Just name) _ ->
             getRange name
 
-        V.RecordConstructor Nothing kvs ->
+        V.ObjectConstructor Nothing kvs ->
             getRange (fst (kvs !! 0))
         
         V.CarrylessTagExpr _ x _ ->
@@ -326,10 +326,10 @@ instance HaveRange V.Expr' where
                 mergeRanges (map getRange branches)
             ]
 
-        V.RecordSetter subject prop newValue ->
+        V.ObjectSetter subject prop newValue ->
             mergeRanges [getRange subject, getRange prop, getRange newValue]
 
-        V.RecordGetter subject prop ->
+        V.ObjectGetter subject prop ->
             mergeRanges [getRange subject, getRange prop]
 
         V.Lambda (param,_) body ->
@@ -355,7 +355,7 @@ instance HaveRange V.Expr' where
             let ranges2 = map getRange ids in
             mergeRanges [mergeRanges ranges1, mergeRanges ranges2]
 
-        V.Record x ->
+        V.Object x ->
             getRange (PropValuePairs x)
 
         V.FuncApp left right ->

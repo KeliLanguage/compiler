@@ -63,8 +63,8 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
             Just (_, KeliSymLocalConst ref type') -> 
                 Right (ctx, First (V.Expr (V.LocalId token ref) type'))
         
-            Just (scope, KeliSymType t@(V.TypeRecord name propTypePairs)) -> 
-                -- Question: How are we gonna know if user is using this as type annotation or as record constructor?
+            Just (scope, KeliSymType t@(V.TypeObject name propTypePairs)) -> 
+                -- Question: How are we gonna know if user is using this as type annotation or as object constructor?
                 -- Answer: Using assumptions
                 case assumption of
                     StrictlyAnalyzingType -> 
@@ -72,7 +72,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
 
                             
                     CanBeAnything ->
-                        (Right (ctx, First (V.Expr (V.RecordConstructor name propTypePairs) ((V.TypeRecordConstructor name propTypePairs)))))
+                        (Right (ctx, First (V.Expr (V.ObjectConstructor name propTypePairs) ((V.TypeObjectConstructor name propTypePairs)))))
 
             Just (scope, KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))) ->
                 case assumption of
@@ -142,40 +142,40 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                     (tail params')
                             Right (ctx2, Third tags)
 
-                -- 2. Check if the user wants to create a record (type/value)
-                "record" ->  
+                -- 2. Check if the user wants to create a object (type/value)
+                "object" ->  
                     if length (tail params') == 0 then 
-                        Left (KErrorIncorrectUsageOfRecord firstParamToken)
+                        Left (KErrorIncorrectUsageOfObject firstParamToken)
 
                     else do 
                         -- NOTE: 
                         --  Because of the following line of code,
-                        --  the following recursive record type cannot be declared:
+                        --  the following recursive object type cannot be declared:
                         --
-                        --      fruit = record.next fruit;
+                        --      fruit = object.next fruit;
                         -- 
-                        -- It's ok, because we shouldn't allow user to create recursive records (which will form infinite type)
+                        -- It's ok, because we shouldn't allow user to create recursive objects (which will form infinite type)
                         (ctx2, firstValue) <- typeCheckExpr ctx assumption (tail params' !! 0)  -- <-- this line
 
                         let keys = funcIds
                         case firstValue of 
-                            -- assume user want to create a record value
+                            -- assume user want to create a object value
                             First _ -> do
                                 (ctx3, keyValuePairs) <- verifyKeyValuePairs ctx2 keys (tail params')
                                 Right 
                                     (ctx3, First
                                         (V.Expr
-                                            (V.Record keyValuePairs) 
-                                            ( (V.TypeRecord Nothing (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
+                                            (V.Object keyValuePairs) 
+                                            ( (V.TypeObject Nothing (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
                             
-                            -- assume user want to declare a record type
+                            -- assume user want to declare a object type
                             Second _ -> do
                                 (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params')
                                 Right (ctx3, Second 
                                     (V.TypeAnnotCompound 
                                         firstParamToken 
                                         keyTypePairs 
-                                        (V.TypeRecord Nothing (map (\(k, ta) -> (k, V.getTypeRef ta)) keyTypePairs))))
+                                        (V.TypeObject Nothing (map (\(k, ta) -> (k, V.getTypeRef ta)) keyTypePairs))))
 
                             Third tag -> 
                                 Left (KErrorExpectedExprOrTypeButGotTag tag)
@@ -209,14 +209,14 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
 
                 let typeOfFirstParam = getType firstParam in
                     case typeOfFirstParam of
-                        -- (A) check if user is invoking record constructor
-                        V.TypeRecordConstructor aliasedName expectedPropTypePairs -> do
+                        -- (A) check if user is invoking object constructor
+                        V.TypeObjectConstructor aliasedName expectedPropTypePairs -> do
                             (ctx3, values)  <- verifyExprs ctx2 assumption (tail params')
                             let actualPropValuePairs = zip funcIds values
-                            let actualRecord = V.Expr (V.Record actualPropValuePairs) (V.TypeRecord aliasedName (zip funcIds (map getType values)))
-                            substitution <- unify actualRecord (V.TypeRecord aliasedName expectedPropTypePairs)
-                            let resultingType = applySubstitutionToType substitution (V.TypeRecord aliasedName expectedPropTypePairs)
-                            Right (ctx3, First (V.Expr (V.Record actualPropValuePairs) resultingType))
+                            let actualObject = V.Expr (V.Object actualPropValuePairs) (V.TypeObject aliasedName (zip funcIds (map getType values)))
+                            substitution <- unify actualObject (V.TypeObject aliasedName expectedPropTypePairs)
+                            let resultingType = applySubstitutionToType substitution (V.TypeObject aliasedName expectedPropTypePairs)
+                            Right (ctx3, First (V.Expr (V.Object actualPropValuePairs) resultingType))
 
                         -- (B) check if user is performing function application
                         V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ innerTypes) ->
@@ -315,8 +315,8 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                                     -- error "Shoudln't reach here, because `typeCheckTagBranch` already check for unknown tags"
 
 
-                        -- (D) check if user is calling record getter/setter
-                        recordType@(V.TypeRecord _ kvs) ->  
+                        -- (D) check if user is calling object getter/setter
+                        objectType@(V.TypeObject _ kvs) ->  
                             if length funcIds > 1 then
                                 continuePreprocessFuncCall2
                             else
@@ -326,7 +326,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                     Just (_, expectedType) -> 
                                         -- Check if is getter or setter
                                         if length (tail params') == 0 then -- is getter
-                                            Right (ctx, First (V.Expr (V.RecordGetter subject actualPropertyName) expectedType))
+                                            Right (ctx, First (V.Expr (V.ObjectGetter subject actualPropertyName) expectedType))
                                         else if length (tail params') == 1 then -- is setter
                                             case last params' of
                                                 -- if is lambda setter
@@ -337,9 +337,9 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                                     (ctx3, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
 
                                                     substitution <- unify verifiedLambdaBody expectedType
-                                                    let returnType = applySubstitutionToType substitution recordType
+                                                    let returnType = applySubstitutionToType substitution objectType
                                                     Right (ctx3, First (V.Expr 
-                                                        (V.RecordLambdaSetter 
+                                                        (V.ObjectLambdaSetter 
                                                             subject
                                                             actualPropertyName
                                                             lambdaParam
@@ -350,9 +350,9 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                                 _ -> do
                                                     (ctx3, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
                                                     substitution <- unify newValue expectedType
-                                                    let returnType = applySubstitutionToType substitution recordType
+                                                    let returnType = applySubstitutionToType substitution objectType
                                                     Right (ctx3, First (V.Expr 
-                                                        (V.RecordSetter subject actualPropertyName newValue) 
+                                                        (V.ObjectSetter subject actualPropertyName newValue) 
                                                         (returnType)))
                                         else
                                             continuePreprocessFuncCall2
@@ -407,9 +407,9 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             let (ctx3, subst1) = instantiateTypeVar ctx innerTypes 
                             (ctx4, values) <- verifyExprs ctx3 assumption (tail params')
                             let actualPropValuePairs = zip funcIds values
-                            let actualRecord = V.Expr (V.Record actualPropValuePairs) (V.TypeRecord Nothing (zip funcIds (map getType values)))
+                            let actualObject = V.Expr (V.Object actualPropValuePairs) (V.TypeObject Nothing (zip funcIds (map getType values)))
                             let expectedPropTypePairs' = map (\(prop, t) -> (prop, applySubstitutionToType subst1 t)) expectedPropTypePairs
-                            subst2 <- unify actualRecord (V.TypeRecord Nothing expectedPropTypePairs')
+                            subst2 <- unify actualObject (V.TypeObject Nothing expectedPropTypePairs')
 
                             let innerTypes' = map (applySubstitutionToType subst1) innerTypes
                             let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
@@ -703,7 +703,7 @@ insertSymbolIntoEnv symbol env =
                         V.TypeTaggedUnion (V.TaggedUnion name _ _ _)  -> 
                             name
 
-                        V.TypeRecord (Just name) _ ->
+                        V.TypeObject (Just name) _ ->
                             name
 
                         other ->

@@ -1,1 +1,1 @@
-Line 5 = record.name("pineapple")
+Line 5 = object.name("pineapple")

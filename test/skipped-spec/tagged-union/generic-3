@@ -1,4 +1,4 @@
-Tuple.fst(A Type) snd(B Type) = record.first (A) second (B)
+Tuple.fst(A Type) snd(B Type) = object.first (A) second (B)
 = Tuple.fst(1) snd("hello")
 
 ====

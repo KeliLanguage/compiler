@@ -7,7 +7,7 @@ List.of(A Type) = tags.
     case(nil)
 
 {A Type}
-(this Int).hey | record.accepted(List.of(A)) notAccepted(List.of(A))
-    = record.accepted(List.nil) notAccepted(List.nil)
+(this Int).hey | object.accepted(List.of(A)) notAccepted(List.of(A))
+    = object.accepted(List.nil) notAccepted(List.nil)
 
 = 5.hey
