@@ -19,7 +19,7 @@ data Context
         contextNextInt      :: Int,
         contextEnv          :: Env,
         contextImportedEnvs :: [(ModuleName,Env)]
-    }
+    } deriving (Show)
 
 emptyContext :: Context
 emptyContext = Context 0 emptyEnv [] 

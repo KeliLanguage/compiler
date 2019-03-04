@@ -2,6 +2,7 @@
 module TypeCheck where
 
 import Control.Monad
+import Data.Char
 import Data.Either
 import Data.Maybe
 import Data.List hiding (lookup)
@@ -26,8 +27,24 @@ data Assumption
 typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
 typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
-        (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr 
-        Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
+        case expr of
+            Raw.Lambda param@(_,paramName) body ->
+                -- if it is a lambda shorthand
+                if all (not . isAlpha) paramName then
+                    -- do some inversion, so that lambda shorthand can be chained with other functions (for IntelliSense purpose)
+                    typeCheckExpr ctx assumption 
+                        (Raw.Lambda param (Raw.IncompleteFuncCall body positionOfTheDotOperator))
+                
+                else
+                    defaultResult
+            
+            _ ->
+                defaultResult
+
+        where 
+            defaultResult = do
+                (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr
+                Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
 
     Raw.Array exprs ->
         case exprs of
