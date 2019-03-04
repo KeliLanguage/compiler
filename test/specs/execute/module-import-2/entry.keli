@@ -1,0 +1,8 @@
+= module.import("./src/File2.keli")
+= module.import("./src/File1.keli")
+
+// testing multiple dispatch
+
+= 123.negate
+
+= 123.1.negate

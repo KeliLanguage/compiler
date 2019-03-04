@@ -143,7 +143,9 @@ data KeliError
 
     | KErrorAmbiguousUsage
         [Raw.StringToken] 
-        [(ModuleName, KeliSymbol)]
+        [(Verified.Scope, KeliSymbol)]
+
+    | KErrorPartiallyMatchedFuncFound KeliError
     
     deriving (Show)
 

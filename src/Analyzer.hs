@@ -308,39 +308,13 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
         let ctx = Context 0 env importedEnvs
         (_, result) <- typeCheckExpr ctx CanBeAnything expr
         case result of
-            First checkedExpr -> do
+            First checkedExpr -> 
                 -- search for the `toString` function that match the type of this expr
-                lookupResult <- lookupEnvs [] ("toString") env importedEnvs
+                let lookupResult = lookupFunction ctx CanBeAnything [checkedExpr] [(pos,"toString")] in
                 case lookupResult of
-                    Just (scope, KeliSymFunc candidateFuncs) -> do
-                        case find 
-                                (\f -> 
-                                    -- (A) instantiate type variables  
-                                    let (_, subst1) = instantiateTypeVar ctx (V.funcDeclGenericParams f) in
+                    Right (_,toStringExpr) ->
+                        Right (V.IdlessDecl toStringExpr)
 
-                                    -- (B) apply substitution to every expected func param types
-                                    let [typeAnnot] = map (\(_,paramTypeAnnot) -> 
-                                            applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams f) in
-
-                                    case unify checkedExpr typeAnnot of 
-                                        Right{} -> True
-                                        Left{}  -> False) candidateFuncs of
-                            Just f ->
-                                let finalExpr = 
-                                        V.Expr 
-                                            (V.FuncCall {
-                                                V.funcCallParams = [checkedExpr],
-                                                V.funcCallIds    = [(pos,"toString")],
-                                                V.funcCallRef    = (scope, f)
-                                            }) 
-                                            V.TypeString
-                                in Right (V.IdlessDecl finalExpr)
-
-                            -- if no `toString` function is defined for the particular type
-                            Nothing ->
-                                Right (V.IdlessDecl checkedExpr)
-
-                    -- if no `toString` function is defined for the particular type
                     _ ->
                         Right (V.IdlessDecl checkedExpr)
 

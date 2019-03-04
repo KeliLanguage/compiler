@@ -51,6 +51,9 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
+    KErrorPartiallyMatchedFuncFound e ->
+        toDiagnostic e
+
     KErrorAmbiguousUsage actualIds _ ->
         getDiagnostic actualIds "Ambiguous usage"
 

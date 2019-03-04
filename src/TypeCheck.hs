@@ -2,6 +2,7 @@
 module TypeCheck where
 
 import Control.Monad
+import Data.Either
 import Data.Maybe
 import Data.List hiding (lookup)
 import Module
@@ -54,16 +55,19 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
     Raw.StringExpr (pos, str) -> 
         Right (ctx, First (V.Expr (V.StringExpr (pos, str)) ( V.TypeString)))
 
-    Raw.Id token@(_,id) -> do
-        lookupResult <- lookupEnvs [token] id env importedEnvs
-        case lookupResult of 
-            Just (scope, KeliSymGlobalConst ref type') -> 
+    Raw.Id token@(_,id) -> 
+        let relatedSymbols = lookupEnvs id env importedEnvs in
+        case relatedSymbols of 
+            [] ->
+                Left (KErrorUsingUndefinedId token)
+
+            (scope, KeliSymGlobalConst ref type'):[] -> 
                 Right (ctx, First (V.Expr (V.GlobalId token ref scope) type'))
 
-            Just (_, KeliSymLocalConst ref type') -> 
+            (_, KeliSymLocalConst ref type'):[] -> 
                 Right (ctx, First (V.Expr (V.LocalId token ref) type'))
         
-            Just (scope, KeliSymType t@(V.TypeObject name propTypePairs)) -> 
+            (scope, KeliSymType t@(V.TypeObject name propTypePairs)):[] -> 
                 -- Question: How are we gonna know if user is using this as type annotation or as object constructor?
                 -- Answer: Using assumptions
                 case assumption of
@@ -74,7 +78,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                     CanBeAnything ->
                         (Right (ctx, First (V.Expr (V.ObjectConstructor name propTypePairs) ((V.TypeObjectConstructor name propTypePairs)))))
 
-            Just (scope, KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))) ->
+            (scope, KeliSymType t@((V.TypeTaggedUnion (V.TaggedUnion name _ tags innerTypes)))):[] ->
                 case assumption of
                     StrictlyAnalyzingType -> 
                         (Right (ctx, Second (V.TypeAnnotSimple token t)))
@@ -84,10 +88,10 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             (V.Expr (V.TagConstructorPrefix name) 
                             (V.TypeTagConstructorPrefix name tags innerTypes scope))))
             
-            Just (scope, KeliSymType t) ->
+            (scope, KeliSymType t):[] ->
                 (Right (ctx, Second (V.TypeAnnotSimple token t)))
             
-            Just (scope, KeliSymTaggedUnion t@(V.TaggedUnion _ _ tags typeParams)) ->
+            (scope, KeliSymTaggedUnion t@(V.TaggedUnion _ _ tags typeParams)):[] ->
                 let name = token in
                 case assumption of
                     StrictlyAnalyzingType ->
@@ -101,13 +105,10 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             (V.Expr (V.TagConstructorPrefix name) 
                             (V.TypeTagConstructorPrefix name tags typeParams scope))))
 
-            Nothing -> 
-                Left (KErrorUsingUndefinedId token)
-            
-            other -> 
-                error (show other)
-                undefined
-
+            -- if more than one symbols
+            symbols -> 
+                Left (KErrorAmbiguousUsage [token] symbols)
+                
     Raw.FuncCall params' funcIds -> do
         case (head params') of
             (Raw.Id firstParamToken@(_,firstParamId)) -> 
@@ -448,7 +449,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                         
             treatAsNormalFuncCall = do
                 (ctx2, params) <- verifyExprs ctx assumption params'
-                (ctx3, result) <- typeCheckFuncCall ctx2 assumption params funcIds
+                (ctx3, result) <- lookupFunction ctx2 assumption params funcIds
                 Right (ctx3, First result)
 
     Raw.Lambda param body ->
@@ -499,18 +500,64 @@ data MatchFuncResult
 
     | StillNoMatchingFunc
 
--- NOTE: params should be type checked using typeCheckExprs before passing into the typeCheckFuncCall function
-typeCheckFuncCall 
+-- NOTE: params should be type checked using typeCheckExprs before passing into the lookupFunction function
+lookupFunction 
     :: Context 
     -> Assumption 
     -> [V.Expr] 
     -> [Raw.StringToken] 
     -> Either KeliError (Context, V.Expr)
 
-typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
-    lookupResult <- lookupEnvs funcIds (intercalate "$" (map snd funcIds)) env importedEnvs
+lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
+    -- lookup the function being invoked from all the imported modules
+    let lookupResult = lookupEnvs (intercalate "$" (map snd funcIds)) env importedEnvs
+    let results = map (lookupFunction' ctx assumption funcCallParams funcIds) lookupResult
+    let matchingFuncs = rights results
+    case matchingFuncs of
+        -- if no matching function is found
+        [] ->
+            let errors = lefts results in
+            case errors of
+                e:[] ->
+                    case e of 
+                        KErrorPartiallyMatchedFuncFound e' ->
+                            Left e'
+                        _ ->
+                            Left e
+
+                _ ->
+                    -- the following code is to improve error reporting
+                    case find (\e -> case e of KErrorPartiallyMatchedFuncFound{}->True; _->False) errors of
+                        Just e ->
+                            Left e
+
+                        _ ->
+                            Left (KErrorUsingUndefinedFunc funcIds [])
+
+
+        -- if only ONE matching function is found
+        x:[] ->
+            Right x
+
+        -- if more than one matching functions are found
+        _ ->
+            Left (KErrorAmbiguousUsage funcIds lookupResult)
+
+
+
+
+-- this is a helper function to lookup for matching function within a SINGLE module only 
+lookupFunction'
+    :: Context 
+    -> Assumption 
+    -> [V.Expr] 
+    -> [Raw.StringToken] 
+    -> (V.Scope, KeliSymbol)
+    -> Either KeliError (Context, V.Expr)
+
+lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds lookupResult = 
     case lookupResult of
-        Just (scope, KeliSymFunc candidateFuncs) -> do
+        (scope, KeliSymFunc candidateFuncs) -> do
             case (foldl 
                     (\result currentFunc ->
                         case result of
@@ -588,16 +635,14 @@ typeCheckFuncCall ctx@(Context _ env importedEnvs) assumption funcCallParams fun
                     Right (newCtx, funcCallExpr)
 
                 PartiallyMatchedFuncFound err ->
-                    Left err
+                    Left (KErrorPartiallyMatchedFuncFound err)
 
                 StillNoMatchingFunc ->
                     Left (KErrorUsingUndefinedFunc funcIds candidateFuncs)
         
-        Just _ ->
-            Left (KErrorNotAFunction funcIds)
-
         _ -> 
             Left (KErrorUsingUndefinedFunc funcIds [])
+
 
 verifyBoundedTypeVar 
     :: Context 
@@ -884,11 +929,11 @@ allBranchTypeAreSame typeCheckedTagBranches = do
         Right _ ->
             Right expectedTypeOfEachBranches
                                         
-lookupEnvs :: [V.StringToken] -> String -> Env -> [(ModuleName,Env)] -> Either KeliError (Maybe (V.Scope,KeliSymbol))
-lookupEnvs actualIds identifier currentEnv importedEnvs = 
+lookupEnvs :: String -> Env -> [(ModuleName,Env)] -> [(V.Scope,KeliSymbol)]
+lookupEnvs identifier currentEnv importedEnvs = 
     case lookup identifier currentEnv of
         Just s ->
-            Right (Just (V.FromCurrentScope, s))
+            [(V.FromCurrentScope, s)]
         
         Nothing ->
             let result = 
@@ -896,19 +941,10 @@ lookupEnvs actualIds identifier currentEnv importedEnvs =
                             (\(modulename, env) ->
                                 case lookup identifier env of
                                     Just s ->
-                                        Just (modulename, s)
+                                        Just (V.FromImports modulename, s)
                                     Nothing ->
                                         Nothing) 
                             importedEnvs in
 
             let symbols = catMaybes result in
-            case symbols of
-                [] ->
-                    Right Nothing
-                (modulename,symbol):otherSymbols ->
-                    case otherSymbols of
-                        [] ->
-                            Right (Just (V.FromImports modulename, symbol))
-
-                        _ ->
-                            Left (KErrorAmbiguousUsage actualIds symbols)
+            symbols
