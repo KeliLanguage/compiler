@@ -99,7 +99,7 @@ toCompletionItem symbol =
                             (if length funcParams == 1 then 
                                 signature
                             else
-                                makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) funcParams))) in
+                                makeKeyValuesSnippet (zip (map snd ids) (map (snd . fst) (tail funcParams)))) in
                     [CompletionItem 3
                         label'
                         (rebuildSignature f)

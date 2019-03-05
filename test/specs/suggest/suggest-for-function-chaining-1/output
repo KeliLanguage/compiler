@@ -3,7 +3,7 @@
         kind = 3, 
         label = "+()", 
         detail = "(this Int).+(that Int) | Int", 
-        insertText = "+(${1:this})", 
+        insertText = "+(${1:that})", 
         insertTextFormat = 2, 
         documentation = ""}
 ]
