@@ -65,7 +65,7 @@ instance Transpilable V.Tag where
             quote id ++ ":({__tag:\"" ++ id ++ "\"})"
 
         V.CarryfulTag (_,id) _ _ -> 
-            quote id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",__carry})"
+            quote id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",...__carry})"
 
 joinIds :: [V.StringToken] -> String
 joinIds ids = intercalate "_" (map snd ids)
@@ -191,7 +191,7 @@ instance Transpilable V.TagBranch where
             tagname ++ ":" ++ lazify ("(({" 
                 ++ (concatMap (\((_,from), (_,to), _) -> from ++ ":" ++ prefix to ++ ",") propBindings)
                 ++ "})=>" 
-                ++ transpile expr ++ ")($$.__carry)")
+                ++ transpile expr ++ ")($$)")
 
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String

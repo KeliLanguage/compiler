@@ -10,15 +10,15 @@ function KELI_PRELUDE$show(o) {
         // if is a tag
         if (o.__tag) {
             result += o.__tag;
-            if (o.__carry) {
+            const keys = Object.keys(o).filter((x) => x !== "__tag");
+            if (keys.length > 0) {
                 result += ".";
-                const keys = Object.keys(o.__carry);
-                for (let i = 0; i < keys.length; i++) {
-                    result += `${keys[i]}(${KELI_PRELUDE$show(o.__carry[keys[i]])})`
-                    if (i < keys.length - 1) {
-                        result += " ";
+                    for (let i = 0; i < keys.length; i++) {
+                        result += `${keys[i]}(${KELI_PRELUDE$show(o[keys[i]])})`
+                        if (i < keys.length - 1) {
+                            result += " ";
+                        }
                     }
-                }
             }
         } else { // if is a object
             result += "object.";
