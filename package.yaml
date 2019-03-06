@@ -42,7 +42,7 @@ library:
   source-dirs: src
 
 executables:
-  keli-compiler-exe:
+  keli:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

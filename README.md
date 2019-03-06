@@ -7,7 +7,12 @@ Refer Glossary.md
 
 ```
 stack build
-stack exec -- keli-compiler-exe [keli-compiler-args]
+stack exec -- keli [keli-args]
+```
+
+## How to install the binary into user path?
+```
+stack build --copy-bins
 ```
 
 ## How to setup this project?
