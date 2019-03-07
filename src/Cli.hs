@@ -16,9 +16,9 @@ import Diagnostics(toDiagnostic)
 import CompletionItems
 
 
-data CliInput 
+data KeliCommand 
     = Execute String 
-    | Interactive Bool
+    | Repl
     | Analyze String 
     | Suggest 
         String --filename
@@ -26,66 +26,40 @@ data CliInput
         Int    --column number
     deriving (Show)
 
-parseExecute :: Parser CliInput
-parseExecute = Execute
-        <$> strOption
-            (  long "execute"
-            <> short 'e'
-            <> metavar "FILENAME"
-            <> help "Execute a Keli program (*.keli)" )
-
-parseInteractive :: Parser CliInput
-parseInteractive = Interactive
-        <$> switch
-            (  long "interactive"
-            <> short 'i'
-            <> help "Run Keli compiler in interactive mode (REPL)" )
-
-parseAnalyze :: Parser CliInput
-parseAnalyze = Analyze
-        <$> strOption
-            (  long "analyze"
-            <> short 'a'
-            <> metavar "FILENAME"
-            <> help "Analyze a Keli program (*.keli) and display error as JSON." )
-
-parseSuggest :: Parser CliInput
-parseSuggest = Suggest
-        <$> strOption
-            (  long "suggest"
-            <> short 's'
-            <> metavar "FILENAME"
-            <> help "Analyze a Keli program (*.keli) and display completion items." )
-        <*> option auto
-            (  long "line"
-            <> short 'l'
-            <> metavar "LINE"
-            <> help "To be used with --suggest" )
-        <*> option auto
-            (  long "column"
-            <> short 'c'
-            <> metavar "COLUMN"
-            <> help "To be used with --suggest" )
-
-
-
-allParser :: Parser CliInput
-allParser 
-    =   parseExecute 
-    <|> parseInteractive 
-    <|> parseAnalyze 
-    <|> parseSuggest
+allParser :: Parser KeliCommand
+allParser = subparser (
+    command "run" (info 
+        (Execute 
+            <$> (argument str (metavar "FILENAME")))
+        (progDesc "Execute a Keli program (*.keli)"))
+    <> 
+    command "analyze" (info
+        (Analyze 
+            <$> (argument str (metavar "FILENAME")))
+        (progDesc "Analyze a Keli program (*.keli) and display error as JSON."))
+    <>
+    command "suggest" (info
+        (Suggest 
+            <$> (argument str  (metavar "FILENAME"))
+            <*> (argument auto (metavar "LINE_NUMBER(zero-based index)"))
+            <*> (argument auto (metavar "COLUMN_NUMBER(zero-based index)")))
+        (progDesc "Analyze a Keli program (*.keli) and suggest completion items."))
+    <>
+    command "repl" (info 
+        (pure Repl)
+        (progDesc "Starts the Keli REPL."))
+    )
 
 cli :: IO ()
-cli = handleCliInput =<< execParser opts
+cli = handleKeliCommand =<< execParser opts
   where
     opts = info (allParser <**> helper)
       ( fullDesc
      <> progDesc "Compile or interpret Keli program."
      <> header "The Keli Compiler" )
 
-handleCliInput :: CliInput -> IO ()
-handleCliInput input = 
+handleKeliCommand :: KeliCommand -> IO ()
+handleKeliCommand input = 
     case input of 
         Execute filename -> do
             result <- keliInterpret filename 
@@ -96,7 +70,7 @@ handleCliInput input =
                 Left err ->
                     hPutStrLn stderr err
         
-        Interactive {} -> 
+        Repl -> 
             keliRepl
         
         Analyze filename -> do
