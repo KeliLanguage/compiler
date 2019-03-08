@@ -70,7 +70,7 @@ createNewPackage packageName = do
         ++  "!_src/\n"
         ++  "!_test/\n")
 
-    -- putStrLn ("Initializing as Git repository")
+    putStrLn ("Initializing as Git repository")
 
 getPurse :: IO Purse
 getPurse = do
@@ -95,10 +95,10 @@ readPurse :: String -> IO (Maybe Purse)
 readPurse pursePath = do
     purseFileExist <- doesPathExist pursePath
     if purseFileExist then do
-        contents <- readFile defaultPursePath
+        contents <- readFile pursePath
         return ((decode (Char8.pack contents)) :: Maybe Purse)
     else do
-        hPutStrLn stderr "Cannot locate the file named `_src/purse.json`. Make sure you are in the package root."
+        hPutStrLn stderr ("Cannot locate the file named " ++ pursePath ++ ". Make sure you are in the package root.")
         return Nothing
 
 
@@ -129,9 +129,12 @@ addDependency gitRepoUrl tag = do
 
 installDeps :: String -> IO()
 installDeps pursePath = do
-    putStrLn "Installing dependencies . . ."
+    putStrLn ("Installing dependencies, referring: " ++ pursePath)
     result <- readPurse pursePath
     case result of
+        Nothing ->
+            return ()
+            
         Just purse -> do
             let dependencies = _dependencies purse
             let parseResults = map toGitRepoUrl dependencies
@@ -143,34 +146,41 @@ installDeps pursePath = do
                     !_ <- forM 
                         grurls 
                         (\u -> do
-                            let targetName = _authorName u ++ "." ++ _repoName u ++ "." ++ _tagString u
-                            -- clone the repository
-                            gitCloneHandle <- spawnProcess "git" 
-                                ["clone", "-b", _tagString u, "--single-branch", "--depth", "1", _fullUrl u, targetName]
+                            let targetFolderName = _authorName u ++ "." ++ _repoName u ++ "." ++ _tagString u
+                            alreadyDownloaded <- doesPathExist targetFolderName
+                            if alreadyDownloaded then
+                                -- skip the download for this grurl
+                                return ()
+                            else do
+                                putStrLn ("--Installing " ++ targetFolderName)
+                                -- clone the repository
+                                -- ignore the git command stdout
+                                !_ <- 
+                                    readProcess 
+                                        "git" 
+                                        ["clone", "-b", _tagString u, "--single-branch", "--depth", "1", _fullUrl u, targetFolderName]
+                                        []
 
-                            exitCode <- waitForProcess gitCloneHandle
-                            case exitCode of
-                                ExitFailure errCode ->
-                                    hPutStrLn stderr ("Git clone failed with exit code of " ++ show errCode)
-                                ExitSuccess -> do
-                                    -- restructure the folder
-                                    -- luckily, `mv` command works on both Windows and Linux
-                                    mvHandle <- spawnProcess "mv"
-                                        [targetName ++ "/_src/*", targetName]
+                                -- restructure the folder
+                                -- luckily, `mv` command works on both Windows and Linux
+                                sourceFiles <- listDirectory (targetFolderName ++ "/_src")
 
-                                    exitCode' <- waitForProcess mvHandle
-                                    case exitCode' of
-                                        ExitFailure errCode ->
-                                            hPutStrLn stderr ("File moving failed with exit code of " ++ show errCode)
-                                        
-                                        ExitSuccess -> do
-                                            -- remove unneeded files
-                                            removeDirectoryRecursive (targetName ++ "/_src")
-                                            removeDirectoryRecursive (targetName ++ "/_test")
-                                            removeDirectoryRecursive (targetName ++ "/_.git")
+                                exitCodes <- forM sourceFiles 
+                                    (\name -> do
+                                        mvHandle <- spawnProcess "mv" [targetFolderName ++ "/_src/" ++ name, targetFolderName]
+                                        waitForProcess mvHandle)
 
-                                            -- install its dependencies
-                                            installDeps (targetName ++ "/purse.json"))
+                                -- if some files cannot be moved
+                                if any (\e -> case e of ExitFailure{}->True; _->False) exitCodes then
+                                    hPutStrLn stderr ("Error unpacking files from _src.")
+                                else do
+                                    -- remove unneeded files
+                                    removeDirIfExists (targetFolderName ++ "/_src")
+                                    removeDirIfExists (targetFolderName ++ "/_test")
+                                    removeDirIfExists (targetFolderName ++ "/_.git")
+
+                                    -- install its dependencies
+                                    installDeps (targetFolderName ++ "/purse.json"))
                     return ()
                     
                 -- if there are parse errors
@@ -180,8 +190,14 @@ installDeps pursePath = do
                     return ()
                     
 
-        Nothing ->
-            undefined
+
+removeDirIfExists :: FilePath -> IO()
+removeDirIfExists path = do
+    yes <- doesPathExist path
+    if yes then
+        removeDirectoryRecursive path
+    else
+        return ()
 
 data GitRepoUrl = GitRepoUrl {
     _fullUrl    :: String,
