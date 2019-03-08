@@ -26,7 +26,11 @@ data KeliCommand
         String --filename
         Int    --line number
         Int    --column number
-    | NewPackage String
+    | NewPackage 
+        String -- package name
+    | AddDependency
+        String -- git repo url
+        String -- tag
     | Version
     deriving (Show)
 
@@ -56,6 +60,12 @@ allParser = subparser (
     command "new-package" (info 
         (NewPackage
             <$> (argument str (metavar "FILENAME")))
+        (progDesc "Create a new Keli package"))
+    <>
+    command "add-dependency" (info 
+        (AddDependency
+            <$> (argument str (metavar "GIT_REPO_URL"))
+            <*> (argument str (metavar "TAG")))
         (progDesc "Create a new Keli package"))
     <>
     command "version" (info 
@@ -100,6 +110,9 @@ handleKeliCommand input =
 
         NewPackage packageName -> do
             createNewPackage packageName
+
+        AddDependency gitRepoUrl tag -> do
+            addDependency gitRepoUrl tag
 
 
 
