@@ -1,0 +1,8 @@
+= module.import("../A.keli")
+
+(this Answer).negate =
+    this.
+        case(Yes):
+            (Answer.No)
+        case(No):
+            (Answer.Yes)

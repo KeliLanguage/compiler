@@ -1,0 +1,5 @@
+Answer = tags.
+    case(Yes)
+    case(No)
+
+= 12

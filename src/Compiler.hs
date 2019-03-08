@@ -7,12 +7,10 @@ import Control.Monad
 import Analyzer
 import Parser
 import qualified Ast.Raw as Raw
-import Transpiler
 import Env
+import System.FilePath.Posix
 import System.Directory
-import qualified Ast.Verified as V
 import Module
-import System.FilePath
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 -- used for representing a module with parse error
@@ -34,15 +32,16 @@ keliCompile filepath contents = do
                     foldM 
                         (\(prevErrors, prevModules) (ImportDecl importFilePath) -> do
                             absoluteFilePath <- makeAbsolute filepath
-                            let importedFilePath =
+                            let importPath = 
                                     if isAbsolute (snd importFilePath) then
                                         snd importFilePath
                                     else
                                         takeDirectory absoluteFilePath ++ "/" ++ snd importFilePath
-                            yes <- doesFileExist importedFilePath
+                            canonicalizedImportPath <- canonicalizePath importPath
+                            yes <- doesFileExist canonicalizedImportPath
                             if yes then do
-                                importedContents <- readFile importedFilePath
-                                (currentErrors, currentModule) <- keliCompile importedFilePath importedContents
+                                importedContents <- readFile canonicalizedImportPath
+                                (currentErrors, currentModule) <- keliCompile canonicalizedImportPath importedContents
 
                                 -- filter out idless decls, as specified at https://keli-language.gitbook.io/doc/specification/section-5-declarations#5-0-evaluated-declarations
                                 -- let idfulDecls = filter (\d -> case d of V.IdlessDecl{} -> False; _ -> True ) decls'

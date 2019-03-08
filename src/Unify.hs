@@ -4,6 +4,7 @@ import Control.Monad
 
 import qualified Ast.Verified as V
 import Util
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import StaticError
 import Prelude hiding(lookup)
 import qualified Data.Map.Strict as Map
