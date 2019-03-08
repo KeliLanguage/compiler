@@ -1,15 +1,9 @@
 module Interpreter where
 
-import StaticError
 import Compiler
 import System.Process
-import StaticError
-import Analyzer
-import Parser
 import Data.List
-import Env
 import Transpiler
-import qualified Ast.Raw as Raw
 import Diagnostics
 
 

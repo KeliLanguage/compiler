@@ -36,6 +36,7 @@ dependencies:
 - aeson
 - bytestring
 - filepath
+- aeson-pretty
  
 
 library:

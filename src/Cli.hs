@@ -7,14 +7,16 @@ import Data.Semigroup ((<>))
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
-import System.IO
 
+import System.IO
 import Interpreter
 import Repl
+import Package
 import Compiler
 import Diagnostics(toDiagnostic)
 import CompletionItems
 
+keliCompilerVersion = "0.0.1"
 
 data KeliCommand 
     = Execute String 
@@ -24,6 +26,8 @@ data KeliCommand
         String --filename
         Int    --line number
         Int    --column number
+    | NewPackage String
+    | Version
     deriving (Show)
 
 allParser :: Parser KeliCommand
@@ -48,6 +52,15 @@ allParser = subparser (
     command "repl" (info 
         (pure Repl)
         (progDesc "Starts the Keli REPL."))
+    <>
+    command "new-package" (info 
+        (NewPackage
+            <$> (argument str (metavar "FILENAME")))
+        (progDesc "Create a new Keli package"))
+    <>
+    command "version" (info 
+        (pure Version)
+        (progDesc "Get the version of this Keli compiler."))
     )
 
 cli :: IO ()
@@ -81,6 +94,13 @@ handleKeliCommand input =
         Suggest filename lineNumber columnNumber -> do
             completionItems <- suggestCompletionItemsAt filename (lineNumber, columnNumber)
             putStr (Char8.unpack (encode completionItems))
+
+        Version ->
+            putStrLn keliCompilerVersion
+
+        NewPackage packageName -> do
+            createNewPackage packageName
+
 
 
 
