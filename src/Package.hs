@@ -142,7 +142,7 @@ addDependency gitRepoUrl tag = do
 
 installDeps :: String -> IO()
 installDeps pursePath = do
-    putStrLn ("Installing dependencies, referring: " ++ pursePath)
+    putStrLn ("\nInstalling dependencies, referring: " ++ pursePath)
     result <- readPurse pursePath
     case result of
         Nothing ->
@@ -164,13 +164,14 @@ installDeps pursePath = do
                                 -- skip the download for this grurl
                                 return ()
                             else do
-                                putStrLn ("--Installing " ++ targetFolderName)
+                                putStrLn ("\n-- Installing " ++ targetFolderName ++ "\n")
                                 -- clone the repository
                                 -- ignore the git command stdout
                                 !_ <- 
                                     readProcess 
                                         "git" 
-                                        ["clone", "-b", tagString u, "--single-branch", "--depth", "1", fullUrl u, targetFolderName]
+                                        [ "clone", "-b", tagString u, "--single-branch", "--depth", "1", fullUrl u, targetFolderName,
+                                        "-c", "advice.detachedHead=false"] -- this line is to silent all the stuff from git clone
                                         []
 
                                 -- restructure the folder
@@ -193,7 +194,8 @@ installDeps pursePath = do
 
                                     -- install its dependencies
                                     installDeps (targetFolderName ++ "/purse.json"))
-                    return ()
+
+                    putStrLn ("Dependencies installation completed for " ++ pursePath)
                     
                 -- if there are parse errors
                 errors' -> do
