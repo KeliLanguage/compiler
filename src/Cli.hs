@@ -16,6 +16,7 @@ import Compiler
 import Diagnostics(toDiagnostic)
 import CompletionItems
 
+keliCompilerVersion :: String
 keliCompilerVersion = "0.0.1"
 
 data KeliCommand 
@@ -32,6 +33,8 @@ data KeliCommand
         String -- git repo url
         String -- tag
     | Version
+    | Install 
+        String -- path to purse.json
     deriving (Show)
 
 allParser :: Parser KeliCommand
@@ -67,6 +70,11 @@ allParser = subparser (
             <$> (argument str (metavar "GIT_REPO_URL"))
             <*> (argument str (metavar "TAG")))
         (progDesc "Create a new Keli package"))
+    <>
+    command "install" (info 
+        (Install
+            <$> (argument str (metavar "PATH_TO_PURSE.JSON")))
+        (progDesc "Install dependencies based on the specified purse.json"))
     <>
     command "version" (info 
         (pure Version)
@@ -104,6 +112,9 @@ handleKeliCommand input =
         Suggest filename lineNumber columnNumber -> do
             completionItems <- suggestCompletionItemsAt filename (lineNumber, columnNumber)
             putStr (Char8.unpack (encode completionItems))
+
+        Install pursePath -> 
+            installDeps pursePath
 
         Version ->
             putStrLn keliCompilerVersion
