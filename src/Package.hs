@@ -4,6 +4,7 @@ module Package where
 
 import GHC.Generics hiding(packageName)
 import Control.Monad
+import Control.Concurrent
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Text.ParserCombinators.Parsec hiding (token)
 import Data.Either
@@ -165,35 +166,8 @@ installDeps pursePath = do
                                 return ()
                             else do
                                 putStrLn ("\n-- Installing " ++ targetFolderName ++ "\n")
-                                -- clone the repository
-                                -- ignore the git command stdout
-                                !_ <- 
-                                    readProcess 
-                                        "git" 
-                                        [ "clone", "-b", tagString u, "--single-branch", "--depth", "1", fullUrl u, targetFolderName,
-                                        "-c", "advice.detachedHead=false"] -- this line is to silent all the stuff from git clone
-                                        []
-
-                                -- restructure the folder
-                                -- luckily, `mv` command works on both Windows and Linux
-                                sourceFiles <- listDirectory (targetFolderName ++ "/_src")
-
-                                exitCodes <- forM sourceFiles 
-                                    (\name -> do
-                                        mvHandle <- spawnProcess "mv" [targetFolderName ++ "/_src/" ++ name, targetFolderName]
-                                        waitForProcess mvHandle)
-
-                                -- if some files cannot be moved
-                                if any (\e -> case e of ExitFailure{}->True; _->False) exitCodes then
-                                    hPutStrLn stderr ("Error unpacking files from _src.")
-                                else do
-                                    -- remove unneeded files
-                                    removeDirIfExists (targetFolderName ++ "/_src")
-                                    removeDirIfExists (targetFolderName ++ "/_test")
-                                    removeDirIfExists (targetFolderName ++ "/_.git")
-
-                                    -- install its dependencies
-                                    installDeps (targetFolderName ++ "/purse.json"))
+                                !_ <- clonePackage u targetFolderName
+                                return())
 
                     putStrLn ("Dependencies installation completed for " ++ pursePath)
                     
@@ -204,6 +178,36 @@ installDeps pursePath = do
                     return ()
                     
 
+clonePackage :: GitRepoUrl -> String -> IO()
+clonePackage u targetFolderName = do
+    !_ <-  
+        readProcess 
+            "git" 
+            [ "clone", "-b", tagString u, "--single-branch", "--depth", "1", fullUrl u, targetFolderName,
+            "-c", "advice.detachedHead=false"] -- this line is to silent all the stuff from git clone
+            []
+
+    -- restructure the folder
+    -- luckily, `mv` command works on both Windows and Linux
+    sourceFiles <- listDirectory (targetFolderName ++ "/_src")
+
+    exitCodes <- forM sourceFiles 
+        (\name -> do
+            mvHandle <- spawnProcess "mv" [targetFolderName ++ "/_src/" ++ name, targetFolderName]
+            waitForProcess mvHandle)
+
+    -- if some files cannot be moved
+    if any (\e -> case e of ExitFailure{}->True; _->False) exitCodes then
+        hPutStrLn stderr ("Error unpacking files from _src.")
+    else do
+        -- remove unneeded files
+        removeDirIfExists (targetFolderName ++ "/_src")
+        removeDirIfExists (targetFolderName ++ "/_test")
+        removeDirIfExists (targetFolderName ++ "/_.git")
+
+        -- install its dependencies
+        installDeps (targetFolderName ++ "/purse.json")
+        return ()
 
 removeDirIfExists :: FilePath -> IO()
 removeDirIfExists path = do
