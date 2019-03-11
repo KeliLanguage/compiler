@@ -138,7 +138,9 @@ stringifyTypeAnnot :: V.TypeAnnotation -> String
 stringifyTypeAnnot (V.TypeAnnotSimple (_,name) _) = name
 stringifyTypeAnnot (V.TypeAnnotCompound (_,name) keyTypeAnnotPairs _) = 
     name ++ "." ++ intercalate " " (map (\(key, ta) -> snd key ++ "(" ++ stringifyTypeAnnot ta ++ ")") keyTypeAnnotPairs)
-    
+stringifyTypeAnnot (V.TypeAnnotObject keyTypePairs) = 
+    "$." ++ intercalate " " (map (\(k,t) -> snd k ++ "(" ++ stringifyTypeAnnot t ++ ")") keyTypePairs)
+
 bracketize :: String -> String
 bracketize str = "(" ++ str ++ ")"
 

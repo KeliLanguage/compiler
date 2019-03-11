@@ -1,0 +1,7 @@
+[CompletionItem {
+    kind = 3, 
+    label = "doSomething()", 
+    detail = "(this Int).doSomething(o $.plus(Int) minus(Int)) | Int", 
+    insertText = "doSomething(${1:o})", 
+    insertTextFormat = 2, 
+    documentation = ""}]
