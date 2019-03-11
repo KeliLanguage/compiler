@@ -1,0 +1,2 @@
+(this Int).take(f Function.in(Int) out(Int)) = 
+    f.apply("hello")

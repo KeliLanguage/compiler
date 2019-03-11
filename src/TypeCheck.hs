@@ -228,11 +228,14 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                             Right (ctx3, First (V.Expr (V.Object actualPropValuePairs) resultingType))
 
                         -- (B) check if user is performing function application
-                        V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ innerTypes) ->
+                        V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ 
+                            (expectedInputType:expectedOutputType:[])) ->
                             if snd (head funcIds) == "apply" && length (tail params') == 1 then do
                                 (ctx3, value) <- verifyExpr ctx2 assumption (last params')
+                                -- check if value match with expectedInputType
+                                !_ <- unify value expectedInputType
                                 let f = firstParam
-                                Right (ctx3, First(V.Expr (V.FuncApp f value) (innerTypes !! 1)))
+                                Right (ctx3, First(V.Expr (V.FuncApp f value) expectedOutputType))
                             else
                                 continuePreprocessFuncCall2
 
