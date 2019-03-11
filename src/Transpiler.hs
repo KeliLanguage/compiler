@@ -90,9 +90,9 @@ instance Transpilable V.Decl where
                 let lineNumber = line (start (getRange expr)) in 
                 if showLineNumber then
                     "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
-                    "KELI_PRELUDE$show(" ++ transpile False expr ++ "))" 
+                    "KELI$show(" ++ transpile False expr ++ "))" 
                 else
-                    "console.log(KELI_PRELUDE$show(" ++ transpile False expr ++ "))" 
+                    "console.log(KELI$show(" ++ transpile False expr ++ "))" 
 
             V.FuncDecl signature body -> 
                 transpile False signature ++ "(" ++ transpile showLineNumber body ++ ");"
