@@ -14,14 +14,21 @@ import Module
 prefix :: String -> String
 prefix s = "k$" ++ s -- k means Keli, this is to prevent conflicts with other JS libraries
 
-transpileModule :: Bool -> Module -> String
-transpileModule isEntryFile (Module name importedModules _ decls) = 
+transpileModule 
+    :: Bool -- isEntryFile
+    -> Bool -- showLineNumber
+    -> Module 
+    -> String
+transpileModule isEntryFile showLineNumber  (Module name importedModules _ decls) = 
     "const " 
         ++ prefix name 
-        ++ "=(()=>{" ++ transpiledModules ++ transpiledDecls ++ "return{" ++ exports ++ "}})();"
+        ++ "=(()=>{" 
+            ++ transpiledModules 
+            ++ transpiledDecls 
+            ++ "return{" ++ exports ++ "}})();"
     where
         transpiledModules = 
-            concatMap (transpileModule False) importedModules
+            concatMap (transpileModule False showLineNumber) importedModules
 
         transpiledDecls = 
             let decls' = 
@@ -29,7 +36,7 @@ transpileModule isEntryFile (Module name importedModules _ decls) =
                         decls 
                     else -- remove all idless decls, accoding to specification 
                         filter (\d -> case d of V.IdlessDecl _ -> False; _ -> True) decls in
-            (intercalate ";" (map transpile decls')) ++ ";"
+            (intercalate ";" (map (transpile showLineNumber) decls')) ++ ";"
 
         exports = 
             intercalate "," (
@@ -51,7 +58,10 @@ transpileModule isEntryFile (Module name importedModules _ decls) =
 
 
 class Transpilable a where
-    transpile :: a -> String
+    transpile 
+        :: Bool -- show line number
+        -> a 
+        -> String
 
 quote :: String -> String
 quote s = "\"" ++ s ++ "\""
@@ -60,7 +70,7 @@ squareBracket :: String -> String
 squareBracket s = "[" ++ s ++ "]"
 
 instance Transpilable V.Tag where
-    transpile tag = case tag of 
+    transpile _ tag = case tag of 
         V.CarrylessTag (_,id) (V.TaggedUnion (_,name) _ _ _) -> 
             quote id ++ ":({__union:\"" ++ name ++ "\",__tag:\"" ++ id ++ "\"})"
 
@@ -71,28 +81,31 @@ joinIds :: [V.StringToken] -> String
 joinIds ids = intercalate "_" (map snd ids)
 
 instance Transpilable V.Decl where
-    transpile decl = 
+    transpile showLineNumber decl = 
         case decl of 
             V.ConstDecl (_, id) expr  -> 
-                "const " ++ prefix id ++ "=" ++ (transpile expr)
+                "const " ++ prefix id ++ "=" ++ (transpile False expr)
 
             V.IdlessDecl expr -> 
                 let lineNumber = line (start (getRange expr)) in 
-                "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
-                "KELI_PRELUDE$show(" ++ transpile expr ++ "))" 
+                if showLineNumber then
+                    "console.log(" ++ "\"Line " ++ show (lineNumber + 1) ++ " = \"+" ++
+                    "KELI_PRELUDE$show(" ++ transpile False expr ++ "))" 
+                else
+                    "console.log(KELI_PRELUDE$show(" ++ transpile False expr ++ "))" 
 
             V.FuncDecl signature body -> 
-                transpile signature ++ "(" ++ transpile body ++ ");"
+                transpile False signature ++ "(" ++ transpile showLineNumber body ++ ");"
 
             V.TaggedUnionDecl (V.TaggedUnion (_,id) _ tags _) ->
-                "const " ++ prefix id ++ "={" ++ intercalate "," (map transpile tags) ++ "}"
+                "const " ++ prefix id ++ "={" ++ intercalate "," (map (transpile showLineNumber) tags) ++ "}"
             
             V.ObjectAliasDecl{} ->
                 ""
 
 
 instance Transpilable V.Scope where
-    transpile scope = 
+    transpile _ scope = 
         case scope of
             V.FromCurrentScope ->
                 ""
@@ -102,12 +115,12 @@ instance Transpilable V.Scope where
 
 
 instance Transpilable V.FuncSignature where
-    transpile f@(V.FuncSignature _ _ params _ _) = 
+    transpile _ f@(V.FuncSignature _ _ params _ _) = 
         let params' = intercalate "," (map (\((_,id),_) -> prefix id) params) in
         "const " ++ getFuncName f ++ "=(" ++ params' ++ ")=>"
 
 instance Transpilable V.Expr where
-    transpile expr = case expr of 
+    transpile _ expr = case expr of 
         V.Expr(V.IntExpr (_,value)) _                       
             -> show value
 
@@ -118,31 +131,31 @@ instance Transpilable V.Expr where
             -> show value
 
         V.Expr(V.GlobalId _ (_, id) scope) _
-            -> transpile scope ++ prefix id
+            -> transpile False scope ++ prefix id
 
         V.Expr(V.LocalId _ (_, id)) _
             -> prefix id
 
         V.Expr(V.Lambda ((_, paramId),_) body) _                      
-            -> "(" ++ prefix paramId ++ ")=>(" ++ transpile body ++ ")"
+            -> "(" ++ prefix paramId ++ ")=>(" ++ transpile False body ++ ")"
 
         V.Expr(V.Object kvs) _                              
             -> transpileKeyValuePairs False kvs
 
         V.Expr(V.ObjectGetter expr prop) _                  
-            -> transpile expr ++ "." ++  (snd prop)
+            -> transpile False expr ++ "." ++  (snd prop)
 
         V.Expr(V.ObjectSetter subject prop newValue) _      
-            -> "({...(" ++ transpile subject ++ ")," ++ (snd prop) 
-                ++ ":(" ++ transpile newValue ++ ")})"
+            -> "({...(" ++ transpile False subject ++ ")," ++ (snd prop) 
+                ++ ":(" ++ transpile False newValue ++ ")})"
 
         V.Expr (V.ObjectLambdaSetter subject (_,prop) (_, lambdaParamId) lambdaBody) _
             -> 
-                "({...(" ++ transpile subject ++ ")," 
+                "({...(" ++ transpile False subject ++ ")," 
                 ++ prop ++ ":("
                 ++ "((" ++ prefix lambdaParamId ++ ")=>(" 
-                ++ transpile lambdaBody ++ "))"
-                ++ "((" ++ transpile subject ++ ")." ++ prop ++ ")"
+                ++ transpile False lambdaBody ++ "))"
+                ++ "((" ++ transpile False subject ++ ")." ++ prop ++ ")"
                 ++ ")})"
 
 
@@ -150,14 +163,14 @@ instance Transpilable V.Expr where
             -> 
             -- We will need to implement lazy evaluation here, as JavaScript is strict
             -- Also, lazy evaluation is needed to prevent evaluating unentered branch
-            "(($$=>({" ++ intercalate "," (map transpile branches) 
-                ++ "})[$$.__tag])(" ++ transpile subject ++ ")" 
+            "(($$=>({" ++ intercalate "," (map (transpile False) branches) 
+                ++ "})[$$.__tag])(" ++ transpile False subject ++ ")" 
                 ++ (case elseBranch of
-                    Just expr' -> " || " ++ "(" ++ (lazify (transpile expr')) ++ ")"
+                    Just expr' -> " || " ++ "(" ++ (lazify (transpile False expr')) ++ ")"
                     Nothing   -> "") ++ ")()"
 
         V.Expr(V.FuncCall params _ (scope,ref)) _ -> 
-            transpile scope ++ getFuncName ref ++ "(" ++ intercalate "," (map transpile params) ++")"
+            transpile False scope ++ getFuncName ref ++ "(" ++ intercalate "," (map (transpile False) params) ++")"
 
         V.Expr(V.FFIJavascript (_,code)) _ ->
             code
@@ -165,35 +178,35 @@ instance Transpilable V.Expr where
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry scope)  
             ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
-                -> transpile scope 
+                -> transpile False scope 
                     ++ prefix taggedUnionName ++ squareBracket (quote tag) 
-                    ++ "("++ transpile carry ++")"
+                    ++ "("++ transpile False carry ++")"
 
         V.Expr 
             (V.CarrylessTagExpr(_,tag) _ scope)
             ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
-                -> transpile scope ++ prefix taggedUnionName ++ squareBracket (quote tag)
+                -> transpile False scope ++ prefix taggedUnionName ++ squareBracket (quote tag)
 
         V.Expr (V.FuncApp f arg) _ ->
-            transpile f ++ "(" ++ transpile arg ++ ")"
+            transpile False f ++ "(" ++ transpile False arg ++ ")"
 
 
         V.Expr (V.Array exprs) _ -> 
-            "[" ++ intercalate "," (map transpile exprs) ++ "]"
+            "[" ++ intercalate "," (map (transpile False) exprs) ++ "]"
 
 instance Transpilable V.TagBranch where
-    transpile b = case b of
+    transpile _ b = case b of
         V.CarrylessTagBranch (V.VerifiedTagname (_,tagname)) expr ->
-            tagname ++ ":" ++ lazify (transpile expr)
+            tagname ++ ":" ++ lazify (transpile False expr)
 
         V.CarryfulTagBranch (V.VerifiedTagname (_,tagname)) (_,binding) expr ->
-            tagname ++ ":" ++ lazify( "((" ++ prefix binding ++ ")=>" ++ transpile expr ++ ")($$.__carry)" )
+            tagname ++ ":" ++ lazify( "((" ++ prefix binding ++ ")=>" ++ transpile False expr ++ ")($$.__carry)" )
 
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String
 transpileKeyValuePairs lazifyExpr kvs 
     = "({" ++ (foldl' (\acc (key,expr) -> acc ++ snd key ++ ":" 
-        ++ (if lazifyExpr then lazify (transpile expr) else (transpile expr))
+        ++ (if lazifyExpr then lazify (transpile False expr) else (transpile False expr))
         ++ ",") "" kvs) ++ "})"
 
 

@@ -20,7 +20,9 @@ keliCompilerVersion :: String
 keliCompilerVersion = "0.0.2-alpha"
 
 data KeliCommand 
-    = Execute String 
+    = Execute 
+        String  -- filename
+        Bool    -- whether to show line number or not
     | Repl
     | Analyze String 
     | Suggest 
@@ -41,7 +43,11 @@ allParser :: Parser KeliCommand
 allParser = subparser (
     command "run" (info 
         (Execute 
-            <$> (argument str (metavar "FILENAME")))
+            <$> (argument str (metavar "FILENAME"))
+            <*> switch
+                    ( long "show-line-number"
+                    <> short 'l'
+                    <> help "Where to show line number or not." ))
         (progDesc "Execute a Keli program (*.keli)"))
     <> 
     command "analyze" (info
@@ -92,8 +98,8 @@ cli = handleKeliCommand =<< execParser opts
 handleKeliCommand :: KeliCommand -> IO ()
 handleKeliCommand input = 
     case input of 
-        Execute filename -> do
-            result <- keliInterpret filename 
+        Execute filename showLineNumber -> do
+            result <- keliInterpret showLineNumber filename 
             case result of 
                 Right output ->
                     hPutStrLn stdout output

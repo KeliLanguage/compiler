@@ -39,7 +39,7 @@ runTestCases_compile = do
                         validateTestCase parentDir t
 
                         -- 2. interpret the entry file of this test cases
-                        result <- keliInterpret (parentDir ++ t ++ "/entry.keli")
+                        result <- keliInterpret True (parentDir ++ t ++ "/entry.keli") 
 
                         -- 3. compare the output with expected output
                         expectedOutput <- readFile (parentDir ++ t ++ "/output")
