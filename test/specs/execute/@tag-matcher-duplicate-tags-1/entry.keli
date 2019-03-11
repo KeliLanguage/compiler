@@ -1,9 +1,9 @@
 Answer = tags.
-    case(yes)
-    case(no)
+    case(.Yes)
+    case(.No)
 
-a= Answer.yes
+a= Answer.Yes
 =a.
-    case(yes): (2) 
-    case(no):  (1)
-    case(no):  (1)
+    case(.Yes): (2) 
+    case(.No):  (1)
+    case(.No):  (1)

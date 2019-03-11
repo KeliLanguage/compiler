@@ -1,6 +1,9 @@
-Answer = tags.
-    case(yes)
-    case(no)
+Shape = tags.
+    case(.Circle($.radius(Float)))
+    case(.Nothing)
 
-a= Answer.yes
-=a.case(yes):(2) case(no):(1)
+a = Shape.Circle($.radius(2.0))
+
+= a.
+    case(.Circle(c)): (2) 
+    case(.Nothing):   (1)

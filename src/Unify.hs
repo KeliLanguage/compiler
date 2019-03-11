@@ -80,16 +80,6 @@ unify'
     else
         Left (KErrorTypeMismatch actualExpr actualType expectedType)
 
--- unify' carryful tag counstructor
-unify' 
-    actualExpr 
-    actualType@(V.TypeCarryfulTagConstructor x _ _ _)
-    expectedType@(V.TypeCarryfulTagConstructor y _ _ _) = 
-    if x == y then 
-        Right (emptySubstitution)  
-    else 
-        Left (KErrorTypeMismatch actualExpr actualType expectedType)
-
 unify' 
     actualExpr
     actualType@(V.TypeObjectConstructor name1 _)
@@ -126,7 +116,7 @@ unify' actualExpr (V.TypeObject _ kts1) (V.TypeObject _ kts2) =
     let (expectedKeys, expectedTypes) = unzip kts2 in
     -- TODO: get the set difference of expectedKeys with actualKeys
     -- because we want to do structural typing
-    -- that means, it is acceptable if actualKeys is a valid subset of expectedKeys
+    -- that means, it is acceptable if actualKeys is a valid superset of expectedKeys
     case match actualKeys expectedKeys of
         PerfectMatch ->
             foldM

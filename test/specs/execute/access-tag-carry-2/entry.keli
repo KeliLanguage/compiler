@@ -1,14 +1,11 @@
 Human = tags.
-    case(boy)
-    case(baby.cuteness(Int))
-    case(worker.salary(Int))
+    case(.Boy)
+    case(.Baby($.cuteness(Int)))
+    case(.Worker($.salary(Int)))
 
-julia=Human.baby.cuteness(2)
+julia=Human.Baby($.cuteness(99))
 
 =julia.
-    case(boy): 
-        (0) 
-    case(baby.cuteness(c)): 
-        (c) 
-    case(worker.salary(s)): 
-        (s)
+    case(.Boy)       : (0) 
+    case(.Baby(b))   : (b.cuteness) 
+    case(.Worker(w)) : (w.salary)

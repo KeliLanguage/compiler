@@ -146,6 +146,8 @@ data KeliError
         [(Verified.Scope, KeliSymbol)]
 
     | KErrorPartiallyMatchedFuncFound KeliError
+    | KErrorIncorrectTagDeclSyntax 
+        Raw.Expr
     
     deriving (Show)
 

@@ -1,5 +1,5 @@
 IntList= tags.
-    case(nothing)
-    case(cons.value(Int))
+    case(.Nothing)
+    case(.Cons(Int))
 
-= IntList.cons.value(123)
+= IntList.Cons(123)

@@ -1,10 +1,10 @@
 List.of(A Type) = tags.
-    case(new)
-    case(cons.current(A) next(List.of(A)))
+    case(.New)
+    case(.Cons($.current(A) next(List.of(A))))
 
 
-z = List.cons.
+z = List.Cons($.
         current (1) 
-        next    (List.cons.
+        next    (List.Cons($.
             current ("123") 
-            next    (List.new))
+            next    (List.New))))

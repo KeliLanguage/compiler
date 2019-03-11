@@ -1,23 +1,23 @@
 List.of(A Type) = tags.
-    case(new)
-    case(cons.current(A) next(List.of(A)))
+    case(.New)
+    case(.Cons($.current(A) next(List.of(A))))
 
 (this Int).+(that Int) = ffi.javascript("k$this + k$that").as(Int)
 
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        case(new):
+        case(.New):
             (0)
-        case(cons.next(n)):
-            (1.+(n.length))
+        case(.Cons(c)):
+            (1.+(c.next.length))
 
 {A Type}
 (xs List.of(A)).add(x A) | List.of(A) = 
     xs.
-        case(new):
-            (List.cons.current(x) next(List.new))
-        case(cons.current(c) next(n)):
-            (List.cons.current(c) next(n.add(x)))
+        case(.New):
+            (List.Cons($.current(x) next(List.New)))
+        case(.Cons(c)):
+            (List.Cons(c.next(.add(x))))
     
-=List.new.add(1).add(2).add(3).add(4).length
+=List.New.add(1).add(2).add(3).add(4).length

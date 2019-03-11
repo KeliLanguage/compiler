@@ -1,13 +1,13 @@
 Answer = tags.
-    case(yes)
-    case(no)
+    case(.Yes)
+    case(.No)
 
-a= Answer.yes
+a= Answer.Yes
 =a.
-    case(yes): 
+    case(.Yes): 
         (2) 
     
-    case(lol): 
+    case(.Lol): 
         (3)
 
     default:

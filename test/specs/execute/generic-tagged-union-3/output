@@ -1,1 +1,1 @@
-Line 16 = cons.current(6) next(cons.current(7) next(new))
+Line 16 = List.Cons($.current(6) next(List.Cons($.current(7) next(List.New))))

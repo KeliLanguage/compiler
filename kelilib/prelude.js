@@ -6,22 +6,15 @@ function KELI_PRELUDE$show(o) {
 
     if (typeof o === "object") {
         let result = "";
-
         // if is a tag
-        if (o.__tag) {
-            result += o.__tag;
-            const keys = Object.keys(o).filter((x) => x !== "__tag");
-            if (keys.length > 0) {
-                result += ".";
-                    for (let i = 0; i < keys.length; i++) {
-                        result += `${keys[i]}(${KELI_PRELUDE$show(o[keys[i]])})`
-                        if (i < keys.length - 1) {
-                            result += " ";
-                        }
-                    }
+        if (o.hasOwnProperty("__tag")) {
+            result += `${o.__union}.${o.__tag}`;
+            // if is a carryful tag
+            if (o.hasOwnProperty("__carry")) {
+                result += `(${KELI_PRELUDE$show(o.__carry)})`;
             }
         } else { // if is a object
-            result += "object.";
+            result += "$.";
             const keys = Object.keys(o);
             for (let i = 0; i < keys.length; i++) {
                 result += `${keys[i]}(${KELI_PRELUDE$show(o[keys[i]])})`

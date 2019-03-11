@@ -1,20 +1,20 @@
 (this Int).+(that Int) | Int = ffi.javascript("k$this + k$that").as(Int)
 
 Color = tags.
-    case(red)
-    case(green.value(Int))
+    case(.Red)
+    case(.Green(Int))
 
-x = Color.green.value(2)
-y = Color.green.value(5)
+x = Color.Green(2)
+y = Color.Green(5)
 
 =x.
-    case(red):
+    case(.Red):
         (10) 
         
-    case(green.value(v1)):
+    case(.Green(v1)):
         (y.
-            case(red):
+            case(.Red):
                 (99)
-            case(green.value(v2)):
+            case(.Green(v2)):
                 (v1.+(v2)))
 

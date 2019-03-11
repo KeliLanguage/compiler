@@ -1,13 +1,13 @@
 Boolean = tags.
-    case(true)
-    case(false)
+    case(.True)
+    case(.False)
 
 List.of(A Type) = tags.
-    case(cons.current(A) next(List.of(A)))
-    case(nil)
+    case(.Cons($.current(A) next(List.of(A))))
+    case(.Nil)
 
 {A Type}
-(this Int).hey | object.accepted(List.of(A)) notAccepted(List.of(A))
-    = object.accepted(List.nil) notAccepted(List.nil)
+(this Int).hey |  $.accepted(List.of(A)) notAccepted(List.of(A))
+    =  $.accepted(List.Nil) notAccepted(List.Nil)
 
 = 5.hey

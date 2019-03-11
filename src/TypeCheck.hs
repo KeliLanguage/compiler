@@ -28,12 +28,10 @@ typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context,
 typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expression of 
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
         case expr of
-            Raw.Lambda param@(_,paramName) body ->
-                -- if it is a lambda shorthand
-                if all (not . isAlpha) paramName then
-                    -- do some inversion, so that lambda shorthand can be chained with other functions (for IntelliSense purpose)
+            Raw.Lambda param@(_,paramName) body isShortHand ->
+                if isShortHand then
                     typeCheckExpr ctx assumption 
-                        (Raw.Lambda param (Raw.IncompleteFuncCall body positionOfTheDotOperator))
+                        (Raw.Lambda param (Raw.IncompleteFuncCall body positionOfTheDotOperator) isShortHand)
                 
                 else
                     defaultResult
@@ -128,95 +126,88 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                 
     Raw.FuncCall params' funcIds -> do
         case (head params') of
-            (Raw.Id firstParamToken@(_,firstParamId)) -> 
-                case firstParamId of
-                -- 1. Check if user wants to create a tagged union
-                "tags" ->
-                    case find (\(_,x) -> x /= "case") funcIds of
-                        Just x ->
-                            Left (KErrorExpectedKeywordCase x)
-                        Nothing -> do
-                            (ctx2, tags) <- foldM 
-                                    (\(prevCtx, prevTags) currentExpr -> 
-                                        case currentExpr of
-                                            Raw.Id id ->
-                                                Right (prevCtx, prevTags ++ [V.UnlinkedCarrylessTag id])
+            -- 1. Check if user wants to create a tagged union
+            (Raw.Id (_,"tags")) -> 
+                case find (\(_,x) -> x /= "case") funcIds of
+                    Just x ->
+                        Left (KErrorExpectedKeywordCase x)
+                    Nothing -> do
+                        (ctx2, tags) <- foldM 
+                                (\(prevCtx, prevTags) currentExpr -> 
+                                    case currentExpr of
+                                        Raw.Lambda _ f isShortHand ->
+                                            if isShortHand then
+                                                case f of
+                                                    Raw.FuncCall (_:[]) (tagname:[]) ->
+                                                        Right (prevCtx, prevTags ++ [V.UnlinkedCarrylessTag tagname])
 
-                                            Raw.FuncCall params'' funcIds'' ->
-                                                if length params'' < 2 then
-                                                    Left (KErrorExpectedTypeAnnotationAfterThis (last funcIds''))
-                                                else do
-                                                    case head params'' of
-                                                        Raw.Id tagname -> do
-                                                            let keys = funcIds''
-                                                            (ctx2, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params'')
-                                                            Right (ctx2, prevTags ++ [V.UnlinkedCarryfulTag tagname keyTypePairs])
+                                                    Raw.FuncCall (_:secondParam:[]) (tagname:[]) -> do
+                                                        (ctx2, carryType) <- verifyTypeAnnotation prevCtx secondParam
+                                                        Right (ctx2, prevTags ++ [V.UnlinkedCarryfulTag tagname carryType])
+                                                    
+                                                    _ ->
+                                                        Left (KErrorIncorrectTagDeclSyntax currentExpr)
+                                                    
+                                            else
+                                                Left (KErrorIncorrectTagDeclSyntax currentExpr)
+                                        
+                                        _ ->
+                                            Left (KErrorIncorrectTagDeclSyntax currentExpr))
 
-                                                        other ->
-                                                            Left (KErrorExpectedId other)
-                                            _ ->
-                                                Left (KErrorExpectedPropDefOrId currentExpr)) 
-                                    (ctx, [])
-                                    (tail params')
-                            Right (ctx2, Third tags)
+                                (ctx, [])
+                                (tail params')
+                        Right (ctx2, Third tags)
 
-                -- 2. Check if the user wants to create a object (type/value)
-                "object" ->  
-                    if length (tail params') == 0 then 
-                        Left (KErrorIncorrectUsageOfObject firstParamToken)
+            -- 2. Check if the user wants to create a object (type/value)
+            (Raw.Id firstParamToken@(_,"$")) -> 
+                if length (tail params') == 0 then 
+                    Left (KErrorIncorrectUsageOfObject firstParamToken)
 
-                    else do 
-                        -- NOTE: 
-                        --  Because of the following line of code,
-                        --  the following recursive object type cannot be declared:
-                        --
-                        --      fruit = object.next fruit;
-                        -- 
-                        -- It's ok, because we shouldn't allow user to create recursive objects (which will form infinite type)
-                        (ctx2, firstValue) <- typeCheckExpr ctx assumption (tail params' !! 0)  -- <-- this line
+                else do 
+                    -- NOTE: 
+                    --  Because of the following line of code,
+                    --  the following recursive object type cannot be declared:
+                    --
+                    --      fruit = object.next fruit;
+                    -- 
+                    -- It's ok, because we shouldn't allow user to create recursive objects (which will form infinite type)
+                    (ctx2, firstValue) <- typeCheckExpr ctx assumption (tail params' !! 0)  -- <-- this line
 
-                        let keys = funcIds
-                        case firstValue of 
-                            -- assume user want to create a object value
-                            First _ -> do
-                                (ctx3, keyValuePairs) <- verifyKeyValuePairs ctx2 keys (tail params')
-                                Right 
-                                    (ctx3, First
-                                        (V.Expr
-                                            (V.Object keyValuePairs) 
-                                            ( (V.TypeObject Nothing (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
-                            
-                            -- assume user want to declare a object type
-                            Second _ -> do
-                                (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params')
-                                Right (ctx3, Second 
-                                    (V.TypeAnnotCompound 
-                                        firstParamToken 
-                                        keyTypePairs 
-                                        (V.TypeObject Nothing (map (\(k, ta) -> (k, V.getTypeRef ta)) keyTypePairs))))
+                    let keys = funcIds
+                    case firstValue of 
+                        -- assume user want to create a object value
+                        First _ -> do
+                            (ctx3, keyValuePairs) <- verifyKeyValuePairs ctx2 keys (tail params')
+                            Right 
+                                (ctx3, First
+                                    (V.Expr
+                                        (V.Object keyValuePairs) 
+                                        ( (V.TypeObject Nothing (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
+                        
+                        -- assume user want to declare a object type
+                        Second _ -> do
+                            (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params')
+                            Right (ctx3, Second (V.TypeAnnotObject keyTypePairs))
 
-                            Third tag -> 
-                                Left (KErrorExpectedExprOrTypeButGotTag tag)
+                        Third tag -> 
+                            Left (KErrorExpectedExprOrTypeButGotTag tag)
 
-                -- 3. check if user is using javascript ffi
-                "ffi" ->
-                    if length funcIds /= 1 || length params' /= 2 then
-                        Left (KErrorIncorrectUsageOfFFI firstParamToken)
-                    else if snd (funcIds !! 0) /= "javascript" then
-                        Left (KErrorUnknownFFITarget (funcIds !! 0))
-                    else do
-                        (ctx2, jsCode) <- typeCheckExpr ctx assumption (params' !! 1)
-                        jsCode' <- extractExpr jsCode
-                        case jsCode' of
-                            (V.Expr (V.StringExpr value) _) ->
-                                Right (ctx2, First (V.Expr (V.FFIJavascript value) ( V.TypeUndefined)))
+            -- 3. check if user is using javascript ffi
+            (Raw.Id firstParamToken@(_,"ffi")) -> 
+                if length funcIds /= 1 || length params' /= 2 then
+                    Left (KErrorIncorrectUsageOfFFI firstParamToken)
+                else if snd (funcIds !! 0) /= "javascript" then
+                    Left (KErrorUnknownFFITarget (funcIds !! 0))
+                else do
+                    (ctx2, jsCode) <- typeCheckExpr ctx assumption (params' !! 1)
+                    jsCode' <- extractExpr jsCode
+                    case jsCode' of
+                        (V.Expr (V.StringExpr value) _) ->
+                            Right (ctx2, First (V.Expr (V.FFIJavascript value) ( V.TypeUndefined)))
 
-                            _ -> 
-                                Left (KErrorFFIValueShouldBeString jsCode')
+                        _ -> 
+                            Left (KErrorFFIValueShouldBeString jsCode')
                     
-                _ -> 
-                    continuePreprocessFuncCall1
-
             _ -> 
                 continuePreprocessFuncCall1
 
@@ -346,17 +337,20 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         if length (tail params') == 0 then -- is getter
                                             Right (ctx, First (V.Expr (V.ObjectGetter subject actualPropertyName) expectedType))
                                         else if length (tail params') == 1 then -- is setter
+                                            -- instantiate type vars for expectedType
+                                            let (ctx3, subst1) = instantiateTypeVar ctx2 [expectedType] in
+                                            let expectedType' = applySubstitutionToType subst1 expectedType in
                                             case last params' of
                                                 -- if is lambda setter
                                                 -- TODO: need to check if expectedType is Function
                                                 -- something squishy is happening
-                                                Raw.Lambda lambdaParam lambdaBody -> do
-                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) env 
-                                                    (ctx3, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
+                                                Raw.Lambda lambdaParam lambdaBody _ -> do
+                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType') env 
+                                                    (ctx4, verifiedLambdaBody) <- verifyExpr (ctx3{contextEnv = updatedEnv}) assumption lambdaBody
 
-                                                    substitution <- unify verifiedLambdaBody expectedType
-                                                    let returnType = applySubstitutionToType substitution objectType
-                                                    Right (ctx3, First (V.Expr 
+                                                    subst2 <- unify verifiedLambdaBody expectedType'
+                                                    let returnType = applySubstitutionToType subst2 objectType
+                                                    Right (ctx4, First (V.Expr 
                                                         (V.ObjectLambdaSetter 
                                                             subject
                                                             actualPropertyName
@@ -366,8 +360,8 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
 
                                                 -- else is value setter
                                                 _ -> do
-                                                    (ctx3, newValue) <- verifyExpr ctx assumption ((tail params') !! 0)
-                                                    substitution <- unify newValue expectedType
+                                                    (ctx4, newValue) <- verifyExpr ctx3 assumption ((tail params') !! 0)
+                                                    substitution <- unify newValue expectedType'
                                                     let returnType = applySubstitutionToType substitution objectType
                                                     Right (ctx3, First (V.Expr 
                                                         (V.ObjectSetter subject actualPropertyName newValue) 
@@ -393,14 +387,26 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
-                                    Just (V.CarryfulTag _ expectedPropTypePairs belongingUnion) ->
-                                        (Right (ctx2, First (V.Expr
-                                            (V.CarryfulTagConstructor tagname expectedPropTypePairs)
-                                            ((V.TypeCarryfulTagConstructor 
-                                                tagname
-                                                expectedPropTypePairs
-                                                belongingUnion
-                                                scope)))))
+                                    Just (V.CarryfulTag _ expectedCarryType (V.TaggedUnion name ids tags innerTypes)) ->
+                                        if length params' == 2 then do
+                                            let carryExpr = params' !! 1 
+                                            -- instantiate type vars
+                                            let (ctx3, subst1) = instantiateTypeVar ctx2 innerTypes 
+                                            let expectedCarryType' = applySubstitutionToType subst1 expectedCarryType
+
+                                            -- verify carry expr
+                                            (ctx4, verifiedCarryExpr) <- verifyExpr ctx3 assumption carryExpr
+                                            subst2 <- unify verifiedCarryExpr expectedCarryType'
+
+                                            let innerTypes' = map (applySubstitutionToType subst1) innerTypes
+                                            let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
+                                            Right (ctx4, First (V.Expr 
+                                                (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
+                                                (V.TypeTaggedUnion (V.TaggedUnion name ids tags resultingInnerTypes))))
+                                        else 
+                                            Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
+
+
                                     Nothing ->
                                         Left (KErrorTagNotFound tagname taggedUnionName tags)
 
@@ -419,21 +425,6 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         name
                                         (zip ids types)
                                         (V.TypeTaggedUnion (V.TaggedUnion name ids tags (map V.getTypeRef types)))))
-
-                        -- (G) check if user is invoking carryful tag constructor
-                        V.TypeCarryfulTagConstructor tagname expectedPropTypePairs (V.TaggedUnion name ids tags innerTypes) scope -> do
-                            let (ctx3, subst1) = instantiateTypeVar ctx innerTypes 
-                            (ctx4, values) <- verifyExprs ctx3 assumption (tail params')
-                            let actualPropValuePairs = zip funcIds values
-                            let actualObject = V.Expr (V.Object actualPropValuePairs) (V.TypeObject Nothing (zip funcIds (map getType values)))
-                            let expectedPropTypePairs' = map (\(prop, t) -> (prop, applySubstitutionToType subst1 t)) expectedPropTypePairs
-                            subst2 <- unify actualObject (V.TypeObject Nothing expectedPropTypePairs')
-
-                            let innerTypes' = map (applySubstitutionToType subst1) innerTypes
-                            let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
-                            Right (ctx4, First (V.Expr 
-                                (V.CarryfulTagExpr tagname actualPropValuePairs scope)
-                                (V.TypeTaggedUnion (V.TaggedUnion name ids tags resultingInnerTypes))))
 
                         -- otherwise
                         _ ->
@@ -469,7 +460,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                 (ctx3, result) <- lookupFunction ctx2 assumption params funcIds
                 Right (ctx3, First result)
 
-    Raw.Lambda param body ->
+    Raw.Lambda param body _ ->
         let (ctx2, inputTVar) = createNewTVar ctx Nothing in
         let (ctx3, outputTVar) = createNewTVar ctx2 Nothing in
         Right (ctx3, First (V.Expr 
@@ -852,8 +843,13 @@ instantiateTypeVar ctx boundedTypeVars =
                         let (ctx'', tvar) = createNewTVar ctx' constraint in
                         (ctx'', Map.insert name tvar subst)
 
-                    other ->
-                        error (show other))
+                    V.TypeTaggedUnion (V.TaggedUnion _ _ _ innerTypes) ->
+                        instantiateTypeVar ctx' innerTypes
+
+                    -- for other types, return the same substitution and context
+                    _ ->
+                        (ctx, subst))
+
             (ctx, emptySubstitution)
             boundedTypeVars
     in (finalCtx, finalSubst)
@@ -870,58 +866,27 @@ typeCheckTagBranch
     -> Either KeliError (Context, V.TagBranch)
 typeCheckTagBranch ctx@(Context _ env importedEnvs) expectedTags (tag, branch) =
     case tag of
-        Raw.Id actualTagname -> do
+        -- carryful tag branch
+        Raw.Lambda _ (Raw.FuncCall (_:(Raw.Id binding):[]) (actualTagname:[])) True -> do
+            (verifiedTagname, verifiedTag) <- verifyTagname expectedTags actualTagname
+            case verifiedTag of
+                V.CarrylessTag{} -> 
+                    Left (KErrorBindingCarrylessTag actualTagname)
+
+                V.CarryfulTag _ expectedCarryType _ -> do
+                    -- update env with binding
+                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst binding expectedCarryType) env
+                    (ctx2, typeCheckedBranch) <- typeCheckExpr (ctx{contextEnv = updatedEnv}) CanBeAnything branch 
+                    typeCheckedBranch' <- extractExpr typeCheckedBranch
+                    Right (ctx2, V.CarryfulTagBranch verifiedTagname binding typeCheckedBranch')
+
+        -- carryless tag branch
+        Raw.Lambda _ (Raw.FuncCall (_:[]) (actualTagname:[])) True -> do
             (verifiedTagname,_) <- verifyTagname expectedTags actualTagname
             (ctx2, typeCheckedBranch) <- typeCheckExpr ctx CanBeAnything branch 
             typeCheckedBranch' <- extractExpr typeCheckedBranch
             Right (ctx2, V.CarrylessTagBranch verifiedTagname typeCheckedBranch')
-
-
         
-        Raw.FuncCall funcParams' funcIds' ->
-            case head funcParams' of
-                Raw.Id actualTagname -> do
-                    (verifiedTagname, matchingTag) <- verifyTagname expectedTags actualTagname
-                    case matchingTag of
-                        (V.CarrylessTag{}) ->
-                            Left (KErrorBindingCarrylessTag actualTagname)
-                
-                        (V.CarryfulTag _ expectedKeyTypePairs _) -> do
-                            -- verify property bindings
-                            let propBindings = zip funcIds' (tail funcParams')
-                            verifiedPropBindings <- 
-                                mapM 
-                                    (\(actualProp, bindingExpr) -> 
-                                        case find (\((_,p),_) -> p == snd actualProp) expectedKeyTypePairs of
-                                            Just (_, expectedType) ->
-                                                case bindingExpr of 
-                                                    Raw.Id bindingId -> 
-                                                        Right (actualProp, bindingId, expectedType)
-
-                                                    other -> 
-                                                        Left (KErrorExpectedId other)
-                                            Nothing ->
-                                                Left(KErrorUnknownProp actualProp))
-
-                                    (propBindings)
-                            
-                            -- update env with property-bindings
-                            updatedEnv <- 
-                                foldM 
-                                    (\prevSymtab (_,bindingId, expectedType) -> 
-                                        insertSymbolIntoEnv (KeliSymLocalConst bindingId expectedType) prevSymtab)
-                                    env
-                                    verifiedPropBindings
-
-                            -- type check the branch
-                            (ctx2, typeCheckedBranch) <- typeCheckExpr (ctx{contextEnv = updatedEnv}) CanBeAnything branch 
-                            typeCheckedBranch' <- extractExpr typeCheckedBranch
-                            Right (ctx2, V.CarryfulTagBranch verifiedTagname verifiedPropBindings typeCheckedBranch')
-
-                other ->
-                    Left (KErrorExpectedId other)
-
-                        
         other -> 
             Left (KErrorExpectedTagBindings other)
 

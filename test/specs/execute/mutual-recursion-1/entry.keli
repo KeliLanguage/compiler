@@ -1,21 +1,21 @@
-Boolean = tags.case(true) case(false)
+Boolean = tags.case(.True) case(.False)
 
-(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.True : k$Boolean.False").as(Boolean)
 
 (x Int).-(y Int) = ffi.javascript("k$x - k$y").as(Int)
 
 (this Int).isEven | Boolean = 
     this.==(0).
-        case(true):
-            (Boolean.true)
-        case(false):
+        case(.True):
+            (Boolean.True)
+        case(.False):
             (this.-(1).isOdd)
 
 (this Int).isOdd | Boolean = 
     this.==(0).
-        case(true):
-            (Boolean.false)
-        case(false):
+        case(.True):
+            (Boolean.False)
+        case(.False):
             (this.-(1).isEven)
 
 = 20.isEven

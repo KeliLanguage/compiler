@@ -1,14 +1,14 @@
 List.of(A Type) = tags.
-    case(new)
-    case(cons.current(A) next(List.of(A)))
+    case(.New)
+    case(.Cons($.current(A) next(List.of(A))))
 
 {A Type}
 (this List.of(A)).add(element A) | List.of(A) 
     = this.
-        case(new):
-            (List.cons.current(element) next(List.new))
+        case(.New):
+            (List.Cons($.current(element) next(List.New)))
 
-        case(cons.current(c) next(n)):
-            (List.cons.current(c) next(n.add(element)))
+        case(.Cons(c)):
+            (List.Cons($.current(c.current) next(c.next.add(element))))
     
-=List.new.add(1).add("4")
+=List.New.add(1).add("4")

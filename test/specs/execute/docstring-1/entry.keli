@@ -1,6 +1,6 @@
 List = tags.
-    case(nil)
-    case(cons)
+    case(.Nil)
+    case(.Cons)
 
 "Slices list from startIndex until including endIndex"
 (this List)              "The list to be sliced."
@@ -8,6 +8,6 @@ List = tags.
     from(startIndex Int) "Zero-based index."
     to(endIndex Int)     "Zero-based index. Inclusive."
     | List               "Returns a new list"
-    = List.nil
+    = List.Nil
 
-= List.nil.from(0) to(10)
+= List.Nil.from(0) to(10)

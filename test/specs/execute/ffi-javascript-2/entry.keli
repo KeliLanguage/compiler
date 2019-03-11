@@ -1,6 +1,6 @@
 List.of(A Type) = tags.
-    case(nil)
-    case(cons.current(A) next(List.of(A)))
+    case(.Nil)
+    case(.Cons($.current(A) next(List.of(A))))
 
 {A Type}
 (this Array.of(A)).toList

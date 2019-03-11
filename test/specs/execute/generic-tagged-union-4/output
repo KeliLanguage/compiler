@@ -1,2 +1,2 @@
-Line 27 = fail.with("Not a zero")
-Line 28 = ok.value(0)
+Line 27 = Result.Fail("Not a zero")
+Line 28 = Result.Ok(0)

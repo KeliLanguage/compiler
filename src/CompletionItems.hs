@@ -249,7 +249,7 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                         map 
                             (\t -> 
                                 case t of
-                                    V.CarryfulTag (_,tagname) propTypePairs _ ->
+                                    V.CarryfulTag (_,tagname) (V.TypeObject _ propTypePairs) _ ->
                                         let text = tagname ++ "." ++ intercalate " "
                                                         (map (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs) in
                                             CompletionItem {
@@ -259,6 +259,17 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                             insertText = tagname 
                                                 ++ "." 
                                                 ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
+                                            insertTextFormat = 2,
+                                            documentation = ""
+                                        }
+
+                                    V.CarryfulTag (_,tagname) otherType _ ->
+                                        let text = "." ++ tagname ++ "(" ++ V.stringifyType otherType ++ ")" in
+                                            CompletionItem {
+                                            kind = 13, -- enum
+                                            label = text,
+                                            detail = "",
+                                            insertText = text,
                                             insertTextFormat = 2,
                                             documentation = ""
                                         }
@@ -322,10 +333,10 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                 concatMap 
                                     (\(t,index) -> "\n\t" ++ 
                                         (case t of 
-                                            V.CarryfulTag (_,tagname) expectedPropTypePairs _ ->
-                                                "case(" ++ tagname ++ "."
-                                                    ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
-                                                    ++ "):\n\t\t(${" ++ show index ++ ":undefined})"
+                                            V.CarryfulTag (_,tagname) _ _ ->
+                                                "case(." ++ tagname ++ "(" ++ [head tagname] ++ ")):" ++ 
+                                                    "\n\t\t(${" ++ show index ++ ":undefined})"
+                                                    -- ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
 
                                             V.CarrylessTag (_,tagname) _ ->
                                                 "case(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 

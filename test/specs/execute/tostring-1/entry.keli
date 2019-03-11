@@ -1,14 +1,14 @@
 List.of(A Type) = tags.
-    case(nil)
-    case(cons.current(A) next(List.of(A)))
+    case(.Nil)
+    case(.Cons($.current(A) next(List.of(A))))
 
 {A Type}
 (this List.of(A)).toString =
     this.
-        case(nil):
+        case(.Nil):
             ("It is a nil")
-        case(cons.current(c) next(n)):
+        case(.Cons):
             ("It is not empty dude")
 
-= List.nil
-= List.cons.current(1) next(List.nil)
+= List.Nil
+= List.Cons($.current(1) next(List.Nil))

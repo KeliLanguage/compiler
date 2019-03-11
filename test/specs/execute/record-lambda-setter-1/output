@@ -1,1 +1,1 @@
-Line 5 = object.name("dog") age(19)
+Line 5 = $.name("dog") age(19)

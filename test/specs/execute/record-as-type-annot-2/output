@@ -1,1 +1,1 @@
-Line 13 = object.accepted(nil) notAccepted(nil)
+Line 13 = $.accepted(List.Nil) notAccepted(List.Nil)

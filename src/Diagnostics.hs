@@ -51,6 +51,9 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
+    KErrorIncorrectTagDeclSyntax expr ->
+        getDiagnostic [expr] ("Incorrect tag declaration syntax")
+
     KErrorPartiallyMatchedFuncFound e ->
         toDiagnostic e
 
@@ -176,17 +179,11 @@ toDiagnostic err = case err of
                 map 
                     (\t ->
                         case t of
-                            V.CarryfulTag (_,name) expectedPropTypePairs _ ->
-                                name ++ "." ++ keyPropsBindings
-                                where
-                                    keyPropsBindings =
-                                        concatMap
-                                            (\((_,prop), _) -> 
-                                                prop ++ "(" ++ [head prop] ++ ") ")
-                                            expectedPropTypePairs
+                            V.CarryfulTag (_,name) _ _ ->
+                                "." ++ name ++ "(" ++ [head name] ++ ")"
 
                             V.CarrylessTag (_,name) _ ->
-                                name)
+                                "." ++ name)
                     missingTags in
         getDiagnostic [expr] ("Missing cases:\n  " ++ intercalate "\n  " missingTags')
 
@@ -285,8 +282,8 @@ instance HaveRange V.TypeAnnotation where
 
 instance HaveRange V.UnlinkedTag where
     getRange (V.UnlinkedCarrylessTag x) = getRange x
-    getRange (V.UnlinkedCarryfulTag name keyTypeAnnotPairs) = 
-        mergeRanges ([getRange name] ++ map (\(_,t) -> getRange t) keyTypeAnnotPairs)
+    getRange (V.UnlinkedCarryfulTag name typeAnnot) = 
+        mergeRanges [getRange name, getRange typeAnnot]
 
 instance HaveRange V.Expr' where
     getRange expression = case expression of
@@ -320,8 +317,9 @@ instance HaveRange V.Expr' where
         V.CarrylessTagExpr _ x _ ->
             getRange x
 
-        V.CarryfulTagExpr name x _ ->
-            mergeRanges [getRange name, getRange (PropValuePairs x)]
+        V.CarryfulTagExpr name carryExpr _ ->
+            mergeRanges [getRange name, getRange carryExpr]
+
 
         V.TagMatcher subject branches _ ->
             mergeRanges [
@@ -376,6 +374,15 @@ instance HaveRange PropValuePairs where
 
 instance HaveRange Raw.Expr where
     getRange raw = case raw of
+        Raw.Array elems ->
+            mergeRanges (map getRange elems)
+        
+        Raw.Lambda param body isShorthand ->
+            if isShorthand then
+                getRange body
+            else
+                mergeRanges [getRange param, getRange body]
+
         Raw.NumberExpr (sourcePos, Left value) ->
             buildRange sourcePos (length (show value))
 

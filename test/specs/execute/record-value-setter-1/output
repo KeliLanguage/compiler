@@ -1,2 +1,2 @@
-Line 2 = object.name("cat") age(9)
-Line 4 = object.name("cat") age(10)
+Line 2 = $.name("cat") age(9)
+Line 4 = $.name("cat") age(10)

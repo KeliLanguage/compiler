@@ -1,33 +1,33 @@
 (x Int).plus(y Int) | Int  = ffi.javascript("k$x  + k$y").as(Int)
 
 IntList = tags.
-    case(nil) 
-    case(cons.current(Int) next(IntList))
+    case(.Nil) 
+    case(.Cons($.current(Int) next(IntList)))
 
-myList=IntList.cons.
+myList=IntList.Cons($.
     current (1) 
-    next    (IntList.cons.
+    next    (IntList.Cons($.
         current (2) 
-        next    (IntList.cons.
+        next    (IntList.Cons($.
             current (3) 
-            next    (IntList.nil)))
+            next    (IntList.Nil))))))
 
 
 (this IntList).length | Int =
     this.
-        case(nil):
+        case(.Nil):
             (0) 
 
-        case(cons.next(n)):
-            (1.plus(n.length))
+        case(.Cons(c)):
+            (1.plus(c.next.length))
 
 (this IntList).sum | Int = 
     this.
-        case(nil):
+        case(.Nil):
             (0)
 
-        case(cons.current(c) next(n)):
-            (c.plus(n.sum))
+        case(.Cons(c)):
+            (c.current.plus(c.next.sum))
 
 =myList.length
 =myList.sum

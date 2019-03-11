@@ -1,1 +1,1 @@
-=object.name("dog").name
+= $.name("dog").name

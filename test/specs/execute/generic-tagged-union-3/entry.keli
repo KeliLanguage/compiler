@@ -1,20 +1,18 @@
 List.of(A Type) = tags.
-    case(new)
-    case(cons.current(A) next(List.of(A)))
+    case(.New)
+    case(.Cons($.current(A) next(List.of(A))))
 
 (this Int).+(that Int) = ffi.javascript("k$this + k$that").as(Int)
 
 {A Type} {B Type}
 (this List.of(A)).map(f Function.in(A) out(B)) | List.of(B) =
     this.
-        case(new):
-            (List.new)
-        case(cons.current(c) next(n)):
-            (List.cons.current(f.apply(c)) next(n.map(f)))
+        case(.New):
+            (List.New)
+        case(.Cons(c)):
+            (List.Cons(c.current(x | f.apply(x)).next(.map(f))))
         
 
-= List.cons.
-    current(1) 
-    next(List.cons.
-        current(2)
-        next(List.new)).map(x | x.+(2)).map(x | x.+(3))
+= List.Cons($.current(1) next(List.Cons($.current(2) next(List.New))))
+    .map(.+(2))
+    .map(.+(3))

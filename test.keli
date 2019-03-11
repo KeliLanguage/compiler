@@ -1,1 +1,1 @@
-animal=object.name "dog" age 2 hi 3
+animal= $.name "dog" age 2 hi 3

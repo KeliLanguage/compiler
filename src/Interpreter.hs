@@ -1,8 +1,10 @@
 module Interpreter where
 
-import Compiler
-import System.Process
+import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Data.List
+import System.Process
+
+import Compiler
 import Transpiler
 import Diagnostics
 

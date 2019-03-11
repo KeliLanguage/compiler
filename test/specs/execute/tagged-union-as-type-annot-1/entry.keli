@@ -1,8 +1,8 @@
 Shape = tags.
-    case(circle)
-    case(square)
+    case(.Circle)
+    case(.Square)
 
 (this Shape).hello = "yo"
 
-= Shape.circle.hello
+= Shape.Circle.hello
 

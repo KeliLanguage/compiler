@@ -1,1 +1,1 @@
-Line 5 = object.name("pineapple")
+Line 5 = $.name("pineapple")

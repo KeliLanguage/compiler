@@ -1,17 +1,17 @@
 List.of(A Type) = tags.
-    case(new)
-    case(cons.current(A) next(List.of(A)))
+    case(.New)
+    case(.Cons($.current(A) next(List.of(A))))
 
 (this Int).+(that Int) = ffi.javascript("k$this + k$that").as(Int)
 
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        case(new):
+        case(.New):
             (0)
-        case(cons.next(n)):
-            (1.+(n.length))
+        case(.Cons(c)):
+            (1.+(c.next.length))
 
-z = List.cons.current(1) next(List.cons.current(2) next(List.new))
+z = List.Cons($.current(1) next(List.Cons($.current(3) next(List.New))))
 
 = z.length

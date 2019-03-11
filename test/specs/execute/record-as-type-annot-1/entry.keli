@@ -1,4 +1,4 @@
-Fruit = object.name(String)
+Fruit =  $.name(String)
 
 (this String).asFruit | Fruit = Fruit.name(this)
 

@@ -256,14 +256,15 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
 
                     Second (V.TypeAnnotCompound _ _ t) -> do
                         case t of
-                            V.TypeObject _ expectedPropTypePairs ->
-                                Right (V.ObjectAliasDecl id expectedPropTypePairs)
-
                             V.TypeTaggedUnion taggedUnion ->
                                 Right (V.TaggedUnionDecl taggedUnion)
                             
                             _ ->
                                 undefined
+
+                    Second (V.TypeAnnotObject expectedPropTypePairs) ->
+                        Right (V.ObjectAliasDecl id expectedPropTypePairs)
+
 
                     Second (V.TypeAnnotSimple _ t) -> do
                         undefined
@@ -385,10 +386,9 @@ linkTagsTogether taggedUnionName ids tags typeParams =
                         (\x -> case x of
                             V.UnlinkedCarrylessTag tag          -> 
                                 (V.CarrylessTag tag tagUnionType)
-                            V.UnlinkedCarryfulTag tag carryTypes -> 
-                                let carryType' = map (\(key, typeAnnot) ->
-                                        (key, substituteSelfType (V.TypeTaggedUnion tagUnionType) (V.getTypeRef typeAnnot))) 
-                                        carryTypes in
+                            V.UnlinkedCarryfulTag tag carryType -> 
+                                let carryType' = substituteSelfType (V.TypeTaggedUnion tagUnionType) (V.getTypeRef carryType) in
+
                                 (V.CarryfulTag tag carryType' tagUnionType)) 
                         tags
             in
@@ -441,7 +441,8 @@ toSymbol decl =
             Nothing
 
         V.ObjectAliasDecl id expectedPropTypePairs ->
-            Just (KeliSymType (V.TypeObject (Just id) expectedPropTypePairs))
+            Just (KeliSymType (V.TypeObject (Just id) 
+                (map (\(k,t) -> (k, V.getTypeRef t)) expectedPropTypePairs)))
 
         V.TaggedUnionDecl t ->
             Just (KeliSymTaggedUnion t)

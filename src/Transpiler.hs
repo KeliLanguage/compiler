@@ -61,11 +61,11 @@ squareBracket s = "[" ++ s ++ "]"
 
 instance Transpilable V.Tag where
     transpile tag = case tag of 
-        V.CarrylessTag (_,id) _ -> 
-            quote id ++ ":({__tag:\"" ++ id ++ "\"})"
+        V.CarrylessTag (_,id) (V.TaggedUnion (_,name) _ _ _) -> 
+            quote id ++ ":({__union:\"" ++ name ++ "\",__tag:\"" ++ id ++ "\"})"
 
-        V.CarryfulTag (_,id) _ _ -> 
-            quote id ++ ":(__carry)=>({__tag:\"" ++ id ++ "\",...__carry})"
+        V.CarryfulTag (_,id) _ (V.TaggedUnion (_,name) _ _ _) -> 
+            quote id ++ ":(__carry)=>({__union:\"" ++ name ++ "\",__tag:\"" ++ id ++ "\",__carry})"
 
 joinIds :: [V.StringToken] -> String
 joinIds ids = intercalate "_" (map snd ids)
@@ -164,14 +164,14 @@ instance Transpilable V.Expr where
 
         V.Expr 
             (V.CarryfulTagExpr (_,tag) carry scope)  
-            ( (V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+            ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
                 -> transpile scope 
                     ++ prefix taggedUnionName ++ squareBracket (quote tag) 
-                    ++ "("++ transpileKeyValuePairs False carry ++")"
+                    ++ "("++ transpile carry ++")"
 
         V.Expr 
             (V.CarrylessTagExpr(_,tag) _ scope)
-            ( (V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+            ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
                 -> transpile scope ++ prefix taggedUnionName ++ squareBracket (quote tag)
 
         V.Expr (V.FuncApp f arg) _ ->
@@ -186,12 +186,8 @@ instance Transpilable V.TagBranch where
         V.CarrylessTagBranch (V.VerifiedTagname (_,tagname)) expr ->
             tagname ++ ":" ++ lazify (transpile expr)
 
-        V.CarryfulTagBranch (V.VerifiedTagname (_,tagname)) propBindings expr ->
-            -- Refer https://codeburst.io/renaming-destructured-variables-in-es6-807549754972
-            tagname ++ ":" ++ lazify ("(({" 
-                ++ (concatMap (\((_,from), (_,to), _) -> from ++ ":" ++ prefix to ++ ",") propBindings)
-                ++ "})=>" 
-                ++ transpile expr ++ ")($$)")
+        V.CarryfulTagBranch (V.VerifiedTagname (_,tagname)) (_,binding) expr ->
+            tagname ++ ":" ++ lazify( "((" ++ prefix binding ++ ")=>" ++ transpile expr ++ ")($$.__carry)" )
 
 
 transpileKeyValuePairs :: Bool -> [(V.StringToken, V.Expr)] -> String

@@ -48,7 +48,8 @@ data Expr
     }
     | Lambda {
         lambdaParam  :: StringToken,
-        lambdaBody   :: Expr
+        lambdaBody   :: Expr,
+        isShorthand  :: Bool
     }
     | IncompleteFuncCall -- for implementing Intellisense 
         Expr 

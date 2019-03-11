@@ -1,28 +1,28 @@
 Result.ok(A Type) fail(B Type) = tags.
-    case(ok.value(A))
-    case(fail.with(B))
+    case(.Ok(A))
+    case(.Fail(B))
 
 {A Type} {B Type} {C Type}
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
     | Result.ok(C) fail(B)
     = this.
-        case(ok.value(v)):
-            (Result.ok.value(f.apply(v)))
-        case(fail.with(error)):
-            (Result.fail.with(error))
+        case(.Ok(o)):
+            (Result.Ok(f.apply(o)))
+        case(.Fail(e)):
+            (Result.Fail(e))
 
 Boolean = tags.
-    case(true) 
-    case(false) 
+    case(.True) 
+    case(.False) 
 
-(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.True : k$Boolean.False").as(Boolean)
 
 (this Int).isZero | Result.ok(Int) fail(String) = 
     this.==(0).
-        case(true):
-            (Result.ok.value(0))
-        case(false):
-            (Result.fail.with("Not a zero"))
+        case(.True):
+            (Result.Ok(0))
+        case(.False):
+            (Result.Fail("Not a zero"))
             
 = 123.isZero
 = 0.isZero 

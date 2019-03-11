@@ -1,5 +1,5 @@
 Color = tags.
-    case(red)
-    case(green.value(Int))
+    case(.Red)
+    case(.Green(Int))
 
-x=Color.green.value("123")
+x=Color.Green("123")

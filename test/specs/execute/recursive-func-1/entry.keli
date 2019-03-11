@@ -1,16 +1,16 @@
 Boolean = tags.
-    case(true) 
-    case(false)
+    case(.True) 
+    case(.False)
 
 (x Int).minus   (y Int) | Int  = ffi.javascript("k$x - k$y").as(Int)
 (x Int).times   (y Int) | Int  = ffi.javascript("k$x * k$y").as(Int)
-(x Int).equals  (y Int) | Boolean = ffi.javascript("k$x === k$y ? k$Boolean.true : k$Boolean.false").as(Boolean)
+(x Int).equals  (y Int) | Boolean = ffi.javascript("k$x === k$y ? k$Boolean.True : k$Boolean.False").as(Boolean)
 
 (x Int).factorial | Int =  
     x.equals(0).
-        case(true):
+        case(.True):
             (1)
-        case(false):
+        case(.False):
             (x.times((x.minus(1)).factorial))
 
 = 3.factorial

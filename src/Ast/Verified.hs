@@ -38,7 +38,7 @@ data Decl
 
     | ObjectAliasDecl
         StringToken
-        [(StringToken, Type)]
+        [(StringToken, TypeAnnotation)]
 
     | TaggedUnionDecl
         TaggedUnion
@@ -63,12 +63,17 @@ data TypeAnnotation
         StringToken -- constructor name
         [(StringToken, TypeAnnotation)] -- key-type pairs
         Type -- ref
+
+    | TypeAnnotObject
+        [(StringToken, TypeAnnotation)] -- key-type pairs
     deriving (Show)
 
 getTypeRef :: TypeAnnotation -> Type
 getTypeRef x = case x of
     TypeAnnotSimple _ t -> t
     TypeAnnotCompound _ _ t -> t
+    TypeAnnotObject propTypeAnnotPairs ->
+        TypeObject Nothing (map (\(k, typeAnnot) -> (k, getTypeRef typeAnnot)) propTypeAnnotPairs)
 
 data Type
     = TypeFloat
@@ -84,11 +89,6 @@ data Type
     | TypeTaggedUnion TaggedUnion
 
     | TypeUndefined
-    | TypeCarryfulTagConstructor 
-        StringToken           -- tagname
-        [(StringToken, Type)] -- expected prop-type pairs
-        TaggedUnion           -- belongingType
-        Scope
 
     | TypeObjectConstructor 
         (Maybe StringToken)   -- object type alias name
@@ -129,7 +129,6 @@ instance Show Type where
     show TypeString                                          = "*String"
     show (TypeObject name _)                                 = "*object:" ++ show name
     show (TypeUndefined)                                     = "undefined"
-    show (TypeCarryfulTagConstructor name _ _ _)             = "*carryful tag constructor:" ++ show name
     show (TypeObjectConstructor _ _)                         = undefined -- "*object constructorshow:" ++ show kvs
     show (TypeTypeParam name _)                              = "*type param:" ++ show name
     show TypeType                                            = "*type type"
@@ -151,8 +150,7 @@ data UnlinkedTag
 
     | UnlinkedCarryfulTag
         StringToken -- tag
-        [(StringToken, TypeAnnotation)] -- key-type pairs
-
+        TypeAnnotation
     deriving (Show)
 
 data Tag
@@ -161,10 +159,10 @@ data Tag
         TaggedUnion -- belonging type
 
     | CarryfulTag
-        StringToken             -- tag
-        [(StringToken, Type)]   -- expected key-type pairs
-        TaggedUnion             -- beloging type
-            deriving (Show)
+        StringToken   -- tag
+        Type          -- carry type
+        TaggedUnion   -- beloging type
+    deriving (Show)
 
 tagnameOf :: Tag -> StringToken
 tagnameOf (CarrylessTag t _) = t
@@ -243,12 +241,12 @@ data Expr'
 
     | CarryfulTagExpr
         StringToken -- tag name
-        [(StringToken, Expr)] -- key-value pairs
+        Expr        -- carry expr
         Scope
 
     | CarryfulTagConstructor 
         StringToken             -- tag name
-        [(StringToken, Type)]   -- expected prop-type pairs
+        TypeAnnotation          -- expected carry type
     
 
     | ObjectConstructor 
@@ -273,7 +271,7 @@ data TagBranch
     
     | CarryfulTagBranch
         VerifiedTagname -- tag name
-        [(StringToken, StringToken, Type)] -- property binding as in [(from, to, type)]
+        StringToken -- binding
         Expr 
 
     | ElseBranch
@@ -305,5 +303,4 @@ stringifyType t = case t of
         BoundedTypeVar name _ -> snd name
         FreeTypeVar name _ -> name
         TypeUndefined -> "Undefined"
-        TypeCarryfulTagConstructor name _ _ _ -> snd name
         _ -> error (show t)

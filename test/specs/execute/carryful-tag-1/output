@@ -1,2 +1,2 @@
 
-Line 5 = cons.value(123)
+Line 5 = IntList.Cons(123)
