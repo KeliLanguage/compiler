@@ -1,6 +1,7 @@
 Answer = tags.
     case(.Yes)
-    case(.No)
+    case(.No(String))
+    case(.Maybe(String))
 
 a= Answer.Yes
 =a.

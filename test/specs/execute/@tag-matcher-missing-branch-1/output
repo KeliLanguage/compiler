@@ -1,2 +1,3 @@
 Missing cases:
-  .No
+  .No(n)
+  .Maybe(m)

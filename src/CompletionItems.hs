@@ -73,6 +73,9 @@ instance ToJSON CompletionItem where
 toCompletionItem ::KeliSymbol -> [CompletionItem]
 toCompletionItem symbol = 
     case symbol of 
+        KeliSymLocalConst (_,id) _ ->
+            [CompletionItem  6 id  "Constant" id 1 ""]
+
         KeliSymGlobalConst (_, id) _ -> 
             [CompletionItem  6 id  "Constant" id 1 ""]
         

@@ -8,6 +8,7 @@ import Prelude hiding (id)
 import Text.ParserCombinators.Parsec
 import GHC.Generics
 import Data.Aeson
+import Data.Char
 import Data.List
 import Unify
 
@@ -180,7 +181,7 @@ toDiagnostic err = case err of
                     (\t ->
                         case t of
                             V.CarryfulTag (_,name) _ _ ->
-                                "." ++ name ++ "(" ++ [head name] ++ ")"
+                                "." ++ name ++ "(" ++ [toLower (head name)] ++ ")"
 
                             V.CarrylessTag (_,name) _ ->
                                 "." ++ name)
