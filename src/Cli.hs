@@ -17,7 +17,7 @@ import Diagnostics(toDiagnostic)
 import CompletionItems
 
 keliCompilerVersion :: String
-keliCompilerVersion = "0.0.1"
+keliCompilerVersion = "0.0.2-alpha"
 
 data KeliCommand 
     = Execute String 
