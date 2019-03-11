@@ -1,0 +1,4 @@
+Shape = tags.
+    case(.Rectangle($.height(Float) width(Float)))
+
+= Shape.

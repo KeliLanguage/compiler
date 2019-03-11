@@ -1,0 +1,7 @@
+[CompletionItem {
+    kind = 13, 
+    label = "Rectangle", 
+    detail = "", 
+    insertText = "Rectangle($.height(${1:Float}) width(${2:Float}))", 
+    insertTextFormat = 2, 
+    documentation = ""}]

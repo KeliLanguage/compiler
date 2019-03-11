@@ -250,26 +250,24 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                             (\t -> 
                                 case t of
                                     V.CarryfulTag (_,tagname) (V.TypeObject _ propTypePairs) _ ->
-                                        let text = tagname ++ "." ++ intercalate " "
-                                                        (map (\((_,key),t') -> key ++ "(" ++ V.stringifyType t' ++ ")") propTypePairs) in
-                                            CompletionItem {
+                                        CompletionItem {
                                             kind = 13, -- enum
-                                            label = text,
+                                            label = tagname,
                                             detail = "",
                                             insertText = tagname 
-                                                ++ "." 
-                                                ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
+                                                ++ "($." 
+                                                ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs)
+                                                ++ ")",
                                             insertTextFormat = 2,
                                             documentation = ""
                                         }
 
                                     V.CarryfulTag (_,tagname) otherType _ ->
-                                        let text = "." ++ tagname ++ "(" ++ V.stringifyType otherType ++ ")" in
-                                            CompletionItem {
+                                        CompletionItem {
                                             kind = 13, -- enum
-                                            label = text,
+                                            label = tagname,
                                             detail = "",
-                                            insertText = text,
+                                            insertText = tagname ++ "(${1:" ++ V.stringifyType otherType ++ "})",
                                             insertTextFormat = 2,
                                             documentation = ""
                                         }
@@ -329,17 +327,17 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
 
                     -- tag matchers
                     V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion _ _ tags _)) ->
-                        let insertText' = 
-                                concatMap 
-                                    (\(t,index) -> "\n\t" ++ 
+                        let insertText' = intercalate "\n" $
+                                map 
+                                    (\(t,index') -> "\n\t" ++ 
                                         (case t of 
                                             V.CarryfulTag (_,tagname) _ _ ->
-                                                "case(." ++ tagname ++ "(" ++ [head tagname] ++ ")):" ++ 
-                                                    "\n\t\t(${" ++ show index ++ ":undefined})"
-                                                    -- ++ intercalate " " (map (\((_,prop), _) -> prop ++ bracketize ([toLower (head prop)])) expectedPropTypePairs)
+                                                "case(." ++ tagname ++ "(" ++ [toLower (head tagname)] ++ ")):" ++ 
+                                                    "\n\t\t(${" ++ show index' ++ ":undefined})"
 
                                             V.CarrylessTag (_,tagname) _ ->
-                                                "case(" ++ tagname ++ "):\n\t\t(${" ++ show index ++ ":undefined})")) 
+                                                "case(." ++ tagname ++ "):" ++
+                                                    "\n\t\t(${" ++ show index' ++ ":undefined})")) 
                                     (zip tags [1..]) in
                         [CompletionItem {
                             kind = 12, -- value
