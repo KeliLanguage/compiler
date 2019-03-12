@@ -1,0 +1,12 @@
+= module.import("./A.keli")
+
+Answer.of(A Type) = tags.
+    case(.Yes)
+    case(.No)
+
+{A Type}
+(this Answer.of(A)).haha = "haha for answer"
+
+= 123.haha
+
+= Answer.Yes.haha

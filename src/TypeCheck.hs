@@ -503,13 +503,15 @@ verifyExprs ctx assumption rawExprs =
 
 data MatchFuncResult 
     = PerfectlyMatchedFuncFound 
-        Context    -- updated context
-        V.Expr     -- resulting func call expr
+        Context         -- updated context
+        V.Expr          -- resulting func call expr
+        V.FuncSignature -- matching funcion
 
     | PartiallyMatchedFuncFound -- means the 2nd params onward does not match expected types
         KeliError  -- corresponding error (should be type mismatch error)
 
     | StillNoMatchingFunc
+    deriving(Show)
 
 -- NOTE: params should be type checked using typeCheckExprs before passing into the lookupFunction function
 lookupFunction 
@@ -547,12 +549,28 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
 
 
         -- if only ONE matching function is found
-        x:[] ->
-            Right x
+        (updatedCtx,funcCallExpr,_):[] ->
+            Right (updatedCtx,funcCallExpr)
 
         -- if more than one matching functions are found
         _ ->
-            Left (KErrorAmbiguousUsage funcIds lookupResult)
+            -- remove super generic function (i.e. where the first parameter can be any type)
+            -- this is to allow function specialization
+            let isSuperGeneric f = 
+                    case snd (V.funcDeclParams f !! 0) of
+                        V.TypeAnnotSimple _ (V.BoundedTypeVar _ _) ->
+                            True
+                        _ ->
+                            False 
+            in
+            case filter (\(_,_,f) -> not (isSuperGeneric f)) matchingFuncs of
+                -- if only one function left after removing 
+                (updatedCtx, funcCallExpr,_ ):[] ->
+                    Right (updatedCtx, funcCallExpr)
+                
+                -- if no function left or more than one functions left
+                _ ->
+                    Left (KErrorAmbiguousUsage funcIds lookupResult)
 
 
 
@@ -564,7 +582,7 @@ lookupFunction'
     -> [V.Expr] 
     -> [Raw.StringToken] 
     -> (V.Scope, KeliSymbol)
-    -> Either KeliError (Context, V.Expr)
+    -> Either KeliError (Context, V.Expr, V.FuncSignature)
 
 lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds lookupResult = 
     case lookupResult of
@@ -626,7 +644,7 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
                                                             Right subst5 ->
                                                                 let expectedReturnType' = applySubstitutionToType subst5 expectedReturnType in
                                                                 let funcCall = V.Expr (V.FuncCall funcCallParams' funcIds (scope,currentFunc)) (expectedReturnType') in
-                                                                PerfectlyMatchedFuncFound ctx2 funcCall
+                                                                PerfectlyMatchedFuncFound ctx2 funcCall currentFunc
                                                     
                                                     Left err ->
                                                         PartiallyMatchedFuncFound err
@@ -642,8 +660,8 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
                         -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
                         (sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
 
-                PerfectlyMatchedFuncFound newCtx funcCallExpr ->
-                    Right (newCtx, funcCallExpr)
+                PerfectlyMatchedFuncFound newCtx funcCallExpr matchingFunc ->
+                    Right (newCtx, funcCallExpr, matchingFunc)
 
                 PartiallyMatchedFuncFound err ->
                     Left (KErrorPartiallyMatchedFuncFound err)
@@ -916,20 +934,22 @@ allBranchTypeAreSame typeCheckedTagBranches = do
                                         
 lookupEnvs :: String -> Env -> [(ModuleName,Env)] -> [(V.Scope,KeliSymbol)]
 lookupEnvs identifier currentEnv importedEnvs = 
-    case lookup identifier currentEnv of
-        Just s ->
-            [(V.FromCurrentScope, s)]
-        
-        Nothing ->
-            let result = 
-                        map 
-                            (\(modulename, env) ->
-                                case lookup identifier env of
-                                    Just s ->
-                                        Just (V.FromImports modulename, s)
-                                    Nothing ->
-                                        Nothing) 
-                            importedEnvs in
-
-            let symbols = catMaybes result in
-            symbols
+    let symbolsFromCurrentScope = 
+            case lookup identifier currentEnv of
+                Just s ->
+                    Just (V.FromCurrentScope, s)
+                
+                Nothing ->
+                    Nothing 
+    in
+    let symbolsFromImportedFiles = 
+            map 
+                (\(modulename, env) ->
+                    case lookup identifier env of
+                        Just s ->
+                            Just (V.FromImports modulename, s)
+                        Nothing ->
+                            Nothing) 
+                importedEnvs 
+    in
+    catMaybes (symbolsFromCurrentScope:symbolsFromImportedFiles)
