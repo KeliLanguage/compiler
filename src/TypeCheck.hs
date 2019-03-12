@@ -340,18 +340,15 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                         if length (tail params') == 0 then -- is getter
                                             Right (ctx, First (V.Expr (V.ObjectGetter subject actualPropertyName) expectedType))
                                         else if length (tail params') == 1 then -- is setter
-                                            -- instantiate type vars for expectedType
-                                            let (ctx3, subst1) = instantiateTypeVar ctx2 [expectedType] in
-                                            let expectedType' = applySubstitutionToType subst1 expectedType in
                                             case last params' of
                                                 -- if is lambda setter
                                                 -- TODO: need to check if expectedType is Function
                                                 -- something squishy is happening
                                                 Raw.Lambda lambdaParam lambdaBody _ -> do
-                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType') env 
-                                                    (ctx4, verifiedLambdaBody) <- verifyExpr (ctx3{contextEnv = updatedEnv}) assumption lambdaBody
+                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) env 
+                                                    (ctx4, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
 
-                                                    subst2 <- unify verifiedLambdaBody expectedType'
+                                                    subst2 <- unify (verifiedLambdaBody) (expectedType)
                                                     let returnType = applySubstitutionToType subst2 objectType
                                                     Right (ctx4, First (V.Expr 
                                                         (V.ObjectLambdaSetter 
@@ -363,8 +360,8 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
 
                                                 -- else is value setter
                                                 _ -> do
-                                                    (ctx4, newValue) <- verifyExpr ctx3 assumption ((tail params') !! 0)
-                                                    substitution <- unify newValue expectedType'
+                                                    (ctx3, newValue) <- verifyExpr ctx2 assumption ((tail params') !! 0)
+                                                    substitution <- unify newValue expectedType
                                                     let returnType = applySubstitutionToType substitution objectType
                                                     Right (ctx3, First (V.Expr 
                                                         (V.ObjectSetter subject actualPropertyName newValue) 

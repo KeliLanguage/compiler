@@ -1,0 +1,11 @@
+List.of(A Type) = tags.
+    case(.Nil)
+    case(.Cons($.value(A) next(List.of(A))))
+
+
+{A Type}
+(this List.of(A)).append(element A) | List.of(A) = List.Nil
+
+{A Type}
+(this $.x(List.of(A))).yo =
+    this.x(.append(List.Nil))

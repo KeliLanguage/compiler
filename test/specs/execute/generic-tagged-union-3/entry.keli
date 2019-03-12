@@ -10,7 +10,7 @@ List.of(A Type) = tags.
         case(.New):
             (List.New)
         case(.Cons(c)):
-            (List.Cons(c.current(x | f.apply(x)).next(.map(f))))
+            (List.Cons($.current(f.apply(c.current)) next(c.next.map(f))))
         
 
 = List.Cons($.current(1) next(List.Cons($.current(2) next(List.New))))
