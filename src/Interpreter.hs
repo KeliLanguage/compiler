@@ -7,14 +7,10 @@ import System.Process
 import Compiler
 import Transpiler
 import Diagnostics
-
-
-getPreludeJs :: IO String 
-getPreludeJs = readFile "/home/hou32hou/Repos/keli/compiler/kelilib/prelude.js"
+import PreludeJSCode
 
 keliInterpret ::  Bool -> String -> IO (Either String String) -- Left means Error, Right means Output
 keliInterpret showLineNumber filename  = do
-    preludeJsCode <- getPreludeJs
     contents <- readFile filename
     (errors, currentModule) <- keliCompile filename contents
     if length errors > 0 then
@@ -22,7 +18,7 @@ keliInterpret showLineNumber filename  = do
         return (Left (intercalate "\n" (map message diagnostics)))
     else do
         let code = transpileModule True showLineNumber currentModule 
-        output <- keliExecute (preludeJsCode ++ code)
+        output <- keliExecute (preludeJSCode ++ code)
         return (Right output)
 
 

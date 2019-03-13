@@ -37,6 +37,7 @@ dependencies:
 - bytestring
 - filepath
 - aeson-pretty
+- raw-strings-qq
  
 
 library:
