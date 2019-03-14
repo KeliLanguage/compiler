@@ -1,6 +1,6 @@
-Answer = tags.
-    case(.Yes)
-    case(.No)
+Answer = choice
+    .Yes    
+    .No
 
 a= Answer.No
 =a.

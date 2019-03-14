@@ -1,6 +1,6 @@
-Shape = tags.
-    case(.Circle)
-    case(.Square)
+Shape = choice
+    .Circle    
+    .Square
 
 (this Shape).hello = "yo"
 

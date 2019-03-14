@@ -1,8 +1,8 @@
 (x Int).plus(y Int) | Int  = ffi.javascript("k$x  + k$y").as(Int)
 
-IntList = tags.
-    case(.Nil) 
-    case(.Cons($.current(Int) next(IntList)))
+IntList = choice
+    .Nil
+    .Cons($.current(Int) next(IntList))
 
 myList=IntList.Cons($.
     current (1) 

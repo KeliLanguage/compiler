@@ -2,7 +2,6 @@
 module TypeCheck where
 
 import Control.Monad
-import Data.Char
 import Data.Either
 import Data.Maybe
 import Data.List hiding (lookup)
@@ -26,6 +25,26 @@ data Assumption
 
 typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
 typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expression of 
+    Raw.TaggedUnion casesKeyword funcCallTail -> do
+        unlinkedTags <- forM 
+            funcCallTail 
+            (\(funcIds, funcCallParams) -> do
+                case (funcIds, funcCallParams) of
+                    -- if is carryless tag
+                    (tagname:[], []) -> 
+                        Right (V.UnlinkedCarrylessTag tagname)
+
+                    -- is carryful tag (because have carry)
+                    (tagname:[], expectedCarryType:[]) -> do
+                        (_,verifiedCarryType) <- verifyTypeAnnotation ctx expectedCarryType
+                        Right (V.UnlinkedCarryfulTag tagname verifiedCarryType)
+
+                    -- or else
+                    _ ->
+                        Left (KErrorIncorrectTagDeclSyntax funcIds)) 
+
+        Right (ctx, Third unlinkedTags)
+
     Raw.IncompleteFuncCall expr positionOfTheDotOperator -> do
         case expr of
             Raw.Lambda param@(_,paramName) body isShortHand ->
@@ -126,39 +145,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                 
     Raw.FuncCall params' funcIds -> do
         case (head params') of
-            -- 1. Check if user wants to create a tagged union
-            (Raw.Id (_,"tags")) -> 
-                case find (\(_,x) -> x /= "case") funcIds of
-                    Just x ->
-                        Left (KErrorExpectedKeywordCase x)
-                    Nothing -> do
-                        (ctx2, tags) <- foldM 
-                                (\(prevCtx, prevTags) currentExpr -> 
-                                    case currentExpr of
-                                        Raw.Lambda _ f isShortHand ->
-                                            if isShortHand then
-                                                case f of
-                                                    Raw.FuncCall (_:[]) (tagname:[]) ->
-                                                        Right (prevCtx, prevTags ++ [V.UnlinkedCarrylessTag tagname])
-
-                                                    Raw.FuncCall (_:secondParam:[]) (tagname:[]) -> do
-                                                        (ctx2, carryType) <- verifyTypeAnnotation prevCtx secondParam
-                                                        Right (ctx2, prevTags ++ [V.UnlinkedCarryfulTag tagname carryType])
-                                                    
-                                                    _ ->
-                                                        Left (KErrorIncorrectTagDeclSyntax currentExpr)
-                                                    
-                                            else
-                                                Left (KErrorIncorrectTagDeclSyntax currentExpr)
-                                        
-                                        _ ->
-                                            Left (KErrorIncorrectTagDeclSyntax currentExpr))
-
-                                (ctx, [])
-                                (tail params')
-                        Right (ctx2, Third tags)
-
-            -- 2. Check if the user wants to create a object (type/value)
+            -- 1. Check if the user wants to create a object (type/value)
             (Raw.Id firstParamToken@(_,"$")) -> 
                 if length (tail params') == 0 then 
                     Left (KErrorIncorrectUsageOfObject firstParamToken)
@@ -192,7 +179,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                         Third tag -> 
                             Left (KErrorExpectedExprOrTypeButGotTag tag)
 
-            -- 3. check if user is using javascript ffi
+            -- 2. check if user is using javascript ffi
             (Raw.Id firstParamToken@(_,"ffi")) -> 
                 if length funcIds /= 1 || length params' /= 2 then
                     Left (KErrorIncorrectUsageOfFFI firstParamToken)

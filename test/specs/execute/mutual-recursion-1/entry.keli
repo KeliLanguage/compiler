@@ -1,9 +1,9 @@
-Boolean = tags.case(.True) case(.False)
+Boolean = choice
+    .True
+    .False
 
 (x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.True : k$Boolean.False").as(Boolean)
-
 (x Int).-(y Int) = ffi.javascript("k$x - k$y").as(Int)
-
 (this Int).isEven | Boolean = 
     this.==(0).
         case(.True):

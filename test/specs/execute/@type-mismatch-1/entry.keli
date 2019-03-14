@@ -1,6 +1,6 @@
-List.of(A Type) = tags.
-    case(.Nil)
-    case(.Cons($.value(A) next(List.of(A))))
+List.of(A Type) = choice
+    .Nil    
+    .Cons($.value(A) next(List.of(A)))
 
 
 {A Type}

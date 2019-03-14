@@ -1,8 +1,8 @@
 = module.import("./A.keli")
 
-Answer.of(A Type) = tags.
-    case(.Yes)
-    case(.No)
+Answer.of(A Type) = choice
+    .Yes    
+    .No
 
 {A Type}
 (this Answer.of(A)).haha = "haha for answer"

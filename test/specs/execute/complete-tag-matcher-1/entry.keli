@@ -1,6 +1,6 @@
-Shape = tags.
-    case(.Circle($.radius(Float)))
-    case(.Nothing)
+Shape = choice
+    .Circle($.radius(Float))
+    .Nothing
 
 a = Shape.Circle($.radius(2.0))
 

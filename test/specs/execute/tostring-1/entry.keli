@@ -1,6 +1,6 @@
-List.of(A Type) = tags.
-    case(.Nil)
-    case(.Cons($.current(A) next(List.of(A))))
+List.of(A Type) = choice
+    .Nil    
+    .Cons($.current(A) next(List.of(A)))
 
 {A Type}
 (this List.of(A)).toString =

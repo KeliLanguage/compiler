@@ -2,6 +2,5 @@
 
 (this Int).doubleNegate = this.negate.negate
 
-Shape = tags.case(.Circle) case(.Square)
-
+Shape = choice.Circle.Square
 pi = 3.14

@@ -1,6 +1,6 @@
-Result.ok(A Type) fail(B Type) = tags.
-    case(.Ok(A))
-    case(.Fail(B))
+Result.ok(A Type) fail(B Type) = choice
+    .Ok(A)
+    .Fail(B)
 
 {A Type} {B Type} {C Type}
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
@@ -11,9 +11,9 @@ Result.ok(A Type) fail(B Type) = tags.
         case(.Fail(e)):
             (Result.Fail(e))
 
-Boolean = tags.
-    case(.True) 
-    case(.False) 
+Boolean = choice
+    .True
+    .False
 
 (x Int).==(y Int) = ffi.javascript("k$x === k$y ? k$Boolean.True : k$Boolean.False").as(Boolean)
 

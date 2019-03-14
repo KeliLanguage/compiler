@@ -55,7 +55,12 @@ data Expr
         Expr 
         SourcePos -- position of the dot operator
 
-    | Array [Expr]
+    | Array 
+        [Expr] -- elements
+
+    | TaggedUnion
+        StringToken -- the `cases` keyword, for error reporting purpose
+        [([StringToken], [Expr])] -- func call tails
 
     deriving (Show,Eq)
 

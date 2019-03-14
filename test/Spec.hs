@@ -117,9 +117,9 @@ isSubListOf (x:xs) (y:ys)
 
 main :: IO ()
 main = do 
-    otherTest
     runTestCases_suggest
     runTestCases_compile
+    otherTest
 
 targetTags :: [StringToken]
 targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]

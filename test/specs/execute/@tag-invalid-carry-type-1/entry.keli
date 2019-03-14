@@ -1,6 +1,6 @@
-List.of(A Type) = tags.
-    case(.New)
-    case(.Cons($.current(A) next(List.of(A))))
+List.of(A Type) = choice
+    .New    
+    .Cons($.current(A) next(List.of(A)))
 
 
 z = List.Cons($.

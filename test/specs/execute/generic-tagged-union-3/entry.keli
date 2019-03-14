@@ -1,6 +1,6 @@
-List.of(A Type) = tags.
-    case(.New)
-    case(.Cons($.current(A) next(List.of(A))))
+List.of(A Type) = choice
+    .New    
+    .Cons($.current(A) next(List.of(A)))
 
 (this Int).+(that Int) = ffi.javascript("k$this + k$that").as(Int)
 

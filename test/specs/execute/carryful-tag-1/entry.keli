@@ -1,5 +1,5 @@
-IntList= tags.
-    case(.Nothing)
-    case(.Cons(Int))
+IntList= choice
+    .Nothing    
+    .Cons(Int)
 
 = IntList.Cons(123)

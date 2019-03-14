@@ -1,4 +1,4 @@
-Shape = tags.
-    case(.Rectangle($.height(Float) width(Float)))
+Shape = choice
+    .Rectangle($.height(Float) width(Float))
 
 = Shape.

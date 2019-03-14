@@ -1,5 +1,5 @@
-Shape = tags.
-    case(.Rectangle($.height(Float) width(Float)))
-    case(.NoShape)
+Shape = choice
+    .Rectangle($.height(Float) width(Float))
+    .NoShape
 
 = Shape.NoShape.

@@ -1,5 +1,5 @@
-Color = tags.
-    case(.Red)
-    case(.Green(Int))
+Color = choice
+    .Red
+    .Green(Int)
 
 x=Color.Green("123")

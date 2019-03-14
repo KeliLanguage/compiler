@@ -1,6 +1,6 @@
-List = tags.
-    case(.Nil)
-    case(.Cons)
+List = choice
+    .Nil    
+    .Cons
 
 "Slices list from startIndex until including endIndex"
 (this List)              "The list to be sliced."

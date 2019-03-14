@@ -1,8 +1,8 @@
 (this Int).+(that Int) | Int = ffi.javascript("k$this + k$that").as(Int)
 
-Color = tags.
-    case(.Red)
-    case(.Green(Int))
+Color = choice
+    .Red    
+    .Green(Int)
 
 x = Color.Green(2)
 y = Color.Green(5)

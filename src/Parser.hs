@@ -77,7 +77,14 @@ keliFuncCall
     =  keliAtomicExpr     >>= \param1
     -> char '.' >> spaces >>= \_
     -> keliFuncCallTail   >>= \chain
-    -> return (convertFuncCallChainToFuncCall chain param1)
+    -> case param1 of
+        -- if user is declaring tagged union
+        Raw.Id token@(_,"choice") ->
+            return (Raw.TaggedUnion token (flattenFuncCallChain chain))
+
+        -- otherwise
+        _ ->
+            return (convertFuncCallChainToFuncCall chain param1)
 
 keliLambda :: Parser Raw.Expr
 keliLambda
@@ -110,8 +117,8 @@ data KeliFuncCallChain
 
 convertFuncCallChainToFuncCall 
     :: KeliFuncCallChain
-    -> Raw.Expr -- subject expr, e.g., in `123.square` , `123` is the subject
     -> Raw.Expr
+    -> Raw.Expr -- subject expr, e.g., in `123.square` , `123` is the subject
 
 convertFuncCallChainToFuncCall chain subject = 
     let pairs = flattenFuncCallChain chain in
@@ -123,7 +130,8 @@ convertFuncCallChainToFuncCall chain subject =
         (map (\(funcIds,params) -> Raw.FuncCall params funcIds) remainingChain) -- foldee
     )
 
-flattenFuncCallChain :: KeliFuncCallChain -> [([Raw.StringToken], [Raw.Expr])]
+type FuncCallTail = ([Raw.StringToken], [Raw.Expr])
+flattenFuncCallChain :: KeliFuncCallChain -> [FuncCallTail]
 flattenFuncCallChain (KeliFuncCallChain x y) = (flattenFuncCallChain x ++ flattenFuncCallChain y)
 flattenFuncCallChain (KeliPartialFuncCall ids params) = [(ids, params)]
 

@@ -1,5 +1,3 @@
-Answer = tags.
-    case(.Yes)
-    case(.No)
-
+Answer = choice
+    .Yes    .No
 = 12

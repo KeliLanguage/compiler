@@ -1,7 +1,7 @@
-Human = tags.
-    case(.Boy)
-    case(.Baby($.cuteness(Int)))
-    case(.Worker($.salary(Int)))
+Human = choice
+    .Boy    
+    .Baby($.cuteness(Int))
+    .Worker($.salary(Int))
 
 julia=Human.Baby($.cuteness(99))
 

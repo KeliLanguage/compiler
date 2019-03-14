@@ -1,10 +1,10 @@
-Boolean = tags.
-    case(.True)
-    case(.False)
+Boolean = choice
+    .True    
+    .False
 
-List.of(A Type) = tags.
-    case(.Cons($.current(A) next(List.of(A))))
-    case(.Nil)
+List.of(A Type) = choice
+    .Nil
+    .Cons($.current(A) next(List.of(A)))
 
 {A Type}
 (this Int).hey |  $.accepted(List.of(A)) notAccepted(List.of(A))

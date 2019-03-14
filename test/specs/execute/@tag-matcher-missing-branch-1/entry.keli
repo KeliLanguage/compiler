@@ -1,7 +1,7 @@
-Answer = tags.
-    case(.Yes)
-    case(.No(String))
-    case(.Maybe(String))
+Answer = choice
+    .Yes    
+    .No(String)
+    .Maybe(String)
 
 a= Answer.Yes
 =a.

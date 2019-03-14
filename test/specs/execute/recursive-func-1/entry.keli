@@ -1,6 +1,6 @@
-Boolean = tags.
-    case(.True) 
-    case(.False)
+Boolean = choice
+    .True
+    .False
 
 (x Int).minus   (y Int) | Int  = ffi.javascript("k$x - k$y").as(Int)
 (x Int).times   (y Int) | Int  = ffi.javascript("k$x * k$y").as(Int)
