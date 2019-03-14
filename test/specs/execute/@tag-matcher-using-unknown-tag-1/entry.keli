@@ -4,11 +4,11 @@ Answer = choice
 
 a= Answer.Yes
 =a.
-    case(.Yes): 
+    if(.Yes) then 
         (2) 
     
-    case(.Lol): 
+    if(.Lol) then 
         (3)
 
-    default:
+    else
         (4)

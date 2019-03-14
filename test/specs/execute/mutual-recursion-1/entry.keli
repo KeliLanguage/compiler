@@ -6,16 +6,16 @@ Boolean = choice
 (x Int).-(y Int) = ffi.javascript("k$x - k$y").as(Int)
 (this Int).isEven | Boolean = 
     this.==(0).
-        case(.True):
+        if(.True) then
             (Boolean.True)
-        case(.False):
+        if(.False) then
             (this.-(1).isOdd)
 
 (this Int).isOdd | Boolean = 
     this.==(0).
-        case(.True):
+        if(.True) then
             (Boolean.False)
-        case(.False):
+        if(.False) then
             (this.-(1).isEven)
 
 = 20.isEven

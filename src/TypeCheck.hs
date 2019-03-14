@@ -229,18 +229,18 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                         -- (C) check if user is calling tag matchers
                         V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags _) -> do
                             let subject = firstParam 
-                            case find (\(_,x) -> x == "case") funcIds of
+                            case find (\(_,x) -> x == "if") funcIds of
                                 Nothing ->
                                     continuePreprocessFuncCall2
 
                                 Just _ -> do
                                     -- 0. take out else branch
-                                    let (rawElseBranches, noElseBranches) = partition (\((_,x),_) -> x == "default:") (zip funcIds (tail params'))
+                                    let (rawElseBranches, noElseBranches) = partition (\((_,x),_) -> x == "else") (zip funcIds (tail params'))
                                     let (elselessFuncIds, elselessParams) = unzip noElseBranches
 
                                     -- 1. check if syntax is correct
-                                    !_ <- mapM (\(pos,x) -> if x == "case" || x == "default" then Right() else Left (KErrorExpectedKeywordCaseOrDefault (pos,x))) (evens elselessFuncIds)
-                                    !_ <- mapM (\(pos,x) -> if x == ":"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
+                                    !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordCaseOrDefault (pos,x))) (evens elselessFuncIds)
+                                    !_ <- mapM (\(pos,x) -> if x == "then"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
 
                                     let tags = evens elselessParams
                                     let branches = odds elselessParams

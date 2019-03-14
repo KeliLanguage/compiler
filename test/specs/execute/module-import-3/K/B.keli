@@ -2,7 +2,7 @@
 
 (this Answer).negate =
     this.
-        case(.Yes):
+        if(.Yes) then
             (Answer.No)
-        case(.No):
+        if(.No) then
             (Answer.Yes)

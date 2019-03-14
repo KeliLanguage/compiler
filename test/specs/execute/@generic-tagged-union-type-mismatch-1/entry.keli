@@ -5,10 +5,10 @@ List.of(A Type) = choice
 {A Type}
 (this List.of(A)).add(element A) | List.of(A) 
     = this.
-        case(.New):
+        if(.New) then
             (List.Cons($.current(element) next(List.New)))
 
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (List.Cons($.current(c.current) next(c.next.add(element))))
     
 =List.New.add(1).add("4")

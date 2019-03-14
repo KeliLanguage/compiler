@@ -7,9 +7,9 @@ List.of(A Type) = choice
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        case(.New):
+        if(.New) then
             (0)
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (1.+(c.next.length))
 
 z = List.Cons($.current(1) next(List.Cons($.current(3) next(List.New))))

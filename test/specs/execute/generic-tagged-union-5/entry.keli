@@ -11,13 +11,13 @@ Box.of(A Type) = choice
 (this List.of(A)).last
     | Box.of(A)
     = this.
-        case(.Nil):
+        if(.Nil) then
             (Box.Empty)
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (c.next.
-                case(.Nil):
+                if(.Nil) then
                     (Box.With(c.value))
-                default:
+                else
                     (Box.Empty))
 
 = List.Cons($.value(1) next(List.Nil)).last

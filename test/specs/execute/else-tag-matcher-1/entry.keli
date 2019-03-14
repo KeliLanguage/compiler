@@ -4,8 +4,8 @@ Answer = choice
 
 a= Answer.No
 =a.
-    case(.Yes): 
+    if(.Yes) then
         (2) 
-    
-    default: 
+
+    else
         (1)

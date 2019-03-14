@@ -8,9 +8,9 @@ Boolean = choice
 
 (x Int).factorial | Int =  
     x.equals(0).
-        case(.True):
+        if(.True) then
             (1)
-        case(.False):
+        if(.False) then
             (x.times((x.minus(1)).factorial))
 
 = 3.factorial

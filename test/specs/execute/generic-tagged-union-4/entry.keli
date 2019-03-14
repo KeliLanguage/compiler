@@ -6,9 +6,9 @@ Result.ok(A Type) fail(B Type) = choice
 (this Result.ok(A) fail(B)).then(f Function.in(A) out(C))
     | Result.ok(C) fail(B)
     = this.
-        case(.Ok(o)):
+        if(.Ok(o)) then
             (Result.Ok(f.apply(o)))
-        case(.Fail(e)):
+        if(.Fail(e)) then
             (Result.Fail(e))
 
 Boolean = choice
@@ -19,9 +19,9 @@ Boolean = choice
 
 (this Int).isZero | Result.ok(Int) fail(String) = 
     this.==(0).
-        case(.True):
+        if(.True) then
             (Result.Ok(0))
-        case(.False):
+        if(.False) then
             (Result.Fail("Not a zero"))
             
 = 123.isZero

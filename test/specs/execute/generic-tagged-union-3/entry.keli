@@ -7,9 +7,9 @@ List.of(A Type) = choice
 {A Type} {B Type}
 (this List.of(A)).map(f Function.in(A) out(B)) | List.of(B) =
     this.
-        case(.New):
+        if(.New) then
             (List.New)
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (List.Cons($.current(f.apply(c.current)) next(c.next.map(f))))
         
 

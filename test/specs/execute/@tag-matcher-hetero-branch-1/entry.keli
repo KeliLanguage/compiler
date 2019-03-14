@@ -4,7 +4,7 @@ Answer = choice
 
 a= Answer.Yes
 =a.
-    case(.Yes): 
+    if(.Yes) then 
         (2) 
-    case(.No):
+    if(.No) then
         ("hello")

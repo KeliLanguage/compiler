@@ -7,17 +7,17 @@ List.of(A Type) = choice
 {A Type}
 (this List.of(A)).length | Int = 
     this.
-        case(.New):
+        if(.New) then
             (0)
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (1.+(c.next.length))
 
 {A Type}
 (xs List.of(A)).add(x A) | List.of(A) = 
     xs.
-        case(.New):
+        if(.New) then
             (List.Cons($.current(x) next(List.New)))
-        case(.Cons(c)):
+        if(.Cons(c)) then
             (List.Cons(c.next(.add(x))))
     
 =List.New.add(1).add(2).add(3).add(4).length
