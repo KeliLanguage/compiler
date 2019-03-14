@@ -1,7 +1,7 @@
 [CompletionItem {
     kind = 12, 
-    label = "case(...)", 
+    label = "if(...)", 
     detail = "tag matcher", 
-    insertText = "\n\tcase(.Rectangle(r)):\n\t\t(${1:undefined})\n\n\tcase(.NoShape):\n\t\t(${2:undefined})", 
+    insertText = "\n\tif(.Rectangle(r)) then\n\t\t(${1:undefined})\n\n\tif(.NoShape) then\n\t\t(${2:undefined})", 
     insertTextFormat = 2, 
     documentation = ""}]

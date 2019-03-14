@@ -80,8 +80,23 @@ toCompletionItem symbol =
             [CompletionItem  6 id  "Constant" id 1 ""]
         
         KeliSymType t ->
-            let id = V.stringifyType t in
-            [CompletionItem 7 id "Type" id 1 ""]
+            case t of 
+                -- if is object alias
+                V.TypeObject (Just (_,id)) propTypePairs ->
+                    [CompletionItem {
+                        kind = 7, 
+                        label = id,
+                        detail = "Object constructor",
+                        insertText = id 
+                            ++ "." 
+                            ++ makeKeyValuesSnippet (map (\(p,t') -> (snd p, V.stringifyType t')) propTypePairs),
+                        insertTextFormat = 2,
+                        documentation = "" }]
+
+
+                _ ->
+                    let id = V.stringifyType t in
+                    [CompletionItem 7 id "Type" id 1 ""]
 
         KeliSymTaggedUnion (V.TaggedUnion (_,id) ids _ _) ->
             [CompletionItem 7 id "Tagged union type constructor" id 1 ""]
@@ -337,16 +352,16 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                     (\(t,index') -> "\n\t" ++ 
                                         (case t of 
                                             V.CarryfulTag (_,tagname) _ _ ->
-                                                "case(." ++ tagname ++ "(" ++ [toLower (head tagname)] ++ ")):" ++ 
+                                                "if(." ++ tagname ++ "(" ++ [toLower (head tagname)] ++ ")) then" ++ 
                                                     "\n\t\t(${" ++ show index' ++ ":undefined})"
 
                                             V.CarrylessTag (_,tagname) _ ->
-                                                "case(." ++ tagname ++ "):" ++
+                                                "if(." ++ tagname ++ ") then" ++
                                                     "\n\t\t(${" ++ show index' ++ ":undefined})")) 
                                     (zip tags [1..]) in
                         [CompletionItem {
                             kind = 12, -- value
-                            label = "case(...)",
+                            label = "if(...)",
                             detail = "tag matcher",
                             insertText = insertText',
                             insertTextFormat = 2,

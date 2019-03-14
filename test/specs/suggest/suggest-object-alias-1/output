@@ -1,0 +1,7 @@
+[CompletionItem {
+    kind = 7, 
+    label = "People", 
+    detail = "Object constructor", 
+    insertText = "People.name(${1:String}) age(${2:Int})", 
+    insertTextFormat = 2, 
+    documentation = ""}]
