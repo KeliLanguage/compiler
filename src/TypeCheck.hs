@@ -239,7 +239,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                     let (elselessFuncIds, elselessParams) = unzip noElseBranches
 
                                     -- 1. check if syntax is correct
-                                    !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordCaseOrDefault (pos,x))) (evens elselessFuncIds)
+                                    !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordIfOrDefault (pos,x))) (evens elselessFuncIds)
                                     !_ <- mapM (\(pos,x) -> if x == "then"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
 
                                     let tags = evens elselessParams

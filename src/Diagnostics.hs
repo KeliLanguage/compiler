@@ -82,8 +82,8 @@ toDiagnostic err = case err of
     KErrorExpectedTagBindings x ->
         getDiagnostic [x] "Expected this to be a tag binding expression."
 
-    KErrorExpectedKeywordCase x ->
-        getDiagnostic [x] "Expected this to be the keyword `case`."
+    KErrorExpectedKeywordIf x ->
+        getDiagnostic [x] "Expected this to be the keyword `if`."
 
     KErrorExpectedPropDefOrId x ->
         getDiagnostic [x] "Expected this to be properties definition or an identifier."
@@ -91,8 +91,8 @@ toDiagnostic err = case err of
     KErrorExpectedTypeAnnotationAfterThis x ->
         getDiagnostic [x] "Expected a type annotation after this."
         
-    KErrorExpectedKeywordCaseOrDefault x ->
-        getDiagnostic [x] "Expected this to be the keyword `case` or `default`"
+    KErrorExpectedKeywordIfOrDefault x ->
+        getDiagnostic [x] "Expected this to be the keyword `if` or `default`"
 
     KErrorInvalidBoundedTypeVarDecl x ->
         getDiagnostic [x] "Invalid bounded type variable."

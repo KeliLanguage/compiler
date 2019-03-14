@@ -226,12 +226,12 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
         case expr of
             Raw.Id _ -> 
                 let reservedConstants = [
-                        "tags",
-                        "object",
-                        "interface",
-                        "ffi",
-                        "undefined",
+                        "choice",
+                        "$",
                         "module",
+                        "if",
+                        "then",
+                        "else",
                         "Int",
                         "Float",
                         "String"] in

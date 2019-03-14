@@ -59,7 +59,7 @@ data Expr
         [Expr] -- elements
 
     | TaggedUnion
-        StringToken -- the `cases` keyword, for error reporting purpose
+        StringToken -- the `choice` keyword, for error reporting purpose
         [([StringToken], [Expr])] -- func call tails
 
     deriving (Show,Eq)

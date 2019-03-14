@@ -103,7 +103,7 @@ data KeliError
     | KErrorExpectedId
         Raw.Expr
 
-    | KErrorExpectedKeywordCase 
+    | KErrorExpectedKeywordIf 
         Raw.StringToken
 
     | KErrorExpectedPropDefOrId
@@ -112,7 +112,7 @@ data KeliError
     | KErrorExpectedTypeAnnotationAfterThis
         Raw.StringToken
 
-    | KErrorExpectedKeywordCaseOrDefault
+    | KErrorExpectedKeywordIfOrDefault
         Raw.StringToken
 
     | KErrorExpectedColon
