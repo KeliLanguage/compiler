@@ -227,7 +227,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                 continuePreprocessFuncCall2
 
                         -- (C) check if user is calling tag matchers
-                        V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags _) -> do
+                        V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags innerTypes) -> do
                             let subject = firstParam 
                             case find (\(_,x) -> x == "if") funcIds of
                                 Nothing ->
@@ -374,7 +374,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
-                                    Just (V.CarryfulTag _ expectedCarryType (V.TaggedUnion name ids tags innerTypes)) ->
+                                    Just (V.CarryfulTag _ expectedCarryType (V.TaggedUnion name ids _ innerTypes)) ->
                                         if length params' == 2 then do
                                             let carryExpr = params' !! 1 
                                             -- instantiate type vars
@@ -387,9 +387,28 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
 
                                             let innerTypes' = map (applySubstitutionToType subst1) innerTypes
                                             let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
+
+                                            -- update expected carry type of every carryful tag
+                                            let 
+                                                resultingTaggedUnion = V.TaggedUnion name ids resultingTags resultingInnerTypes
+                                                resultingTags = 
+                                                        map 
+                                                        (\x -> case x of
+                                                            V.CarryfulTag name' expectedCarryType'' _ -> 
+                                                                let updatedCarryType = 
+                                                                        applySubstitutionToType subst2 (
+                                                                        applySubstitutionToType subst1 (
+                                                                        expectedCarryType'')) in
+
+                                                                V.CarryfulTag name' updatedCarryType resultingTaggedUnion
+
+                                                            V.CarrylessTag name' _ -> 
+                                                                V.CarrylessTag name' resultingTaggedUnion) 
+                                                        tags
+
                                             Right (ctx4, First (V.Expr 
                                                 (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
-                                                (V.TypeTaggedUnion (V.TaggedUnion name ids tags resultingInnerTypes))))
+                                                (V.TypeTaggedUnion resultingTaggedUnion)))
                                         else 
                                             Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
 

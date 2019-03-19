@@ -1,0 +1,162 @@
+
+~
+  suggest-object-alias-1
+~
+  suggest-for-lambda-shorthand-2
+~
+  suggest-for-function-chaining-1
+~
+  suggest-tagged-union-1
+~
+  suggest-for-function-chaining-2
+~
+  suggest-imported-symbol-1
+~
+  suggest-for-lambda-shorthand-1
+~
+  suggest-case-expr-1
+
+Finished in 0.0099 seconds
+8 examples, 0 failures
+
+~
+  record-as-type-annot-2
+~
+  record-value-setter-1
+~
+  ffi-javascript-1
+~
+  identity-func-1
+~
+  generic-tagged-union-5
+~
+  insensitive-decl-order-1
+~
+  generic-tagged-union-3
+~
+  tostring-1
+~
+  carryless-tag-1
+~
+  lambda-shorthand-1
+~
+  fix#33
+~
+  complete-tag-matcher-1
+~
+  @generic-tagged-union-type-mismatch-1
+~
+  mutual-recursion-1
+~
+  @type-mismatch-1
+~
+  module-import-4
+~
+  @tag-matcher-duplicate-tags-1
+~
+  @incorrect-carry-type-1
+~
+  module-import-3
+~
+  record-getter-1
+~
+  @tag-matcher-hetero-branch-1
+~
+  func-chaining-2
+~
+  @importing-unexisting-file-1
+~
+  docstring-1
+~
+  @record-prop-type-mismatch-1
+~
+  recursive-tagged-union-1
+~
+  func-without-return-type-annot-1
+~
+  generic-tagged-union-1
+~
+  recursive-func-1
+~
+  multiple-dispatch-1
+~
+  ffi-javascript-2
+~
+  @tag-matcher-missing-branch-1
+~
+  func-chaining-1
+~
+  access-tag-carry-1
+~
+  bifunc-1
+~
+  module-import-2
+~
+  @duplicated-func-1
+~
+  multiline-string-1
+~
+  record-type-alias-1
+~
+  tagged-union-as-type-annot-1
+~
+  @tag-invalid-carry-type-1
+~
+  record-as-type-annot-1
+~
+  @record-missing-prop-1
+~
+  array-literal-1
+~
+  fix#41
+~
+  access-tag-carry-2
+~
+  comment-1
+~
+  record-creation-1
+~
+  @incorrect-lambda-param-type-1
+~
+  carryful-tag-1
+~
+  trifunc-1
+~
+  @duplicated-const-id-1
+~
+  record-lambda-setter-1
+~
+  module-import-1
+~
+  generic-tagged-union-4
+~
+  generic-tagged-union-2
+~
+  multiple-dispatch-2
+~
+  else-tag-matcher-1
+~
+  @tag-matcher-using-unknown-tag-1
+
+Finished in 2.6415 seconds
+59 examples, 0 failures
+
+match
+  got duplicate
+  zero intersection
+  got excessive
+  missing
+  perfect match
+keli parser
+  identifiers
+  string expr
+  lambda expr
+  multiple decl
+  const decl
+  monofunc decl
+  polyfunc decl
+  monofunc call
+  polyfunc call
+
+Finished in 0.0024 seconds
+14 examples, 0 failures

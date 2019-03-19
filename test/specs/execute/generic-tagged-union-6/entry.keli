@@ -1,0 +1,10 @@
+Box.of(A Type) = choice
+    .Ok($.value(A))
+    .Nothing
+
+= Box.Ok($.value(123)).
+    if(.Ok(o)) then
+        (o.value)
+
+    if(.Nothing) then
+        (4)
