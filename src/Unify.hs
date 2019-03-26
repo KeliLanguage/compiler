@@ -234,7 +234,22 @@ applySubstitutionToType subst type' =
                     type'
 
         V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes) ->
-            V.TypeTaggedUnion (V.TaggedUnion name ids tags (map (applySubstitutionToType subst) innerTypes))
+            let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes
+                resultingTaggedUnion = V.TaggedUnion name ids resultingTags resultingInnerTypes
+                resultingTags = 
+                        map 
+                        (\x -> case x of
+                            V.CarryfulTag name' expectedCarryType _ -> 
+                                let updatedCarryType = 
+                                        applySubstitutionToType subst (expectedCarryType) in
+
+                                V.CarryfulTag name' updatedCarryType resultingTaggedUnion
+
+                            V.CarrylessTag name' _ -> 
+                                V.CarrylessTag name' resultingTaggedUnion) 
+                        tags
+            in
+            V.TypeTaggedUnion resultingTaggedUnion
 
         V.TypeObject name propTypePairs ->
             let (props, types) = unzip propTypePairs in

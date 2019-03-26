@@ -374,7 +374,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                             ((V.TypeTaggedUnion belongingUnion)))))
 
                                     -- if is carryful tag
-                                    Just (V.CarryfulTag _ expectedCarryType (V.TaggedUnion name ids _ innerTypes)) ->
+                                    Just (V.CarryfulTag _ expectedCarryType taggedUnion@(V.TaggedUnion name ids _ innerTypes)) ->
                                         if length params' == 2 then do
                                             let carryExpr = params' !! 1 
                                             -- instantiate type vars
@@ -385,30 +385,16 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                                             (ctx4, verifiedCarryExpr) <- verifyExpr ctx3 assumption carryExpr
                                             subst2 <- unify verifiedCarryExpr expectedCarryType'
 
-                                            let innerTypes' = map (applySubstitutionToType subst1) innerTypes
-                                            let resultingInnerTypes = map (applySubstitutionToType subst2) innerTypes'
+                                            let resultingTaggedUnionType = 
+                                                    applySubstitutionToType subst2 
+                                                        (applySubstitutionToType subst1 
+                                                            (V.TypeTaggedUnion taggedUnion))
 
                                             -- update expected carry type of every carryful tag
-                                            let 
-                                                resultingTaggedUnion = V.TaggedUnion name ids resultingTags resultingInnerTypes
-                                                resultingTags = 
-                                                        map 
-                                                        (\x -> case x of
-                                                            V.CarryfulTag name' expectedCarryType'' _ -> 
-                                                                let updatedCarryType = 
-                                                                        applySubstitutionToType subst2 (
-                                                                        applySubstitutionToType subst1 (
-                                                                        expectedCarryType'')) in
-
-                                                                V.CarryfulTag name' updatedCarryType resultingTaggedUnion
-
-                                                            V.CarrylessTag name' _ -> 
-                                                                V.CarrylessTag name' resultingTaggedUnion) 
-                                                        tags
 
                                             Right (ctx4, First (V.Expr 
                                                 (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
-                                                (V.TypeTaggedUnion resultingTaggedUnion)))
+                                                (resultingTaggedUnionType)))
                                         else 
                                             Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
 
@@ -460,7 +446,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                     _ -> 
                         treatAsNormalFuncCall
 
-                        
+
             treatAsNormalFuncCall = do
                 (ctx2, params) <- verifyExprs ctx assumption params'
                 (ctx3, result) <- lookupFunction ctx2 assumption params funcIds
@@ -553,7 +539,7 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
 
         -- if only ONE matching function is found
         (updatedCtx,funcCallExpr,_):[] ->
-            Right (updatedCtx,funcCallExpr)
+            Right (updatedCtx, funcCallExpr)
 
         -- if more than one matching functions are found
         _ ->

@@ -1,0 +1,19 @@
+Box.of(A Type) = choice
+    .Ok($.value(A))
+    .Nothing
+
+List.of(A Type) = choice 
+    .Nil
+    .Cons($.value(A) next(List.of(A)))
+
+{A Type}
+(this List.of(A)).at(index Int)
+    | Box.of(A)
+    = Box.Nothing 
+
+= List.Cons($.value(1) next(List.Nil)).at(2).
+    if(.Ok(o)) then
+        (o.value)
+    
+    if(.Nothing) then
+        (0)
