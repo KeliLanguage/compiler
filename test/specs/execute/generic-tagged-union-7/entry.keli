@@ -1,0 +1,15 @@
+Box.of(A Type) = choice
+    .Ok($.value(A))
+    .Nothing
+
+{A Type} {B Type}
+(this Box.of(A)).then(f Function.in(A) out(B))
+    | Box.of(B)
+    = this. 
+        if(.Ok(o)) then
+            (Box.Ok($.value(f.apply(o.value))))
+
+        if(.Nothing) then
+            (Box.Nothing)
+
+= Box.Ok($.value(5)).then(x | x)
