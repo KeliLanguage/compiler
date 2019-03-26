@@ -27,7 +27,8 @@ data Diagnostic =
             -- 3 : Information
             -- 4 : Hint
         range       :: Range,
-        message     :: String
+        message     :: String,
+        filename    :: String
         -- relatedInformation :: Maybe 
     }
     deriving (Show, Generic)
@@ -141,12 +142,15 @@ toDiagnostic err = case err of
         getDiagnostic [x] "Expected a tag but got a type annotation."
 
     KErrorIncompleteFuncCall _ positionOfDotOperator ->
-        [Diagnostic 1 (buildRange positionOfDotOperator 1) "Expecting function identifier after this dot operator."]
+        [Diagnostic 1 (buildRange positionOfDotOperator 1) 
+            "Expecting function identifier after this dot operator."
+            (sourceName positionOfDotOperator)
+            ]
         
     KErrorParseError sp messages ->
         let pos1 = toPosition sp in
         let pos2 = pos1 {character = character pos1 + 1} in
-        [Diagnostic 1 (Range pos1 pos2) (show messages)]
+        [Diagnostic 1 (Range pos1 pos2) (show messages) (sourceName sp)]
     
     KErrorDuplicatedId ids ->
         getDiagnostic ids "Duplicated identifier."
@@ -158,7 +162,13 @@ toDiagnostic err = case err of
         getDiagnostic ids "Duplicated tags."
 
     KErrorExcessiveTags tags tagUnionName ->
-        map (\t -> Diagnostic 1 (getRange t) ("Excessive tag: " ++ intercalate " " [snd tagUnionName] ++ " does not have the tag " ++ init (snd t))) tags
+        map (\t -> 
+            Diagnostic 
+                1 
+                (getRange t) 
+                ("Excessive tag: " ++ intercalate " " [snd tagUnionName] ++ " does not have the tag " ++ init (snd t))
+                (sourceName (fst t)))
+            tags
 
     KErrorExcessiveProperties props ->
         getDiagnostic props "Excessive property."
@@ -258,7 +268,12 @@ toDiagnostic err = case err of
 
         getDiagnostic :: HaveRange a => [a] -> String -> [Diagnostic]
         getDiagnostic strtoks errorMsg =
-            map (\id -> Diagnostic 1 (getRange id) errorMsg) strtoks
+            map (\x -> 
+                    Diagnostic 
+                        1 
+                        (getRange x) 
+                        errorMsg 
+                        (getSourceName x)) strtoks
 
         showFuncIds :: [V.StringToken] -> String
         showFuncIds funcIds = backtick (intercalate " " (map snd funcIds))
@@ -268,23 +283,36 @@ backtick :: String -> String
 backtick str = "`" ++ str ++ "`"
 
 class HaveRange a where
-    getRange :: a -> Range
+    getRange      :: a -> Range
+    getSourceName :: a -> String
 
 instance HaveRange V.StringToken where
     getRange (sourcePos, str) = buildRange sourcePos (length str) 
+    getSourceName (sourcePos, _) = sourceName sourcePos
 
 instance HaveRange V.Expr where
     getRange (V.Expr expr _) = getRange expr
+    getSourceName (V.Expr expr _) = getSourceName expr
 
 instance HaveRange V.TypeAnnotation where
     getRange (V.TypeAnnotSimple x _) = getRange x
     getRange (V.TypeAnnotCompound name keyTypeAnnotPairs _) =
         mergeRanges ([getRange name] ++ map (\(_,t) -> getRange t) keyTypeAnnotPairs)
+    getRange (V.TypeAnnotObject keyTypePairs) = 
+        mergeRanges(map (\(key,_) -> getRange key) keyTypePairs)
+
+
+    getSourceName (V.TypeAnnotSimple x _) = getSourceName x
+    getSourceName (V.TypeAnnotCompound name _ _) = getSourceName name
+    getSourceName (V.TypeAnnotObject keyTypePairs) = getSourceName (fst (keyTypePairs !! 0))
 
 instance HaveRange V.UnlinkedTag where
     getRange (V.UnlinkedCarrylessTag x) = getRange x
     getRange (V.UnlinkedCarryfulTag name typeAnnot) = 
         mergeRanges [getRange name, getRange typeAnnot]
+
+    getSourceName (V.UnlinkedCarrylessTag name) = getSourceName name
+    getSourceName (V.UnlinkedCarryfulTag name _) = getSourceName name
 
 instance HaveRange V.Expr' where
     getRange expression = case expression of
@@ -363,6 +391,82 @@ instance HaveRange V.Expr' where
         V.FuncApp left right ->
             mergeRanges [getRange left, getRange right]
 
+
+    getSourceName expression = case expression of
+        V.Array exprs ->
+            case exprs of
+                [] ->
+                    undefined
+
+                x:_ ->
+                    getSourceName x
+
+        V.PartiallyInferredLambda param _ ->
+            getSourceName param
+
+        V.ObjectLambdaSetter subject _ _ _ ->
+            getSourceName subject
+
+        V.FFIJavascript code ->
+            getSourceName code
+
+        V.TagConstructorPrefix name ->
+            getSourceName name
+
+        V.TypeConstructorPrefix name ->
+            getSourceName name
+
+        V.CarryfulTagConstructor name _ ->
+            getSourceName name
+
+        V.ObjectConstructor (Just name) _ ->
+            getSourceName name
+
+        V.ObjectConstructor Nothing kvs ->
+            getSourceName (fst (kvs !! 0))
+        
+        V.CarrylessTagExpr _ x _ ->
+            getSourceName x
+
+        V.CarryfulTagExpr name _ _ ->
+            getSourceName name
+
+        V.TagMatcher subject _ _ ->
+            getSourceName subject
+
+        V.ObjectSetter _ prop _ ->
+            getSourceName prop
+
+        V.ObjectGetter _ prop ->
+            getSourceName prop
+
+        V.Lambda (param,_) _ ->
+            getSourceName param
+
+        V.IntExpr (sourcePos, _) ->
+            sourceName sourcePos
+
+        V.DoubleExpr (sourcePos, _) ->
+            sourceName sourcePos
+
+        V.StringExpr (sourcePos, _) ->
+            sourceName sourcePos
+        
+        V.GlobalId (sourcePos, _) _ _ ->
+            sourceName sourcePos
+
+        V.LocalId (sourcePos, _) _ ->
+            sourceName sourcePos
+
+        V.FuncCall params _ _ ->
+            getSourceName (params !! 0)
+
+        V.Object x ->
+            getSourceName (PropValuePairs x)
+
+        V.FuncApp left _ ->
+            getSourceName left
+
 data PropValuePairs = PropValuePairs [(V.StringToken, V.Expr)]
 
 instance HaveRange PropValuePairs where
@@ -372,6 +476,9 @@ instance HaveRange PropValuePairs where
                 mergeRanges [ranges ,mergeRanges [getRange prop, getRange value]])
             (let (prop,value) = head propValuePairs in mergeRanges [getRange prop, getRange value])
             (tail propValuePairs)
+
+    getSourceName (PropValuePairs propValuePairs) = 
+        getSourceName (fst (propValuePairs !! 0))
 
 instance HaveRange Raw.Expr where
     getRange raw = case raw of
@@ -399,6 +506,29 @@ instance HaveRange Raw.Expr where
         Raw.FuncCall params ids ->
             mergeRanges (map getRange ids ++ map getRange params)
 
+    getSourceName raw = case raw of
+        Raw.Array elems ->
+            case elems of
+                [] ->
+                    undefined
+
+                x:_ ->
+                    getSourceName x
+        
+        Raw.Lambda param _ _ ->
+            getSourceName param
+
+        Raw.NumberExpr (sourcePos, _) ->
+            sourceName sourcePos 
+
+        Raw.StringExpr (sourcePos, _) ->
+            sourceName sourcePos 
+        
+        Raw.Id (sourcePos, _) ->
+            sourceName sourcePos 
+
+        Raw.FuncCall _ ids ->
+            getSourceName (ids !! 0)
 
 instance HaveRange V.TagBranch where
     getRange (V.CarrylessTagBranch tagname expr) = 
@@ -410,8 +540,18 @@ instance HaveRange V.TagBranch where
     getRange (V.ElseBranch expr) = 
         getRange expr
 
+    getSourceName (V.CarrylessTagBranch tagname _) = 
+        getSourceName tagname
+        
+    getSourceName (V.CarryfulTagBranch tagname _ _) =
+        getSourceName tagname
+
+    getSourceName (V.ElseBranch expr) = 
+        getSourceName expr
+
 instance HaveRange V.VerifiedTagname where
     getRange (V.VerifiedTagname x) = getRange x
+    getSourceName (V.VerifiedTagname x) = getSourceName x
 
 buildRange :: SourcePos -> Int -> Range
 buildRange sourcePos length' = 

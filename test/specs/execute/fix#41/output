@@ -1,1 +1,3 @@
-Unknown indentifier: x
+ERROR at ./test/specs/execute/fix#41/entry.keli:3:3
+
+    Unknown indentifier: x

@@ -1,1 +1,3 @@
-Expected `Int` but got `String`
+ERROR at ./test/specs/execute/@incorrect-carry-type-1/entry.keli:5:15
+
+    Expected `Int` but got `String`

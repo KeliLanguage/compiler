@@ -1,1 +1,3 @@
-Cannot import this file. Maybe it does not exist, or you don't have the right to access it.
+ERROR at ./test/specs/execute/@importing-unexisting-file-1/entry.keli:1:17
+
+    Cannot import this file. Maybe it does not exist, or you don't have the right to access it.

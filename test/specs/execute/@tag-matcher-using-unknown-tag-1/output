@@ -1,1 +1,3 @@
-Unknown tag: `Lol`
+ERROR at ./test/specs/execute/@tag-matcher-using-unknown-tag-1/entry.keli:10:9
+
+    Unknown tag: `Lol`

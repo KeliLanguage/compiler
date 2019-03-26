@@ -1,1 +1,3 @@
-Duplicated function.
+ERROR at ./test/specs/execute/@duplicated-func-1/entry.keli:2:9
+
+    Duplicated function.

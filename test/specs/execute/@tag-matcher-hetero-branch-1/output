@@ -1,2 +1,4 @@
-The expected type of each branch is `Int` (based on the type of first branch at Line 8)
-But this branch has type of `String`
+ERROR at ./test/specs/execute/@tag-matcher-hetero-branch-1/entry.keli:10:10
+
+    The expected type of each branch is `Int` (based on the type of first branch at Line 8)
+    But this branch has type of `String`

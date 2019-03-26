@@ -1,3 +1,5 @@
-Missing cases:
-  .No(n)
-  .Maybe(m)
+ERROR at ./test/specs/execute/@tag-matcher-missing-branch-1/entry.keli:7:2
+
+    Missing cases:
+      .No(n)
+      .Maybe(m)

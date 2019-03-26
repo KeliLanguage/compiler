@@ -1,2 +1,8 @@
-Duplicated tags.
-Duplicated tags.
+ERROR at ./test/specs/execute/@tag-matcher-duplicate-tags-1/entry.keli:8:9
+
+    Duplicated tags.
+
+
+ERROR at ./test/specs/execute/@tag-matcher-duplicate-tags-1/entry.keli:9:9
+
+    Duplicated tags.

@@ -1,1 +1,3 @@
-Expected `Int` but got `String`
+ERROR at ./test/specs/execute/@incorrect-lambda-param-type-1/entry.keli:2:13
+
+    Expected `Int` but got `String`

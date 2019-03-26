@@ -1,1 +1,3 @@
-Expected `Int` but got `String`
+ERROR at ./test/specs/execute/@generic-tagged-union-type-mismatch-1/entry.keli:14:22
+
+    Expected `Int` but got `String`

@@ -1,1 +1,3 @@
-Duplicated identifier.
+ERROR at ./test/specs/execute/@duplicated-const-id-1/entry.keli:2:1
+
+    Duplicated identifier.

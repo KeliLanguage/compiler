@@ -1,1 +1,3 @@
-Missing properties: age
+ERROR at ./test/specs/execute/@record-missing-prop-1/entry.keli:3:12
+
+    Missing properties: age

@@ -1,2 +1,4 @@
-The expected type of `name` is String.
-But the given expression have type of Int
+ERROR at ./test/specs/execute/@record-prop-type-mismatch-1/entry.keli:3:12
+
+    The expected type of `name` is String.
+    But the given expression have type of Int
