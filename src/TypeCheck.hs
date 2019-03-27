@@ -4,18 +4,22 @@ module TypeCheck where
 import Control.Monad
 import Data.Either
 import Data.Maybe
-import Data.List hiding (lookup)
+import qualified Data.List as List
 import Module
 import Data.Map.Ordered ((|>), lookup, member) 
 import qualified Data.Map.Strict as Map
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
-import Prelude hiding (lookup,id)
+import Prelude hiding (lookup, id, head)
 
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import StaticError
 import Env
-import Util
+import Util (
+    OneOf3(First, Second, Third), 
+    MatchResult(GotDuplicates,ZeroIntersection,GotExcessive,Missing,PerfectMatch),
+    match,
+    findDuplicates)
 import Unify
 
 data Assumption 
@@ -23,7 +27,11 @@ data Assumption
     | CanBeAnything 
     deriving (Show)
 
-typeCheckExpr :: Context -> Assumption -> Raw.Expr -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
+typeCheckExpr 
+    :: Context 
+    -> Assumption 
+    -> Raw.Expr 
+    -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation ([V.UnlinkedTag]))
 typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expression of 
     Raw.TaggedUnion casesKeyword funcCallTail -> do
         unlinkedTags <- forM 
@@ -63,20 +71,30 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                 (_,typeCheckedExpr) <- typeCheckExpr ctx assumption expr
                 Left (KErrorIncompleteFuncCall typeCheckedExpr positionOfTheDotOperator)
 
-    Raw.Array exprs ->
+    Raw.Array exprs pos ->
         case exprs of
             [] ->
-                undefined
+                let boundedTypeVar = V.BoundedTypeVar (V.newStringToken "A") Nothing in
+                let arrayType = V.TypeTaggedUnion (newArrayType boundedTypeVar) in
+                let (ctx3, subst) = instantiateTypeVar ctx [boundedTypeVar] in
+                let arrayType' = applySubstitutionToType subst arrayType in
+                Right (ctx3, First (V.Expr
+                    (V.Array [] pos)
+                    (arrayType')))
 
             x:xs -> do
-                (ctx2, headElement) <- verifyExpr ctx assumption x 
-                (ctx3, tailElements) <- verifyExprs ctx2 assumption xs
-                let typeOfFirstElem = getType headElement
-                -- make sure every element have the same type as the first element 
-                !_ <- forM tailElements (\el -> unify el typeOfFirstElem)
-                Right (ctx3, First (V.Expr
-                    (V.Array (headElement:tailElements))
-                    (V.TypeTaggedUnion (newArrayType typeOfFirstElem))))
+                (ctx2, elements) <- verifyExprs ctx assumption (x:xs)
+                case elements of
+                    [] ->
+                        error "impossible"
+                    
+                    firstElement:tailElements -> do
+                        let typeOfFirstElem = getType firstElement
+                        -- make sure every element have the same type as the first element 
+                        !_ <- forM tailElements (\element -> unify element typeOfFirstElem)
+                        Right (ctx2, First (V.Expr
+                            (V.Array elements pos)
+                            (V.TypeTaggedUnion (newArrayType typeOfFirstElem))))
 
     Raw.NumberExpr(pos,n) -> 
         case n of 
@@ -142,315 +160,47 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
             -- if more than one symbols
             symbols -> 
                 Left (KErrorAmbiguousUsage [token] symbols)
-                
-    Raw.FuncCall params' funcIds -> do
-        case (head params') of
-            -- 1. Check if the user wants to create a object (type/value)
-            (Raw.Id firstParamToken@(_,"$")) -> 
-                if length (tail params') == 0 then 
-                    Left (KErrorIncorrectUsageOfObject firstParamToken)
 
-                else do 
-                    -- NOTE: 
-                    --  Because of the following line of code,
-                    --  the following recursive object type cannot be declared:
-                    --
-                    --      fruit = object.next fruit;
-                    -- 
-                    -- It's ok, because we shouldn't allow user to create recursive objects (which will form infinite type)
-                    (ctx2, firstValue) <- typeCheckExpr ctx assumption (tail params' !! 0)  -- <-- this line
-
-                    let keys = funcIds
-                    case firstValue of 
-                        -- assume user want to create a object value
-                        First _ -> do
-                            (ctx3, keyValuePairs) <- verifyKeyValuePairs ctx2 keys (tail params')
-                            Right 
-                                (ctx3, First
-                                    (V.Expr
-                                        (V.Object keyValuePairs) 
-                                        ( (V.TypeObject Nothing (map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
-                        
-                        -- assume user want to declare a object type
-                        Second _ -> do
-                            (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (tail params')
-                            Right (ctx3, Second (V.TypeAnnotObject keyTypePairs))
-
-                        Third tag -> 
-                            Left (KErrorExpectedExprOrTypeButGotTag tag)
-
-            -- 2. check if user is using javascript ffi
-            (Raw.Id firstParamToken@(_,"ffi")) -> 
-                if length funcIds /= 1 || length params' /= 2 then
-                    Left (KErrorIncorrectUsageOfFFI firstParamToken)
-                else if snd (funcIds !! 0) /= "javascript" then
-                    Left (KErrorUnknownFFITarget (funcIds !! 0))
-                else do
-                    (ctx2, jsCode) <- typeCheckExpr ctx assumption (params' !! 1)
-                    jsCode' <- extractExpr jsCode
-                    case jsCode' of
-                        (V.Expr (V.StringExpr value) _) ->
-                            Right (ctx2, First (V.Expr (V.FFIJavascript value) ( V.TypeUndefined)))
-
-                        _ -> 
-                            Left (KErrorFFIValueShouldBeString jsCode')
-                    
-            _ -> 
-                continuePreprocessFuncCall1
-
-        where 
-            continuePreprocessFuncCall1 :: Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag])
-            continuePreprocessFuncCall1 = do
-                (ctx2, firstParam) <- verifyExpr ctx assumption  (head params')
-
-                let typeOfFirstParam = getType firstParam in
-                    case typeOfFirstParam of
-                        -- (A) check if user is invoking object constructor
-                        V.TypeObjectConstructor aliasedName expectedPropTypePairs -> do
-                            (ctx3, values)  <- verifyExprs ctx2 assumption (tail params')
-                            let actualPropValuePairs = zip funcIds values
-                            let actualObject = V.Expr (V.Object actualPropValuePairs) (V.TypeObject aliasedName (zip funcIds (map getType values)))
-                            substitution <- unify actualObject (V.TypeObject aliasedName expectedPropTypePairs)
-                            let resultingType = applySubstitutionToType substitution (V.TypeObject aliasedName expectedPropTypePairs)
-                            Right (ctx3, First (V.Expr (V.Object actualPropValuePairs) resultingType))
-
-                        -- (B) check if user is performing function application
-                        V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ 
-                            (expectedInputType:expectedOutputType:[])) ->
-                            if snd (head funcIds) == "apply" && length (tail params') == 1 then do
-                                (ctx3, value) <- verifyExpr ctx2 assumption (last params')
-                                -- check if value match with expectedInputType
-                                !_ <- unify value expectedInputType
-                                let f = firstParam
-                                Right (ctx3, First(V.Expr (V.FuncApp f value) expectedOutputType))
-                            else
-                                continuePreprocessFuncCall2
-
-                        -- (C) check if user is calling tag matchers
-                        V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags innerTypes) -> do
-                            let subject = firstParam 
-                            case find (\(_,x) -> x == "if") funcIds of
-                                Nothing ->
-                                    continuePreprocessFuncCall2
-
-                                Just _ -> do
-                                    -- 0. take out else branch
-                                    let (rawElseBranches, noElseBranches) = partition (\((_,x),_) -> x == "else") (zip funcIds (tail params'))
-                                    let (elselessFuncIds, elselessParams) = unzip noElseBranches
-
-                                    -- 1. check if syntax is correct
-                                    !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordIfOrDefault (pos,x))) (evens elselessFuncIds)
-                                    !_ <- mapM (\(pos,x) -> if x == "then"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
-
-                                    let tags = evens elselessParams
-                                    let branches = odds elselessParams
-                                    let rawTagBranches = zip tags branches
-
-                                    -- 2.1 type check raw tag branches
-                                    typeCheckedTagBranches <- 
-                                            mapM 
-                                                (\nextRawTagBranch -> do
-                                                    (_, typeCheckedTagBranch) <- typeCheckTagBranch ctx expectedTags nextRawTagBranch
-                                                    Right typeCheckedTagBranch)
-                                                rawTagBranches
-
-                                    -- 2.2 type check raw else branches
-                                    (ctx3, typeCheckedElseBranches) <- verifyExprs ctx2 assumption (map snd rawElseBranches)
-
-                                    -- 3. check if each branch have the same type with the first branch
-                                    case allBranchTypeAreSame (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
-                                        Left err ->
-                                            case err of
-                                                KErrorTypeMismatch actualExpr actualType expectedType ->
-                                                    Left (KErrorNotAllBranchHaveTheSameType 
-                                                        actualExpr actualType expectedType (head typeCheckedTagBranches))
-
-                                                _ ->
-                                                    Left err
-
-                                        Right branchType ->
-                                            -- 4. check for exhaustiveness
-                                            let actualTagnames = concatMap (\b -> case b of 
-                                                    V.CarrylessTagBranch (V.VerifiedTagname name) _ ->
-                                                        [name]
-                                                    V.CarryfulTagBranch (V.VerifiedTagname name) _ _ ->
-                                                        [name]
-                                                    V.ElseBranch{} -> 
-                                                        []
-                                                    ) typeCheckedTagBranches in
-                                            
-                                            let expectedTagnames = map (V.tagnameOf) expectedTags in
-
-                                            case match actualTagnames expectedTagnames of
-                                                PerfectMatch ->
-                                                    Right (ctx3, First (V.Expr 
-                                                        (V.TagMatcher subject typeCheckedTagBranches Nothing) 
-                                                        branchType))
-
-                                                GotDuplicates duplicates ->
-                                                    Left (KErrorDuplicatedTags duplicates)
-
-                                                Missing missingTagnames ->
-                                                    case length typeCheckedElseBranches of
-                                                        0 ->
-                                                            let missingTags = 
-                                                                    filter 
-                                                                        (\t -> snd (V.tagnameOf t) `elem` missingTagnames)
-                                                                        expectedTags
-
-                                                            in Left (KErrorMissingTags subject missingTags)
-
-                                                        1 ->
-                                                            let elseBranch = head typeCheckedElseBranches in
-                                                            Right (ctx3, First (V.Expr 
-                                                                (V.TagMatcher subject typeCheckedTagBranches (Just elseBranch)) 
-                                                                branchType))
-
-                                                        _ ->
-                                                            Left (KErrorMoreThanOneElseBranch (map fst rawElseBranches))
-
-                                                other ->
-                                                    error (show other)
-                                                    -- error "Shoudln't reach here, because `typeCheckTagBranch` already check for unknown tags"
-
-
-                        -- (D) check if user is calling object getter/setter
-                        objectType@(V.TypeObject _ kvs) ->  
-                            if length funcIds > 1 then
-                                continuePreprocessFuncCall2
-                            else
-                                let subject = firstParam in
-                                let actualPropertyName = funcIds !! 0 in
-                                case find (\((_,key),_) -> key == snd actualPropertyName) kvs of
-                                    Just (_, expectedType) -> 
-                                        -- Check if is getter or setter
-                                        if length (tail params') == 0 then -- is getter
-                                            Right (ctx, First (V.Expr (V.ObjectGetter subject actualPropertyName) expectedType))
-                                        else if length (tail params') == 1 then -- is setter
-                                            case last params' of
-                                                -- if is lambda setter
-                                                -- TODO: need to check if expectedType is Function
-                                                -- something squishy is happening
-                                                Raw.Lambda lambdaParam lambdaBody _ -> do
-                                                    updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) env 
-                                                    (ctx4, verifiedLambdaBody) <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption lambdaBody
-
-                                                    subst2 <- unify (verifiedLambdaBody) (expectedType)
-                                                    let returnType = applySubstitutionToType subst2 objectType
-                                                    Right (ctx4, First (V.Expr 
-                                                        (V.ObjectLambdaSetter 
-                                                            subject
-                                                            actualPropertyName
-                                                            lambdaParam
-                                                            verifiedLambdaBody)
-                                                        (returnType)))
-
-                                                -- else is value setter
-                                                _ -> do
-                                                    (ctx3, newValue) <- verifyExpr ctx2 assumption ((tail params') !! 0)
-                                                    substitution <- unify newValue expectedType
-                                                    let returnType = applySubstitutionToType substitution objectType
-                                                    Right (ctx3, First (V.Expr 
-                                                        (V.ObjectSetter subject actualPropertyName newValue) 
-                                                        (returnType)))
-                                        else
-                                            continuePreprocessFuncCall2
-
-                                    Nothing -> 
-                                        continuePreprocessFuncCall2
-
-                        -- (E) check if user is invoking tag constructor prefix
-                        V.TypeTagConstructorPrefix taggedUnionName tags _ scope ->
-                            if length funcIds == 1 then
-                                let tagname = head funcIds in
-                                case find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
-                                    -- if is carryless tag
-                                    Just (V.CarrylessTag tag (V.TaggedUnion name ids _ innerTypes)) -> 
-                                        let (ctx3, subst) = instantiateTypeVar ctx innerTypes in
-                                        let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes in
-                                        let belongingUnion = V.TaggedUnion name ids tags resultingInnerTypes in
-                                        (Right (ctx3, First (V.Expr 
-                                            (V.CarrylessTagExpr tag tagname scope) 
-                                            ((V.TypeTaggedUnion belongingUnion)))))
-
-                                    -- if is carryful tag
-                                    Just (V.CarryfulTag _ expectedCarryType taggedUnion@(V.TaggedUnion name ids _ innerTypes)) ->
-                                        if length params' == 2 then do
-                                            let carryExpr = params' !! 1 
-                                            -- instantiate type vars
-                                            let (ctx3, subst1) = instantiateTypeVar ctx2 innerTypes 
-                                            let expectedCarryType' = applySubstitutionToType subst1 expectedCarryType
-
-                                            -- verify carry expr
-                                            (ctx4, verifiedCarryExpr) <- verifyExpr ctx3 assumption carryExpr
-                                            subst2 <- unify verifiedCarryExpr expectedCarryType'
-
-                                            let resultingTaggedUnionType = 
-                                                    applySubstitutionToType subst2 
-                                                        (applySubstitutionToType subst1 
-                                                            (V.TypeTaggedUnion taggedUnion))
-
-                                            -- update expected carry type of every carryful tag
-
-                                            Right (ctx4, First (V.Expr 
-                                                (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
-                                                (resultingTaggedUnionType)))
-                                        else 
-                                            Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
-
-
-                                    Nothing ->
-                                        Left (KErrorTagNotFound tagname taggedUnionName tags)
-
-                            else
-                                Left (KErrorIncorrectUsageOfTagConstructorPrefix expression)
-
-                        -- (F) check if user is invoking type constructor
-                        V.TypeTypeConstructor (V.TaggedUnion name ids tags _) ->
-                            if map snd funcIds /= map snd ids then
-                                Left (KErrorTypeConstructorIdsMismatch ids funcIds)
-                            else do
-                                -- TODO: check if type param conforms to type constraint
-                                (ctx3, types) <- verifyTypeAnnotationAnnotations ctx (tail params')
-                                Right (ctx3, Second 
-                                    (V.TypeAnnotCompound
-                                        name
-                                        (zip ids types)
-                                        (V.TypeTaggedUnion (V.TaggedUnion name ids tags (map V.getTypeRef types)))))
-
-                        -- otherwise
-                        _ ->
-                            continuePreprocessFuncCall2
-
-                    
+    -- (1) check if user wants to create an object value
+    Raw.FuncCall ((Raw.Id (_,"$")):(firstValue:tailValues)) keys -> do
+        -- NOTE: 
+        --  Because of the following line of code,
+        --  the following recursive object type cannot be declared:
+        --
+        --      fruit = object.next fruit;
+        -- 
+        -- It's ok, because we shouldn't allow user to create recursive objects (which will form infinite type)
+        (ctx2, firstValue') <- typeCheckExpr ctx assumption firstValue  -- <-- this line
+        case firstValue' of 
+            -- (1.1) assume user want to create a object value
+            First _ -> do
+                (ctx3, keyValuePairs) <- verifyKeyValuePairs ctx2 keys (firstValue:tailValues)
+                Right 
+                    (ctx3, First
+                        (V.Expr
+                            (V.Object keyValuePairs) 
+                            ( (V.TypeObject Nothing 
+                                (List.map (\(k, expr) -> (k, getType expr)) keyValuePairs)))))
             
-            continuePreprocessFuncCall2 = 
-                case funcIds !! 0 of
-                    -- check if user is calling type casting
-                    (_, "as") ->
-                        if length funcIds == 1 && length params' == 2 then do
-                            (ctx2, subject) <- typeCheckExpr ctx assumption (params' !! 0)
-                            subject' <- extractExpr subject
-                            (ctx3, castType) <- typeCheckExpr ctx2 StrictlyAnalyzingType (params' !! 1)
-                            castType' <- extractType castType
-                            case subject' of
-                                (V.Expr expr' ( V.TypeUndefined)) ->
-                                    Right (ctx3, First (V.Expr expr' (V.getTypeRef castType')))
+            -- (1.2) assume user want to declare a object type
+            Second _ -> do
+                (ctx3, keyTypePairs) <- verifyKeyTypeAnnotPairs ctx keys (firstValue:tailValues)
+                Right (ctx3, Second (V.TypeAnnotObject keyTypePairs))
 
-                                _ ->
-                                    undefined
-                        else
-                            treatAsNormalFuncCall
-                    
-                    -- otherwise
-                    _ -> 
-                        treatAsNormalFuncCall
+            Third tag -> 
+                Left (KErrorExpectedExprOrTypeButGotTag tag)
+                
+    -- (2) check if user is using javascript ffi
+    Raw.FuncCall 
+        ((Raw.Id (_,"ffi")):((Raw.StringExpr jsCode):[])) 
+        ((_,"javascript"):[]) ->
+        Right (ctx, First (V.Expr (V.FFIJavascript jsCode) ( V.TypeUndefined)))
 
+    -- (3) check if user is invoking magic functions
+    Raw.FuncCall (firstParam:tailParams) funcIds -> do
+        (ctx2, typeCheckedFirstParam) <- verifyExpr ctx assumption firstParam
+        continuePreprocessFuncCall1 ctx assumption typeCheckedFirstParam tailParams funcIds
 
-            treatAsNormalFuncCall = do
-                (ctx2, params) <- verifyExprs ctx assumption params'
-                (ctx3, result) <- lookupFunction ctx2 assumption params funcIds
-                Right (ctx3, First result)
 
     Raw.Lambda param body _ ->
         let (ctx2, inputTVar) = createNewTVar ctx Nothing in
@@ -459,6 +209,277 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
             (V.PartiallyInferredLambda param body)
             (V.TypeTaggedUnion (newFunctionType inputTVar outputTVar))))
 
+continuePreprocessFuncCall1 
+    :: Context 
+    -> Assumption 
+    -> V.Expr 
+    -> [Raw.Expr] 
+    -> [V.StringToken]
+    -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation ([V.UnlinkedTag]))
+
+-- (A) check if user is invoking object constructor
+continuePreprocessFuncCall1 ctx assumption 
+    (V.Expr _ (V.TypeObjectConstructor aliasedName expectedPropTypePairs))
+    (firstValue:tailValues) 
+    (properties) = do
+        (ctx3, values)  <- verifyExprs ctx assumption (firstValue:tailValues)
+        let actualPropValuePairs = zip properties values
+        let actualObject = V.Expr 
+                (V.Object actualPropValuePairs) 
+                (V.TypeObject aliasedName (zip properties (map getType values)))
+        substitution <- unify actualObject (V.TypeObject aliasedName expectedPropTypePairs)
+        let resultingType = applySubstitutionToType substitution (V.TypeObject aliasedName expectedPropTypePairs)
+        Right (ctx3, First (V.Expr (V.Object actualPropValuePairs) resultingType))
+
+-- (B) check if user is performing function application
+continuePreprocessFuncCall1 ctx assumption 
+    func@(V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion (_,"Function") _ _ (expectedInputType:expectedOutputType:[]))))
+    (appliedValue:[]) 
+    ((_,"apply"):[]) = do
+        (ctx3, value) <- verifyExpr ctx assumption appliedValue
+        -- check if value match with expectedInputType
+        !_ <- unify value expectedInputType
+        Right (ctx3, First(V.Expr (V.FuncApp func value) expectedOutputType))
+
+-- (C) check if user is calling tag matchers
+continuePreprocessFuncCall1 ctx assumption 
+    subject@(V.Expr _ (V.TypeTaggedUnion (V.TaggedUnion _ _ expectedTags innerTypes)))
+    (headBranch:tailBranches) 
+    funcIds@((_,"if"):_) = do
+        -- 0. take out else branch
+        let (rawElseBranches, noElseBranches) = 
+                List.partition 
+                    (\((_,x),_) -> x == "else") 
+                    (List.zip funcIds (headBranch:tailBranches))
+
+        let (elselessFuncIds, elselessParams) = unzip noElseBranches
+
+        -- 1. check if syntax is correct
+        !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordIfOrDefault (pos,x))) (evens elselessFuncIds)
+        !_ <- mapM (\(pos,x) -> if x == "then"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
+
+        let tags = evens elselessParams
+        let branches = odds elselessParams
+        let rawTagBranches = zip tags branches
+
+        -- 2.1 type check raw tag branches
+        typeCheckedTagBranches <- 
+                mapM 
+                    (\nextRawTagBranch -> do
+                        (_, typeCheckedTagBranch) <- typeCheckTagBranch ctx expectedTags nextRawTagBranch
+                        Right typeCheckedTagBranch)
+                    rawTagBranches
+
+        -- 2.2 type check raw else branches
+        (ctx3, typeCheckedElseBranches) <- verifyExprs ctx assumption (map snd rawElseBranches)
+
+        -- 3. check if each branch have the same type with the first branch
+        case allBranchTypeAreSame (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
+            Left err ->
+                case err of
+                    KErrorTypeMismatch actualExpr actualType expectedType ->
+                        case typeCheckedTagBranches of 
+                            [] ->
+                                undefined
+
+                            x:_ ->
+                                Left (KErrorNotAllBranchHaveTheSameType actualExpr actualType expectedType x)
+
+                    _ ->
+                        Left err
+
+            Right branchType ->
+                -- 4. check for exhaustiveness
+                let actualTagnames = concatMap (\b -> case b of 
+                        V.CarrylessTagBranch (V.VerifiedTagname name) _ ->
+                            [name]
+                        V.CarryfulTagBranch (V.VerifiedTagname name) _ _ ->
+                            [name]
+                        V.ElseBranch{} -> 
+                            []
+                        ) typeCheckedTagBranches in
+                
+                let expectedTagnames = map (V.tagnameOf) expectedTags in
+
+                case match actualTagnames expectedTagnames of
+                    PerfectMatch ->
+                        Right (ctx3, First (V.Expr 
+                            (V.TagMatcher subject typeCheckedTagBranches Nothing) 
+                            branchType))
+
+                    GotDuplicates duplicates ->
+                        Left (KErrorDuplicatedTags duplicates)
+
+                    Missing missingTagnames ->
+                        case typeCheckedElseBranches of
+                            [] ->
+                                let missingTags = 
+                                        filter 
+                                            (\t -> snd (V.tagnameOf t) `elem` missingTagnames)
+                                            expectedTags
+
+                                in Left (KErrorMissingTags subject missingTags)
+
+                            elseBranch:[] ->
+                                Right (ctx3, First (V.Expr 
+                                    (V.TagMatcher subject typeCheckedTagBranches (Just elseBranch)) 
+                                    branchType))
+
+                            _ ->
+                                Left (KErrorMoreThanOneElseBranch (map fst rawElseBranches))
+
+                    other ->
+                        error (show other)
+                        -- error "Shoudln't reach here, because `typeCheckTagBranch` already check for unknown tags"
+
+
+-- (D) check if user is calling object getter/setter
+continuePreprocessFuncCall1 ctx assumption 
+    subject@(V.Expr _ objectType@(V.TypeObject _ kvs))
+    (tailParams) 
+    funcIds@(propertyName:[]) = do
+        case List.find (\((_,key),_) -> key == snd propertyName) kvs of
+            Just (_, expectedType) -> 
+                -- Check if is getter or setter
+                case tailParams of
+                    [] -> -- is getter
+                        Right (ctx, First (V.Expr (V.ObjectGetter subject propertyName) expectedType))
+                    
+                    secondParam:[] -> -- is setter
+                        case secondParam of
+                            -- if is lambda setter
+                            -- TODO: need to check if expectedType is Function
+                            -- something squishy is happening
+                            Raw.Lambda lambdaParam lambdaBody _ -> do
+                                updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) (contextEnv ctx) 
+                                (ctx4, verifiedLambdaBody) <- verifyExpr (ctx{contextEnv = updatedEnv}) assumption lambdaBody
+
+                                subst2 <- unify (verifiedLambdaBody) (expectedType)
+                                let returnType = applySubstitutionToType subst2 objectType
+                                Right (ctx4, First (V.Expr 
+                                    (V.ObjectLambdaSetter 
+                                        subject
+                                        propertyName
+                                        lambdaParam
+                                        verifiedLambdaBody)
+                                    (returnType)))
+
+                            -- else is value setter
+                            _ -> do
+                                (ctx3, newValue) <- verifyExpr ctx assumption secondParam
+                                substitution <- unify newValue expectedType
+                                let returnType = applySubstitutionToType substitution objectType
+                                Right (ctx3, First (V.Expr 
+                                    (V.ObjectSetter subject propertyName newValue) 
+                                    (returnType)))
+                    
+                    -- else
+                    _ ->
+                        continuePreprocessFuncCall2 ctx assumption subject tailParams funcIds
+
+            Nothing -> 
+                continuePreprocessFuncCall2 ctx assumption subject tailParams funcIds
+
+-- (E) check if user is invoking tag constructor prefix
+continuePreprocessFuncCall1 ctx assumption 
+    subject@(V.Expr _ (V.TypeTagConstructorPrefix taggedUnionName tags _ scope))
+    (tailParams) 
+    (tagname:[]) = do
+        case List.find (\t -> snd (V.tagnameOf t) == snd tagname) tags of
+            -- if is carryless tag
+            Just (V.CarrylessTag tag (V.TaggedUnion name ids _ innerTypes)) -> 
+                let (ctx3, subst) = instantiateTypeVar ctx innerTypes in
+                let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes in
+                let belongingUnion = V.TaggedUnion name ids tags resultingInnerTypes in
+                (Right (ctx3, First (V.Expr 
+                    (V.CarrylessTagExpr tag tagname scope) 
+                    ((V.TypeTaggedUnion belongingUnion)))))
+
+            -- if is carryful tag
+            Just (V.CarryfulTag _ expectedCarryType taggedUnion@(V.TaggedUnion name ids _ innerTypes)) ->
+                case tailParams of
+                    carryExpr:[] -> do
+                        -- instantiate type vars
+                        let (ctx3, subst1) = instantiateTypeVar ctx innerTypes 
+                        let expectedCarryType' = applySubstitutionToType subst1 expectedCarryType
+
+                        -- verify carry expr
+                        (ctx4, verifiedCarryExpr) <- verifyExpr ctx3 assumption carryExpr
+                        subst2 <- unify verifiedCarryExpr expectedCarryType'
+
+                        let resultingTaggedUnionType = 
+                                applySubstitutionToType subst2 
+                                    (applySubstitutionToType subst1 
+                                        (V.TypeTaggedUnion taggedUnion))
+
+                        -- update expected carry type of every carryful tag
+
+                        Right (ctx4, First (V.Expr 
+                            (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
+                            (resultingTaggedUnionType)))
+
+                    _ ->
+                        Left (KErrorIncorrectUsageOfTagConstructorPrefix subject)
+
+            Nothing ->
+                Left (KErrorTagNotFound tagname taggedUnionName tags)
+
+
+-- (F) check if user is invoking type constructor
+continuePreprocessFuncCall1 ctx assumption 
+    (V.Expr subject (V.TypeTypeConstructor (V.TaggedUnion name ids tags _)))
+    (tailParams) 
+    (funcIds) = do
+        if map snd funcIds /= map snd ids then
+            Left (KErrorTypeConstructorIdsMismatch ids funcIds)
+        else do
+            -- TODO: check if type param conforms to type constraint
+            (ctx3, types) <- verifyTypeAnnotations ctx tailParams
+            Right (ctx3, Second 
+                (V.TypeAnnotCompound
+                    name
+                    (zip ids types)
+                    (V.TypeTaggedUnion (V.TaggedUnion name ids tags (map V.getTypeRef types)))))
+
+-- otherwise
+continuePreprocessFuncCall1 ctx assumption firstParam tailParams funcIds =
+    continuePreprocessFuncCall2 ctx assumption firstParam tailParams funcIds
+
+continuePreprocessFuncCall2 
+    :: Context 
+    -> Assumption 
+    -> V.Expr 
+    -> [Raw.Expr] 
+    -> [V.StringToken]
+    -> Either KeliError (Context, OneOf3 V.Expr V.TypeAnnotation ([V.UnlinkedTag]))
+continuePreprocessFuncCall2 ctx assumption firstParam tailParams funcIds = 
+    case funcIds of
+        -- check if user is calling type casting
+        (_, "as"):[] -> 
+            case tailParams of
+                castType:[] -> do
+                    (ctx3, castType') <- typeCheckExpr ctx StrictlyAnalyzingType castType
+                    castType'' <- extractType castType'
+                    case firstParam of
+                        (V.Expr expr' (V.TypeUndefined)) ->
+                            Right (ctx3, First (V.Expr expr' (V.getTypeRef castType'')))
+
+                        _ ->
+                            -- TODO: check for other kind of type casting
+                            undefined
+
+                _ ->
+                    treatAsNormalFuncCall
+
+        -- otherwise
+        _ -> 
+            treatAsNormalFuncCall
+
+    where
+        treatAsNormalFuncCall = do
+            (ctx2, verifiedTailParams) <- verifyExprs ctx assumption tailParams
+            (ctx3, result) <- lookupFunction ctx2 assumption (firstParam:verifiedTailParams) funcIds
+            Right (ctx3, First result)
 
 verifyTypeAnnotation :: Context -> Raw.Expr -> Either KeliError (Context, V.TypeAnnotation) 
 verifyTypeAnnotation ctx rawExpr = do
@@ -466,8 +487,11 @@ verifyTypeAnnotation ctx rawExpr = do
     type' <- extractType expr 
     Right (ctx2, type')
 
-verifyTypeAnnotationAnnotations :: Context -> [Raw.Expr] -> Either KeliError (Context, [V.TypeAnnotation]) 
-verifyTypeAnnotationAnnotations ctx rawExprs = do
+verifyTypeAnnotations 
+    :: Context 
+    -> [Raw.Expr]
+    -> Either KeliError (Context, [V.TypeAnnotation]) 
+verifyTypeAnnotations ctx rawExprs = do
     foldM 
         (\(prevCtx, verifiedTypes) nextRawExpr -> do
             (nextCtx, verifiedType) <- verifyTypeAnnotation prevCtx nextRawExpr
@@ -481,7 +505,11 @@ verifyExpr ctx assumption rawExpr = do
     expr' <- extractExpr expr 
     Right (ctx2, expr')
 
-verifyExprs :: Context -> Assumption -> [Raw.Expr] -> Either KeliError (Context, [V.Expr]) 
+verifyExprs 
+    :: Context 
+    -> Assumption 
+    -> [Raw.Expr]
+    -> Either KeliError (Context, [V.Expr]) 
 verifyExprs ctx assumption rawExprs =
     foldM 
         (\(prevCtx, verifiedExprs) nextRawExpr -> do
@@ -506,13 +534,13 @@ data MatchFuncResult
 lookupFunction 
     :: Context 
     -> Assumption 
-    -> [V.Expr] 
-    -> [Raw.StringToken] 
+    -> [V.Expr]
+    -> [Raw.StringToken]
     -> Either KeliError (Context, V.Expr)
 
 lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
     -- lookup the function being invoked from all the imported modules
-    let lookupResult = lookupEnvs (intercalate "$" (map snd funcIds)) env importedEnvs
+    let lookupResult = lookupEnvs (List.intercalate "$" (map snd funcIds)) env importedEnvs
     let results = map (lookupFunction' ctx assumption funcCallParams funcIds) lookupResult
     let matchingFuncs = rights results
     case matchingFuncs of
@@ -529,7 +557,7 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
 
                 _ ->
                     -- the following code is to improve error reporting
-                    case find (\e -> case e of KErrorPartiallyMatchedFuncFound{}->True; _->False) errors of
+                    case List.find (\e -> case e of KErrorPartiallyMatchedFuncFound{}->True; _->False) errors of
                         Just e ->
                             Left e
 
@@ -546,11 +574,12 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
             -- remove super generic function (i.e. where the first parameter can be any type)
             -- this is to allow function specialization
             let isSuperGeneric f = 
-                    case snd (V.funcDeclParams f !! 0) of
-                        V.TypeAnnotSimple _ (V.BoundedTypeVar _ _) ->
+                    case V.funcDeclParams f of
+                        (_, V.TypeAnnotSimple _ (V.BoundedTypeVar _ _)):_ ->
                             True
-                        _ ->
-                            False 
+
+                        _ -> 
+                            False
             in
             case filter (\(_,_,f) -> not (isSuperGeneric f)) matchingFuncs of
                 -- if only one function left after removing 
@@ -568,12 +597,12 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
 lookupFunction'
     :: Context 
     -> Assumption 
-    -> [V.Expr] 
-    -> [Raw.StringToken] 
+    -> [V.Expr]
+    -> [Raw.StringToken]
     -> (V.Scope, KeliSymbol)
     -> Either KeliError (Context, V.Expr, V.FuncSignature)
 
-lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds lookupResult = 
+lookupFunction' ctx@(Context _ env importedEnvs) assumption (firstParam:tailParams) funcIds lookupResult = 
     case lookupResult of
         (scope, KeliSymFunc candidateFuncs) -> do
             case (foldl 
@@ -585,21 +614,22 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
                         
                         -- if
                         StillNoMatchingFunc -> -- then continue the loop for searching matching functions
-                            if length funcCallParams /= length (V.funcDeclParams currentFunc) then
+                            if length (firstParam:tailParams) /= length (V.funcDeclParams currentFunc) then
                                 StillNoMatchingFunc
                             else do
                                 -- (A) instantiate type variables  
                                 let (ctx2, subst1) = instantiateTypeVar ctx (V.funcDeclGenericParams currentFunc)
 
                                 -- (B) apply substitution to every expected func param types
-                                let expectedParamTypes = map (\(_,paramTypeAnnot) -> 
-                                        applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams currentFunc) 
+                                let expectedParamTypes@(firstExpectedParamType:tailExpectedParamTypes) = 
+                                        map (\(_,paramTypeAnnot) -> 
+                                            applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams currentFunc) 
 
                                 -- (C) check if the firstParam matches the firstParamExpectedType
-                                case unify (head funcCallParams) (head expectedParamTypes) of
+                                case unify firstParam firstExpectedParamType of
                                     -- if matches, continue to unify the following params
                                     Right subst2 -> 
-                                        case unifyMany subst2 (tail funcCallParams) (tail expectedParamTypes) of
+                                        case unifyMany subst2 tailParams tailExpectedParamTypes of
                                             Left err ->
                                                 PartiallyMatchedFuncFound err
 
@@ -622,7 +652,7 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
                                                                     (V.Lambda (paramName, inputType') body') 
                                                                     (V.TypeTaggedUnion (newFunctionType inputType' (applySubstitutionToType tempSubst outputType'))))
                                                             _ -> 
-                                                                Right e) funcCallParams of
+                                                                Right e) (firstParam:tailParams) of
                                                     Right funcCallParams' -> 
                                                         let expectedReturnType = applySubstitutionToType subst1 (V.funcDeclReturnType currentFunc) in
                                                         -- unify again to get the best substitution (mainly for inferring lambdas)
@@ -647,7 +677,7 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
                         StillNoMatchingFunc
 
                         -- This sorting is necessary so that the compiler will look for more specialized (a.k.a less generic) function first
-                        (sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
+                        (List.sortOn (\f -> length (V.funcDeclGenericParams f)) candidateFuncs)) of
 
                 PerfectlyMatchedFuncFound newCtx funcCallExpr matchingFunc ->
                     Right (newCtx, funcCallExpr, matchingFunc)
@@ -661,6 +691,8 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption funcCallParams funcI
         _ -> 
             Left (KErrorUsingUndefinedFunc funcIds [])
 
+
+lookupFunction' ctx@(Context _ env importedEnvs) assumption [] funcIds lookupResult = error "impossible"
 
 verifyBoundedTypeVar 
     :: Context 
@@ -699,7 +731,7 @@ extractType x =
 
 
 
-extractExpr :: OneOf3 V.Expr V.TypeAnnotation [V.UnlinkedTag] -> Either KeliError V.Expr
+extractExpr :: OneOf3 V.Expr V.TypeAnnotation ([V.UnlinkedTag]) -> Either KeliError V.Expr
 extractExpr x = 
     case x of 
         First expr -> Right expr
@@ -726,7 +758,7 @@ insertSymbolIntoEnv :: KeliSymbol -> Env -> Either KeliError Env
 insertSymbolIntoEnv symbol env =
     case symbol of 
         KeliSymFunc [f] ->
-            let funcid = (intercalate "$" (map snd (V.funcDeclIds f))) in
+            let funcid = (List.intercalate "$" (map snd (V.funcDeclIds f))) in
             let funcsWithSameName = lookup funcid env in
             let funcParamTypes = (\func -> map snd (V.funcDeclParams func)) in
             case funcsWithSameName of
@@ -798,8 +830,8 @@ insertSymbolIntoEnv symbol env =
 
 verifyKeyValuePairs 
     :: Context 
-    -> [Raw.StringToken] 
-    -> [Raw.Expr] 
+    -> [Raw.StringToken]
+    -> [Raw.Expr]
     -> Either KeliError (Context, [(V.StringToken, V.Expr)])
 verifyKeyValuePairs ctx keys values = 
     case findDuplicates keys of
@@ -811,15 +843,15 @@ verifyKeyValuePairs ctx keys values =
 
 verifyKeyTypeAnnotPairs 
     :: Context 
-    -> [Raw.StringToken] 
-    -> [Raw.Expr] 
+    -> [Raw.StringToken]
+    -> [Raw.Expr]
     -> Either KeliError (Context, [(V.StringToken, V.TypeAnnotation)])
 verifyKeyTypeAnnotPairs ctx keys types = do
     case findDuplicates keys of
         Just duplicates ->
             Left (KErrorDuplicatedProperties duplicates)
         Nothing -> do
-            (ctx2, verifiedTypes) <- verifyTypeAnnotationAnnotations ctx types
+            (ctx2, verifiedTypes) <- verifyTypeAnnotations ctx types
             Right (ctx2, zip keys verifiedTypes)
 
 
@@ -836,7 +868,7 @@ odds _ = []
 
 verifyTagname :: [V.Tag] -> V.StringToken -> Either KeliError (V.VerifiedTagname, V.Tag)
 verifyTagname expectedTags actualTagname = 
-    case find (\t -> snd (V.tagnameOf t) == snd actualTagname) expectedTags of
+    case List.find (\t -> snd (V.tagnameOf t) == snd actualTagname) expectedTags of
         Just tag -> 
             Right (V.VerifiedTagname actualTagname, tag)
 
@@ -846,7 +878,7 @@ verifyTagname expectedTags actualTagname =
 instantiateTypeVar :: Context -> [V.Type] -> (Context, Substitution)
 instantiateTypeVar ctx boundedTypeVars =
     let (finalCtx, finalSubst) = 
-            foldl' 
+            List.foldl' 
             (\(ctx', subst) nextT ->
                 case nextT of
                     V.BoundedTypeVar (_, name) constraint ->
@@ -902,19 +934,18 @@ typeCheckTagBranch ctx@(Context _ env importedEnvs) expectedTags (tag, branch) =
 
 
 allBranchTypeAreSame 
-    :: [V.TagBranch] 
+    :: [V.TagBranch]
     -> Either 
         KeliError 
         V.Type -- type of the first branch
 allBranchTypeAreSame typeCheckedTagBranches = do
-    let branches = map (\b -> case b of 
+    let (firstBranch:tailBranches) = map (\b -> case b of 
             V.CarryfulTagBranch _ _ expr -> expr
             V.CarrylessTagBranch _ expr -> expr
             V.ElseBranch expr -> expr) typeCheckedTagBranches
 
-    let firstBranch = head branches 
     let expectedTypeOfEachBranches = getType firstBranch 
-    case mapM (\b -> unify b expectedTypeOfEachBranches) (tail branches) of
+    case mapM (\b -> unify b expectedTypeOfEachBranches) tailBranches of
         Left err ->
             Left err
 

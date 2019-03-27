@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Transpiler 
 where
 
@@ -28,15 +29,15 @@ transpileModule isEntryFile showLineNumber  (Module name importedModules _ decls
             ++ "return{" ++ exports ++ "}})();"
     where
         transpiledModules = 
-            concatMap (transpileModule False showLineNumber) importedModules
+            concatMap (transpileModule False showLineNumber) (importedModules)
 
         transpiledDecls = 
-            let decls' = 
+            let !decls' = 
                     if isEntryFile then 
                         decls 
                     else -- remove all idless decls, accoding to specification 
                         filter (\d -> case d of V.IdlessDecl _ -> False; _ -> True) decls in
-            (intercalate ";" (map (transpile showLineNumber) decls')) ++ ";"
+            (intercalate ";" (map (transpile showLineNumber) (decls'))) ++ ";"
 
         exports = 
             intercalate "," (
@@ -191,7 +192,7 @@ instance Transpilable V.Expr where
             transpile False f ++ "(" ++ transpile False arg ++ ")"
 
 
-        V.Expr (V.Array exprs) _ -> 
+        V.Expr (V.Array exprs _) _ -> 
             "[" ++ intercalate "," (map (transpile False) exprs) ++ "]"
 
 instance Transpilable V.TagBranch where

@@ -11,7 +11,7 @@ data Module
         moduleImported :: [Module],
         moduleEnv      :: Env,
         moduleDecls    :: [V.Decl]
-    }
+    } deriving (Show)
 
 
 data Context 

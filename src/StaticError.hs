@@ -73,7 +73,7 @@ data KeliError
     | KErrorUnknownFFITarget Verified.StringToken
     | KErrorFFIValueShouldBeString Verified.Expr
     | KErrorInvalidBoundedTypeVarDecl Raw.Expr
-    | KErrorIncorrectUsageOfTagConstructorPrefix Raw.Expr
+    | KErrorIncorrectUsageOfTagConstructorPrefix Verified.Expr
     | KErrorTagNotFound 
         Raw.StringToken -- tag that user wanted to use
         Raw.StringToken -- name of the tagged union

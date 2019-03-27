@@ -136,13 +136,17 @@ makeKeyValuesSnippet kvs =
 
 
 rebuildSignature :: V.FuncSignature-> String 
-rebuildSignature (V.FuncSignature _ genparams params funcIds returnType) = 
+rebuildSignature 
+    (V.FuncSignature _ genparams 
+        params@(firstParam:tailParams) 
+        funcIds@(firstFuncId:tailFuncIds) 
+        returnType) = 
     let 
-        front = stringifyFuncParam (head params) ++ "." 
+        front = stringifyFuncParam firstParam ++ "." 
         back = " | " ++ V.stringifyType returnType 
     in
-    if length funcIds == 1 && length params == 1 then
-        front ++ snd (head funcIds) ++ back 
+    if length tailFuncIds == 0 && length tailParams == 0 then
+        front ++ snd firstFuncId ++ back 
     else
         front ++ intercalate " " (map (\(funcId, param) -> snd funcId ++ stringifyFuncParam param) (zip funcIds (tail params))) ++ back
 
@@ -351,8 +355,8 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                 map 
                                     (\(t,index') -> "\n\t" ++ 
                                         (case t of 
-                                            V.CarryfulTag (_,tagname) _ _ ->
-                                                "if(." ++ tagname ++ "(" ++ [toLower (head tagname)] ++ ")) then" ++ 
+                                            V.CarryfulTag (_,tagname@(firstChar:_)) _ _ ->
+                                                "if(." ++ tagname ++ "(" ++ [toLower firstChar] ++ ")) then" ++ 
                                                     "\n\t\t(${" ++ show index' ++ ":undefined})"
 
                                             V.CarrylessTag (_,tagname) _ ->

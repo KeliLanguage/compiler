@@ -1,7 +1,7 @@
 module Util where
 
-import Prelude hiding (id)
-import Data.List
+import Prelude hiding (id, head, tail, last, init)
+import Data.List hiding (last)
 import Control.Monad    
 import qualified Ast.Raw as Raw
 import Data.Maybe
@@ -67,3 +67,11 @@ findDuplicates tokens =
         Nothing
 
 
+head :: [a] -> Maybe a
+head [] = Nothing
+head (x:_) = Just x
+
+last :: [a] -> Maybe a
+last [] = Nothing
+last (x:[]) = Just x
+last (_:xs) = last xs

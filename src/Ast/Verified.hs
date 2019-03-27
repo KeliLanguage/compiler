@@ -183,7 +183,7 @@ data Expr'
     = IntExpr   (SourcePos, Integer) 
     | DoubleExpr (SourcePos, Double)
     | StringExpr StringToken
-    | Array [Expr]
+    | Array [Expr] SourcePos
     | GlobalId -- for global constants
         StringToken -- actual usage
         StringToken -- reference (where is this id originally defined)

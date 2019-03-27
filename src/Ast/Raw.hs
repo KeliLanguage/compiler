@@ -57,6 +57,7 @@ data Expr
 
     | Array 
         [Expr] -- elements
+        SourcePos -- position of the `[` symbol
 
     | TaggedUnion
         StringToken -- the `choice` keyword, for error reporting purpose
