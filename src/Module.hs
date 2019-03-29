@@ -8,6 +8,7 @@ type ModuleName = String
 data Module 
     = Module {
         moduleName     :: ModuleName,
+        moduleFilepath :: String,
         moduleImported :: [Module],
         moduleEnv      :: Env,
         moduleDecls    :: [V.Decl]

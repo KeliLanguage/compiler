@@ -20,7 +20,7 @@ transpileModule
     -> Bool -- showLineNumber
     -> Module 
     -> String
-transpileModule isEntryFile showLineNumber  (Module name importedModules _ decls) = 
+transpileModule isEntryFile showLineNumber  (Module name _ importedModules _ decls) = 
     "const " 
         ++ prefix name 
         ++ "=(()=>{" 
@@ -49,8 +49,8 @@ transpileModule isEntryFile showLineNumber  (Module name importedModules _ decls
                             V.FuncDecl signature _ ->
                                 [getFuncName signature]
 
-                            V.TaggedUnionDecl (V.TaggedUnion (_,name) _ _ _) ->
-                                [prefix name]
+                            V.TaggedUnionDecl (V.TaggedUnion (_,name') _ _ _) ->
+                                [prefix name']
 
                             _ ->
                                 [])

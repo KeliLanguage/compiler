@@ -6,6 +6,7 @@ import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as Char8
+import qualified Data.HashMap.Strict as HashMap
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import System.IO
@@ -112,7 +113,7 @@ handleKeliCommand input =
         
         Analyze filename -> do
             contents <- readFile filename
-            (errors, _) <- keliCompile filename contents
+            (errors, _, _) <- keliCompile filename contents (HashMap.empty)
             putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
 
         Suggest filename lineNumber columnNumber -> do

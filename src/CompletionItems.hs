@@ -21,6 +21,7 @@ import Prelude hiding(id)
 import Unify
 import StaticError(KeliError(KErrorIncompleteFuncCall))
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
+import qualified Data.HashMap.Strict as HashMap
 
 
 import qualified Ast.Verified as V
@@ -204,7 +205,7 @@ suggestCompletionItemsAt filename (lineNumber, columnNumber) = do
             else
                 contents
 
-    (errors, currentModule) <- keliCompile filename modifiedContents
+    (errors, currentModule, _) <- keliCompile filename modifiedContents (HashMap.empty)
     case keliParse filename modifiedContents of
         Right decls ->
             let envs = [moduleEnv currentModule] ++ map moduleEnv (moduleImported currentModule) in

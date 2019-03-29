@@ -11,15 +11,19 @@ import Env
 import System.FilePath.Posix
 import System.Directory
 import Module
+import qualified Data.HashMap.Strict as HashMap
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 -- used for representing a module with parse error
 nullModule :: String -> Module 
-nullModule name = Module name [] emptyEnv  []
+nullModule name = Module name "" [] emptyEnv  []
 
-keliCompile :: String -> String -> IO ([KeliError], Module)
-keliCompile filepath contents = do  
+type ModuleCache = HashMap.HashMap String Module
+
+keliCompile :: String -> String -> ModuleCache -> IO ( [KeliError], Module, ModuleCache)
+keliCompile filepath contents cache = do  
     let currentModulename = takeBaseName filepath -- Refer http://hackage.haskell.org/package/filepath-1.4.2.1/docs/System-FilePath-Posix.html#v:takeBaseName
+    absoluteFilePath <- makeAbsolute filepath
     case keliParse filepath contents of
         Right rawDecls -> do
             let (importStatements, nonImportRawDecls) = 
@@ -28,10 +32,9 @@ keliCompile filepath contents = do
                         (map differentiateRawDecl rawDecls)
 
             -- importeeErrors means errors at the imported files
-            (importeeErrors, importedModules) <- 
+            (importeeErrors, importedModules, updatedCache) <- 
                     foldM 
-                        (\(prevErrors, prevModules) (ImportDecl importFilePath) -> do
-                            absoluteFilePath <- makeAbsolute filepath
+                        (\(prevErrors, prevModules, prevCache) (ImportDecl importFilePath) -> do
                             let importPath = 
                                     if isAbsolute (snd importFilePath) then
                                         snd importFilePath
@@ -39,17 +42,24 @@ keliCompile filepath contents = do
                                         takeDirectory absoluteFilePath ++ "/" ++ snd importFilePath
                             canonicalizedImportPath <- canonicalizePath importPath
                             yes <- doesFileExist canonicalizedImportPath
-                            if yes then do
-                                importedContents <- readFile canonicalizedImportPath
-                                (currentErrors, currentModule) <- keliCompile canonicalizedImportPath importedContents
+                            if yes then 
+                                -- check if the module had been imported before or not
+                                case HashMap.lookup canonicalizedImportPath prevCache of
+                                    -- if already imported previously
+                                    Just m ->
+                                        return (prevErrors, prevModules ++ [m], prevCache)
 
-                                -- filter out idless decls, as specified at https://keli-language.gitbook.io/doc/specification/section-5-declarations#5-0-evaluated-declarations
-                                -- let idfulDecls = filter (\d -> case d of V.IdlessDecl{} -> False; _ -> True ) decls'
-
-                                return (prevErrors ++ currentErrors, prevModules ++ [currentModule])
+                                    -- if never imported before
+                                    Nothing -> do
+                                        importedContents <- readFile canonicalizedImportPath
+                                        (currentErrors, currentModule, nextCache) <- keliCompile canonicalizedImportPath importedContents prevCache
+                                        return (
+                                            prevErrors ++ currentErrors, 
+                                            prevModules ++ [currentModule], 
+                                            HashMap.insert canonicalizedImportPath currentModule nextCache )
                             else 
-                                return (prevErrors ++ [KErrorCannotImport importFilePath], prevModules))
-                        (([],[]) :: ([KeliError],[Module]))
+                                return (prevErrors ++ [KErrorCannotImport importFilePath], prevModules, prevCache))
+                        (([],[], cache) :: ([KeliError],[Module],ModuleCache))
                         importStatements
 
             let (currentErrors, currentEnv, currentDecls) = 
@@ -57,10 +67,13 @@ keliCompile filepath contents = do
                     let importedEnvs = map (\m -> (moduleName m, moduleEnv m)) importedModules in
                     analyze (("<builtin>",initialEnv):importedEnvs) (map (\(NonImportDecl d) -> d) nonImportRawDecls)
 
-            return (importeeErrors ++ currentErrors, Module currentModulename importedModules currentEnv currentDecls)
+            return (
+                importeeErrors ++ currentErrors, 
+                Module currentModulename absoluteFilePath importedModules currentEnv currentDecls,
+                updatedCache)
         
         Left errs ->
-            return (errs, nullModule currentModulename)
+            return (errs, nullModule currentModulename, cache)
 
 data DifferentiationResult 
     = ImportDecl Raw.StringToken

@@ -70,8 +70,8 @@ toDiagnostic err = case err of
     KErrorMoreThanOneElseBranch xs ->
         getDiagnostic xs "Should not have more than one `else` branch."
 
-    KErrorTVarSelfReferencing{} ->
-        undefined
+    KErrorTVarSelfReferencing expr _ _ ->
+        getDiagnostic [expr] "Self referencing type variables."
 
     KErrorExpectedColon x ->
         getDiagnostic [x] "Expected this to be a `:` symbol."
