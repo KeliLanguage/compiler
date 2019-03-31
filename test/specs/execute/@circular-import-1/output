@@ -1,0 +1,6 @@
+ERROR at /home/hou32hou/Repos/keli/compiler/test/specs/execute/@circular-import-1/a.keli:1:17
+
+    Circular imports are detected around the following files:
+    
+        /home/hou32hou/Repos/keli/compiler/test/specs/execute/@circular-import-1/a.keli
+        /home/hou32hou/Repos/keli/compiler/test/specs/execute/@circular-import-1/entry.keli

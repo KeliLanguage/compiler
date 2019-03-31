@@ -205,7 +205,7 @@ suggestCompletionItemsAt filename (lineNumber, columnNumber) = do
             else
                 contents
 
-    (errors, currentModule, _) <- keliCompile filename modifiedContents (HashMap.empty)
+    (errors, currentModule, _, _) <- keliCompile filename modifiedContents (HashMap.empty) []
     case keliParse filename modifiedContents of
         Right decls ->
             let envs = [moduleEnv currentModule] ++ map moduleEnv (moduleImported currentModule) in

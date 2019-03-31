@@ -55,6 +55,10 @@ toPosition sp = Position (sourceLine sp - 1) (sourceColumn sp - 1) -- minus one 
 
 toDiagnostic :: KeliError -> [Diagnostic]
 toDiagnostic err = case err of
+    KErrorCircularImport locationOfError relatedFiles ->
+        getDiagnostic [locationOfError] ("Circular imports are detected around the following files:\n\n    " 
+            ++ intercalate ("\n    ") relatedFiles)
+
     KErrorIncorrectTagDeclSyntax funcIds ->
         getDiagnostic funcIds ("Incorrect tag declaration syntax")
 

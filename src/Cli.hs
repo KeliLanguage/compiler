@@ -113,7 +113,7 @@ handleKeliCommand input =
         
         Analyze filename -> do
             contents <- readFile filename
-            (errors, _, _) <- keliCompile filename contents (HashMap.empty)
+            (errors, _, _, _) <- keliCompile filename contents (HashMap.empty) []
             putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
 
         Suggest filename lineNumber columnNumber -> do

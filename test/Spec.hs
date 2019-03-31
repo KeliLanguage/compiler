@@ -9,6 +9,7 @@ import Data.Strings
 import Data.List
 import Data.String.Utils
 
+import Compiler
 import Util
 import Interpreter
 import Ast.Verified (newStringToken, newStringToken', StringToken)
@@ -46,7 +47,8 @@ runTestCases_compile = do
                         case result of 
                             Right output ->
                                 strip output `shouldBe` strip expectedOutput
-                            Left err ->
+                            Left err -> do
+                                -- putStrLn err
                                 strip err `shouldBe` strip expectedOutput)
 
     where
@@ -126,6 +128,12 @@ targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]
 
 otherTest :: IO ()
 otherTest = hspec $ do
+    describe "import trees" $ do
+        it "case 1" $ do
+            let tree = [ImportNode "A" "B", ImportNode "B" "C", ImportNode "A" "D"]
+            let importersOfC = tree `findImportersOf` "C"
+            importersOfC `shouldBe` ["B", "A"]
+            
     describe "match" $ do
         it "got duplicate" $ do
             let source = [

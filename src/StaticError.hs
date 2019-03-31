@@ -149,6 +149,10 @@ data KeliError
 
     | KErrorIncorrectTagDeclSyntax
         [Raw.StringToken]
+
+    | KErrorCircularImport
+        Raw.StringToken -- location of error
+        [String] -- related filepaths
     
     deriving (Show)
 

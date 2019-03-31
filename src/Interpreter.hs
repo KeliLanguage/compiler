@@ -13,7 +13,7 @@ import qualified Data.HashMap.Strict as HashMap
 keliInterpret ::  Bool -> String -> IO (Either String String) -- Left means Error, Right means Output
 keliInterpret showLineNumber sourceFileName  = do
     contents <- readFile sourceFileName
-    (errors, currentModule, _) <- keliCompile sourceFileName contents (HashMap.empty)
+    (errors, currentModule, _, _) <- keliCompile sourceFileName contents (HashMap.empty) []
     if length errors > 0 then
         let diagnostics = concatMap toDiagnostic errors in
         return (Left (intercalate "\n\n\n" (map renderDiagnostic diagnostics)))
