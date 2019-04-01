@@ -1,0 +1,11 @@
+State.of(A Type) = choice.New($.state(A) runState(Function.in(A) out(A)))
+
+MyState = $.count(Int)
+
+(this MyState).increment = this
+
+x = State.New($.state(MyState.count(0)) runState(.increment))
+
+= x.
+    if(.New(n)) then
+        (n.runState.apply(MyState.count(1)))

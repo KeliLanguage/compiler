@@ -195,6 +195,9 @@ instance Transpilable V.Expr where
         V.Expr (V.Array exprs _) _ -> 
             "[" ++ intercalate "," (map (transpile False) exprs) ++ "]"
 
+        other ->
+            error (show other)
+
 instance Transpilable V.TagBranch where
     transpile _ b = case b of
         V.CarrylessTagBranch (V.VerifiedTagname (_,tagname)) expr ->

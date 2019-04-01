@@ -20,7 +20,6 @@ import Util (
     MatchResult(GotDuplicates,ZeroIntersection,GotExcessive,Missing,PerfectMatch),
     match,
     findDuplicates)
-import Unify
 
 data Assumption 
     = StrictlyAnalyzingType
@@ -91,7 +90,7 @@ typeCheckExpr ctx@(Context _ env importedEnvs) assumption expression = case expr
                     firstElement:tailElements -> do
                         let typeOfFirstElem = getType firstElement
                         -- make sure every element have the same type as the first element 
-                        !_ <- forM tailElements (\element -> unify element typeOfFirstElem)
+                        !_ <- forM tailElements (\element -> unify ctx2 emptySubstitution element typeOfFirstElem)
                         Right (ctx2, First (V.Expr
                             (V.Array elements pos)
                             (V.TypeTaggedUnion (newArrayType typeOfFirstElem))))
@@ -227,7 +226,7 @@ continuePreprocessFuncCall1 ctx assumption
         let actualObject = V.Expr 
                 (V.Object actualPropValuePairs) 
                 (V.TypeObject aliasedName (zip properties (map getType values)))
-        substitution <- unify actualObject (V.TypeObject aliasedName expectedPropTypePairs)
+        (substitution, _) <- unify ctx3 emptySubstitution actualObject (V.TypeObject aliasedName expectedPropTypePairs)
         let resultingType = applySubstitutionToType substitution (V.TypeObject aliasedName expectedPropTypePairs)
         Right (ctx3, First (V.Expr (V.Object actualPropValuePairs) resultingType))
 
@@ -238,7 +237,7 @@ continuePreprocessFuncCall1 ctx assumption
     ((_,"apply"):[]) = do
         (ctx3, value) <- verifyExpr ctx assumption appliedValue
         -- check if value match with expectedInputType
-        !_ <- unify value expectedInputType
+        !_ <- unify ctx emptySubstitution value expectedInputType
         Right (ctx3, First(V.Expr (V.FuncApp func value) expectedOutputType))
 
 -- (C) check if user is calling tag matchers
@@ -274,7 +273,7 @@ continuePreprocessFuncCall1 ctx assumption
         (ctx3, typeCheckedElseBranches) <- verifyExprs ctx assumption (map snd rawElseBranches)
 
         -- 3. check if each branch have the same type with the first branch
-        case allBranchTypeAreSame (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
+        case allBranchTypeAreSame ctx3 (typeCheckedTagBranches ++ map (V.ElseBranch) typeCheckedElseBranches) of
             Left err ->
                 case err of
                     KErrorTypeMismatch actualExpr actualType expectedType ->
@@ -354,23 +353,23 @@ continuePreprocessFuncCall1 ctx assumption
                                 updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst lambdaParam expectedType) (contextEnv ctx) 
                                 (ctx4, verifiedLambdaBody) <- verifyExpr (ctx{contextEnv = updatedEnv}) assumption lambdaBody
 
-                                subst2 <- unify (verifiedLambdaBody) (expectedType)
+                                (subst2, verifiedLambdaBody') <- unify ctx4 emptySubstitution verifiedLambdaBody expectedType
                                 let returnType = applySubstitutionToType subst2 objectType
                                 Right (ctx4, First (V.Expr 
                                     (V.ObjectLambdaSetter 
                                         subject
                                         propertyName
                                         lambdaParam
-                                        verifiedLambdaBody)
+                                        verifiedLambdaBody')
                                     (returnType)))
 
                             -- else is value setter
                             _ -> do
                                 (ctx3, newValue) <- verifyExpr ctx assumption secondParam
-                                substitution <- unify newValue expectedType
+                                (substitution, newValue') <- unify ctx3 emptySubstitution newValue expectedType
                                 let returnType = applySubstitutionToType substitution objectType
                                 Right (ctx3, First (V.Expr 
-                                    (V.ObjectSetter subject propertyName newValue) 
+                                    (V.ObjectSetter subject propertyName newValue') 
                                     (returnType)))
                     
                     -- else
@@ -405,7 +404,7 @@ continuePreprocessFuncCall1 ctx assumption
 
                         -- verify carry expr
                         (ctx4, verifiedCarryExpr) <- verifyExpr ctx3 assumption carryExpr
-                        subst2 <- unify verifiedCarryExpr expectedCarryType'
+                        (subst2, verifiedCarryExpr') <- unify ctx4 emptySubstitution verifiedCarryExpr expectedCarryType'
 
                         let resultingTaggedUnionType = 
                                 applySubstitutionToType subst2 
@@ -415,7 +414,7 @@ continuePreprocessFuncCall1 ctx assumption
                         -- update expected carry type of every carryful tag
 
                         Right (ctx4, First (V.Expr 
-                            (V.CarryfulTagExpr tagname verifiedCarryExpr scope)
+                            (V.CarryfulTagExpr tagname verifiedCarryExpr' scope)
                             (resultingTaggedUnionType)))
 
                     _ ->
@@ -621,54 +620,25 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption (firstParam:tailPara
                                 let (ctx2, subst1) = instantiateTypeVar ctx (V.funcDeclGenericParams currentFunc)
 
                                 -- (B) apply substitution to every expected func param types
-                                let expectedParamTypes@(firstExpectedParamType:tailExpectedParamTypes) = 
+                                let expectedParamTypes@(firstExpectedParamType:_) = 
                                         map (\(_,paramTypeAnnot) -> 
                                             applySubstitutionToType subst1 (V.getTypeRef paramTypeAnnot)) (V.funcDeclParams currentFunc) 
 
                                 -- (C) check if the firstParam matches the firstParamExpectedType
-                                case unify firstParam firstExpectedParamType of
+                                case unify ctx2 subst1 firstParam firstExpectedParamType of
                                     -- if matches, continue to unify the following params
-                                    Right subst2 -> 
-                                        case unifyMany subst2 tailParams tailExpectedParamTypes of
+                                    Right (subst2,firstParam') -> 
+                                        case unifyMany ctx2 subst2 (firstParam':tailParams) expectedParamTypes of
                                             Left err ->
                                                 PartiallyMatchedFuncFound err
 
-                                            Right subst3 -> 
-                                                -- perform second pass type checking, mainly for inferring lambda types
+                                            Right (subst3, inferredFuncCallParams) -> 
                                                 let subst4 = composeSubst subst2 subst3 in
-                                                case mapM 
-                                                        (\e -> 
-                                                            case e of 
-                                                            V.Expr 
-                                                                (V.PartiallyInferredLambda paramName body) 
-                                                                (V.TypeTaggedUnion (V.TaggedUnion _ _ _ [inputType, outputType])) -> do
-                                                                let inputType' = applySubstitutionToType subst4 inputType 
-                                                                let outputType' = applySubstitutionToType subst4 outputType 
-                                                                updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst paramName inputType') env 
-                                                                -- QUESTION: Should I ignore this new context?
-                                                                (_, body') <- verifyExpr (ctx2{contextEnv = updatedEnv}) assumption body
-                                                                tempSubst <- unify body' outputType'
-                                                                Right (V.Expr 
-                                                                    (V.Lambda (paramName, inputType') body') 
-                                                                    (V.TypeTaggedUnion (newFunctionType inputType' (applySubstitutionToType tempSubst outputType'))))
-                                                            _ -> 
-                                                                Right e) (firstParam:tailParams) of
-                                                    Right funcCallParams' -> 
-                                                        let expectedReturnType = applySubstitutionToType subst1 (V.funcDeclReturnType currentFunc) in
-                                                        -- unify again to get the best substitution (mainly for inferring lambdas)
-                                                        case unifyMany subst4 funcCallParams' expectedParamTypes of
-                                                            Left err ->
-                                                                PartiallyMatchedFuncFound err
-                                                            
-                                                            Right subst5 ->
-                                                                let expectedReturnType' = applySubstitutionToType subst5 expectedReturnType in
-                                                                let funcCall = V.Expr (V.FuncCall funcCallParams' funcIds (scope,currentFunc)) (expectedReturnType') in
-                                                                PerfectlyMatchedFuncFound ctx2 funcCall currentFunc
+                                                let expectedReturnType = applySubstitutionToType subst1 (V.funcDeclReturnType currentFunc) in
+                                                let expectedReturnType' = applySubstitutionToType subst4 expectedReturnType in
+                                                let funcCall = V.Expr (V.FuncCall inferredFuncCallParams funcIds (scope,currentFunc)) (expectedReturnType') in
+                                                PerfectlyMatchedFuncFound ctx2 funcCall currentFunc
                                                     
-                                                    Left err ->
-                                                        PartiallyMatchedFuncFound err
-
-
                                     -- if not, 
                                     Left _ ->
                                         StillNoMatchingFunc)
@@ -934,18 +904,20 @@ typeCheckTagBranch ctx@(Context _ env importedEnvs) expectedTags (tag, branch) =
 
 
 allBranchTypeAreSame 
-    :: [V.TagBranch]
+    :: Context
+    -> [V.TagBranch]
     -> Either 
         KeliError 
         V.Type -- type of the first branch
-allBranchTypeAreSame typeCheckedTagBranches = do
+
+allBranchTypeAreSame ctx typeCheckedTagBranches = do
     let (firstBranch:tailBranches) = map (\b -> case b of 
             V.CarryfulTagBranch _ _ expr -> expr
             V.CarrylessTagBranch _ expr -> expr
             V.ElseBranch expr -> expr) typeCheckedTagBranches
 
     let expectedTypeOfEachBranches = getType firstBranch 
-    case mapM (\b -> unify b expectedTypeOfEachBranches) tailBranches of
+    case mapM (\b -> unify ctx emptySubstitution b expectedTypeOfEachBranches) tailBranches of
         Left err ->
             Left err
 
@@ -973,3 +945,308 @@ lookupEnvs identifier currentEnv importedEnvs =
                 importedEnvs 
     in
     catMaybes (symbolsFromCurrentScope:symbolsFromImportedFiles)
+
+
+---------------------------------------------------------------------------------------
+-- Unify functions
+--      Why these functions are not moved to its own file Unify.hs? 
+--      This is because unify and typeCheck depends on each other mutually (i.e. mutually recursive)
+--      Thus, they cannot be separated into two different files
+---------------------------------------------------------------------------------------
+
+unifyMany 
+    :: Context
+    -> Substitution -- initial subst
+    -> [V.Expr]  -- actual exprs (for reporting error location only)
+    -> [V.Type]  -- expected types
+    -> Either 
+        KeliError 
+        (Substitution, [V.Expr]) -- (subst, inferred exprs)
+
+unifyMany ctx@(Context _ env _) subst1 exprs expectedTypes = do
+    (subst2, exprs') <- unifyMany' ctx subst1 exprs expectedTypes
+
+    -- perform second pass type checking, mainly for inferring lambda types
+    let subst3 = composeSubst subst1 subst2
+    inferredExprs <- 
+            mapM 
+                (\e -> 
+                    case e of 
+                    V.Expr 
+                        (V.PartiallyInferredLambda paramName body) 
+                        (V.TypeTaggedUnion (V.TaggedUnion _ _ _ [inputType, outputType])) -> do
+                        let inputType' = applySubstitutionToType subst3 inputType 
+                        let outputType' = applySubstitutionToType subst3 outputType 
+                        updatedEnv <- insertSymbolIntoEnv (KeliSymLocalConst paramName inputType') env 
+                        -- QUESTION: Should I ignore this new context?
+                        (_, body') <- verifyExpr (ctx{contextEnv = updatedEnv}) CanBeAnything body
+                        (tempSubst, body'') <- unify ctx subst3 body' outputType'
+                        Right (V.Expr 
+                            (V.Lambda (paramName, inputType') body'') 
+                            (V.TypeTaggedUnion (newFunctionType inputType' (applySubstitutionToType tempSubst outputType'))))
+                    _ -> 
+                        Right e) (exprs')
+    
+    -- perform third pass type checking, mainly for inferring lambda types
+    (subst4, inferredExprs') <- unifyMany' ctx subst3 inferredExprs expectedTypes 
+    return (composeSubst subst3 subst4, inferredExprs') 
+
+
+unifyMany' 
+    :: Context
+    -> Substitution 
+    -> [V.Expr] 
+    -> [V.Type] 
+    -> Either KeliError (Substitution, [V.Expr])
+unifyMany' ctx' subst' exprs' expectedTypes' = 
+    foldM 
+        (\(prevSubst, prevExprs) (actualExpr, expectedType) -> do
+            -- apply previous substituion to current expectedParamType
+            let expectedType' = applySubstitutionToType prevSubst expectedType
+            (nextSubst, actualExpr') <- unify ctx' subst' actualExpr expectedType'
+            Right (composeSubst prevSubst nextSubst, prevExprs ++ [actualExpr']))
+        (subst', [])
+        (zip exprs' expectedTypes')
+
+getType :: V.Expr -> V.Type
+getType (V.Expr _ t) = t
+
+type Substitution = Map.Map String V.Type
+
+emptySubstitution :: Map.Map String V.Type
+emptySubstitution = Map.empty
+
+
+-- why does UnifyResult needs to contains V.Expr?
+-- Answer: It is the updated expression
+--  When unifying PartiallyInferredLambda, the result might be a properly inferred lambda
+type UnifyResult = Either KeliError (Substitution, V.Expr) 
+
+unify 
+    :: Context 
+    -> Substitution
+    -> V.Expr  -- actual expr (for reporting error location only)
+    -> V.Type  -- expected type
+    -> UnifyResult
+
+-- unify type variables
+unify _ _ expr@(V.Expr _ (V.FreeTypeVar name constraint)) t =
+    unifyTVar expr name constraint t
+
+unify _ _ expr@(V.Expr _ t) (V.FreeTypeVar name constraint) =
+    unifyTVar expr name constraint t
+
+-- unify named types
+unify _ _ expr@(V.Expr _ (V.TypeFloat)) (V.TypeFloat) = 
+    Right (emptySubstitution, expr)  
+
+unify _ _ expr@(V.Expr _ (V.TypeInt)) (V.TypeInt) = 
+    Right (emptySubstitution, expr)  
+
+unify _ _ expr@(V.Expr _ V.TypeString) (V.TypeString) = 
+    Right (emptySubstitution, expr)  
+
+-- unify bounded type variables
+unify _ _ 
+    expr@(V.Expr actualExpr actualType@(V.BoundedTypeVar name1 _))
+    expectedType@(V.BoundedTypeVar name2 _) = 
+    if snd name1 == snd name2 then
+        Right (emptySubstitution, expr)  
+    else
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
+
+unify _ _
+    expr@(V.Expr actualExpr actualType@(V.TypeObjectConstructor name1 _))
+    expectedType@(V.TypeObjectConstructor name2 _) = 
+    if name1 == name2 then
+        Right (emptySubstitution, expr)
+    else
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
+
+unify _ _ (V.Expr _ V.TypeType) V.TypeType = 
+    undefined
+
+-- unify' tagged union
+unify ctx subst1
+    expr@(V.Expr actualExpr actualType@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ actualInnerTypes)))
+    expectedType@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ expectedInnerTypes)) = 
+    if name1 == name2 && (length actualInnerTypes == length expectedInnerTypes) then do
+        subst2 <- 
+            foldM 
+                (\prevSubst (actualInnerType, expectedInnerType) -> do
+                    let mockExpr = V.Expr actualExpr actualInnerType -- mockExpr is just for reporting error location
+                    (nextSubst, _) <- unify ctx prevSubst mockExpr expectedInnerType
+                    Right (composeSubst prevSubst nextSubst))
+                subst1
+                (zip actualInnerTypes expectedInnerTypes)
+
+        return (subst2, expr)
+    else 
+        Left (KErrorTypeMismatch actualExpr actualType expectedType)
+
+
+-- unfify object type
+-- object type is handled differently, because we want to have structural typing
+-- NOTE: kts means "key-type pairs"
+unify ctx subst expr@(V.Expr actualExpr (V.TypeObject _ kts1)) (V.TypeObject objectTypeName kts2) = 
+    let (actualKeys, actualTypes) = unzip (List.sortOn (\(k,_) -> k) kts1) in
+    let (expectedKeys, expectedTypes) = unzip (List.sortOn (\(k,_) -> k) kts2) in
+    -- TODO: get the set difference of expectedKeys with actualKeys
+    -- because we want to do structural typing
+    -- that means, it is acceptable if actualKeys is a valid superset of expectedKeys
+    case match actualKeys expectedKeys of
+        PerfectMatch -> do
+            case actualExpr of 
+                -- if actualExpr is an object literal
+                V.Object keyValuePairs -> do
+                    let (_, actualValues) = unzip (List.sortOn (\(k,_) -> k) keyValuePairs)
+                    (subst2, actualValues') <- unifyMany ctx subst actualValues expectedTypes
+                    return (subst2, V.Expr 
+                        (V.Object (zip actualKeys actualValues')) 
+                        (V.TypeObject objectTypeName (zip actualKeys (map getType actualValues'))))
+
+                -- if not
+                _ -> do
+                    subst2 <- foldM
+                        (\prevSubst (key, actualType, expectedType) -> 
+
+                            -- actualExpr is passed in so that the location of error can be reported properly
+                            case unify ctx subst (V.Expr actualExpr actualType) (applySubstitutionToType prevSubst expectedType) of
+                                Right (nextSubst, _) ->
+                                    Right (composeSubst prevSubst nextSubst)
+
+                                Left KErrorTypeMismatch{} ->
+                                    Left (KErrorPropertyTypeMismatch key expectedType actualType actualExpr )
+
+                                Left err ->
+                                    Left err)
+                        emptySubstitution
+                        (zip3 actualKeys actualTypes expectedTypes)
+
+                    return (subst2, expr)
+
+        GotDuplicates duplicates ->
+            Left (KErrorDuplicatedProperties duplicates)
+
+        GotExcessive excessiveProps ->
+            Left (KErrorExcessiveProperties excessiveProps)
+        
+        Missing missingProps ->
+            Left (KErrorMissingProperties actualExpr missingProps)
+
+        ZeroIntersection ->
+            Left (KErrorMissingProperties actualExpr (map snd expectedKeys))
+        
+
+unify _ _ (V.Expr actualExpr actualType) expectedType =  Left (KErrorTypeMismatch actualExpr actualType expectedType)
+
+
+unifyTVar :: V.Expr -> String -> Maybe V.TypeConstraint -> V.Type -> UnifyResult
+unifyTVar expr tvarname1 _ t2 =
+    -- NOTE: actualExpr is used for reporting error location only
+    let result = Right (Map.insert tvarname1 t2 emptySubstitution, expr) in
+    case t2 of
+        V.FreeTypeVar tvarname2 _ ->
+            if tvarname1 == tvarname2 then
+                Right (emptySubstitution, expr)
+            else
+                result
+
+        _ ->
+            if t2 `contains` tvarname1 then
+                Left (KErrorTVarSelfReferencing expr tvarname1 t2)
+
+            else
+                result 
+
+
+contains :: V.Type -> String -> Bool
+t `contains` tvarname = 
+    case t of
+        V.BoundedTypeVar (_,name) _ ->
+            name == tvarname
+
+        V.FreeTypeVar name _ ->
+            name == tvarname
+
+        V.TypeTaggedUnion (V.TaggedUnion _ _ _ types) ->
+            any (`contains` tvarname) types
+
+        _ ->
+            False
+
+{- 
+    Composing substitution s1 and s1
+
+     For example if 
+
+        s1 = {t1 => Int, t3 => t2} 
+        s2 = {t2 => t1}
+
+    Then the result will be
+
+        s3 = {
+            t1 => Int,
+            t2 => Int,
+            t3 => Int
+        }
+-}
+composeSubst :: Substitution -> Substitution -> Substitution 
+composeSubst s1 s2 =
+    let result = 
+            foldl 
+                (\subst (key, type') -> Map.insert key (applySubstitutionToType s1 type') subst) 
+                emptySubstitution
+                ((Map.assocs s2)::[(String, V.Type)]) in
+
+    -- cannot be Map.union result s1
+    -- because we want keys in result to override duplicates found in s1
+    Map.union result s1
+
+
+-- Replace the type variables in a type that are
+-- present in the given substitution and return the
+-- type with those variables with their substituted values
+-- eg. Applying the substitution {"a": Bool, "b": Int}
+-- to a type (a -> b) will give type (Bool -> Int)
+applySubstitutionToType :: Substitution -> V.Type -> V.Type
+applySubstitutionToType subst type' =
+    case type' of
+        V.FreeTypeVar name _ ->
+            case Map.lookup name subst of
+                Just t ->
+                    t
+                Nothing ->
+                    type'
+
+        V.BoundedTypeVar name _ ->
+            case Map.lookup (snd name) subst of
+                Just t ->
+                    t
+                Nothing ->
+                    type'
+
+        V.TypeTaggedUnion (V.TaggedUnion name ids tags innerTypes) ->
+            let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes
+                resultingTaggedUnion = V.TaggedUnion name ids resultingTags resultingInnerTypes
+                resultingTags = 
+                        map 
+                        (\x -> case x of
+                            V.CarryfulTag name' expectedCarryType _ -> 
+                                let updatedCarryType = 
+                                        applySubstitutionToType subst (expectedCarryType) in
+
+                                V.CarryfulTag name' updatedCarryType resultingTaggedUnion
+
+                            V.CarrylessTag name' _ -> 
+                                V.CarrylessTag name' resultingTaggedUnion) 
+                        tags
+            in
+            V.TypeTaggedUnion resultingTaggedUnion
+
+        V.TypeObject name propTypePairs ->
+            let (props, types) = unzip propTypePairs in
+            V.TypeObject name (zip props (map (applySubstitutionToType subst) types))
+        
+        other ->
+            other

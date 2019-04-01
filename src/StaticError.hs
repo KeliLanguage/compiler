@@ -134,7 +134,7 @@ data KeliError
         [Raw.StringToken]
 
     | KErrorTVarSelfReferencing
-        Verified.Expr'
+        Verified.Expr
         String
         Verified.Type
 

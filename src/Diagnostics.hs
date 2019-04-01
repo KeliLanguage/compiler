@@ -8,10 +8,10 @@ import Prelude hiding (id, head, tail, last, init)
 import Text.ParserCombinators.Parsec
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import GHC.Generics
+import TypeCheck
 import Data.Aeson
 import Data.Char
 import Data.List hiding (last, head)
-import Unify
 import Util
 
 import qualified Ast.Raw as Raw

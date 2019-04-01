@@ -10,15 +10,15 @@ import Data.Aeson
 import Data.Foldable
 import Data.Char
 import Env
+import Data.List
 import Compiler
 import Analyzer
 import Util
-import Data.List
+import qualified Data.List as List
 import qualified Ast.Raw as Raw
 import qualified Ast.Verified as V
 import TypeCheck
 import Prelude hiding(id)
-import Unify
 import StaticError(KeliError(KErrorIncompleteFuncCall))
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import qualified Data.HashMap.Strict as HashMap
@@ -256,7 +256,7 @@ suggestCompletionItems' importedEnvs symbols subjectExpr  = case subjectExpr of
                                             let (_,firstParamTypeAnnon) = V.funcDeclParams f !! 0 in
                                             -- instantiate type variables first
                                             let (_, subst) = instantiateTypeVar (Context 999 emptyEnv []) (V.funcDeclGenericParams f) in
-                                            case unify expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
+                                            case unify (Context 0 (List.head importedEnvs) []) subst expr (applySubstitutionToType subst (V.getTypeRef firstParamTypeAnnon)) of
                                                 Right _ ->
                                                     [KeliSymFunc [f]]
                                                 Left _ ->

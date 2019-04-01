@@ -17,7 +17,6 @@ import Module
 import Env
 import TypeCheck
 import Util
-import Unify
 
 analyze :: [(ModuleName,Env)] -> [Raw.Decl] -> ([KeliError], Env, [V.Decl])
 analyze importedEnvs decls = 
@@ -297,7 +296,7 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                     Right (V.FuncDecl (funcSignature {V.funcDeclReturnType = bodyType}) typeCheckedBody)
 
                 _ -> do
-                    case unify typeCheckedBody verifiedReturnType of
+                    case unify (Context 0 env []) emptySubstitution typeCheckedBody verifiedReturnType of
                         Left err ->
                             Left err
 
@@ -357,6 +356,9 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
             Third tag -> do
                 taggedUnion <- linkTagsTogether typeConstructorName ids tag verifiedTypeParams'
                 Right (V.TaggedUnionDecl taggedUnion)
+
+            Second (V.TypeAnnotObject keyTypePairs) -> 
+                undefined
 
             _ ->
                 undefined
