@@ -1089,8 +1089,8 @@ unify ctx subst1
 -- object type is handled differently, because we want to have structural typing
 -- NOTE: kts means "key-type pairs"
 unify ctx subst expr@(V.Expr actualExpr (V.TypeObject _ kts1)) (V.TypeObject objectTypeName kts2) = 
-    let (actualKeys, actualTypes) = unzip (List.sortOn (\(k,_) -> k) kts1) in
-    let (expectedKeys, expectedTypes) = unzip (List.sortOn (\(k,_) -> k) kts2) in
+    let (actualKeys, actualTypes) = unzip (List.sortOn (\((_,k),_) -> k) kts1) in
+    let (expectedKeys, expectedTypes) = unzip  (List.sortOn (\((_,k),_) -> k) kts2) in
     -- TODO: get the set difference of expectedKeys with actualKeys
     -- because we want to do structural typing
     -- that means, it is acceptable if actualKeys is a valid superset of expectedKeys
@@ -1099,7 +1099,7 @@ unify ctx subst expr@(V.Expr actualExpr (V.TypeObject _ kts1)) (V.TypeObject obj
             case actualExpr of 
                 -- if actualExpr is an object literal
                 V.Object keyValuePairs -> do
-                    let (_, actualValues) = unzip (List.sortOn (\(k,_) -> k) keyValuePairs)
+                    let (_, actualValues) = unzip (List.sortOn (\((_,k),_) -> k) (keyValuePairs))
                     (subst2, actualValues') <- unifyMany ctx subst actualValues expectedTypes
                     return (subst2, V.Expr 
                         (V.Object (zip actualKeys actualValues')) 
