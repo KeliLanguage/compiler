@@ -177,15 +177,13 @@ instance Transpilable V.Expr where
             code
 
         V.Expr 
-            (V.CarryfulTagExpr (_,tag) carry scope)  
-            ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+            (V.CarryfulTagExpr (_,taggedUnionName) (_,tag) carry scope) _
                 -> transpile False scope 
                     ++ prefix taggedUnionName ++ squareBracket (quote tag) 
                     ++ "("++ transpile False carry ++")"
 
         V.Expr 
-            (V.CarrylessTagExpr(_,tag) _ scope)
-            ((V.TypeTaggedUnion (V.TaggedUnion (_,taggedUnionName) _ _ _)))
+            (V.CarrylessTagExpr (_,taggedUnionName) (_,tag) _ scope) _
                 -> transpile False scope ++ prefix taggedUnionName ++ squareBracket (quote tag)
 
         V.Expr (V.FuncApp f arg) _ ->

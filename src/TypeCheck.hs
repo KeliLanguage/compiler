@@ -391,7 +391,7 @@ continuePreprocessFuncCall1 ctx assumption
                 let resultingInnerTypes = map (applySubstitutionToType subst) innerTypes in
                 let belongingUnion = V.TaggedUnion name ids tags resultingInnerTypes in
                 (Right (ctx3, First (V.Expr 
-                    (V.CarrylessTagExpr tag tagname scope) 
+                    (V.CarrylessTagExpr taggedUnionName tag tagname scope) 
                     ((V.TypeTaggedUnion belongingUnion)))))
 
             -- if is carryful tag
@@ -414,7 +414,7 @@ continuePreprocessFuncCall1 ctx assumption
                         -- update expected carry type of every carryful tag
 
                         Right (ctx4, First (V.Expr 
-                            (V.CarryfulTagExpr tagname verifiedCarryExpr' scope)
+                            (V.CarryfulTagExpr taggedUnionName tagname verifiedCarryExpr' scope)
                             (resultingTaggedUnionType)))
 
                     _ ->
@@ -540,7 +540,7 @@ lookupFunction
 lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcIds = do
     -- lookup the function being invoked from all the imported modules
     let lookupResult = lookupEnvs (List.intercalate "$" (map snd funcIds)) env importedEnvs
-    let results = map (lookupFunction' ctx assumption funcCallParams funcIds) lookupResult
+    let results = map (lookupFunction' ctx funcCallParams funcIds) lookupResult
     let matchingFuncs = rights results
     case matchingFuncs of
         -- if no matching function is found
@@ -595,13 +595,12 @@ lookupFunction ctx@(Context _ env importedEnvs) assumption funcCallParams funcId
 -- this is a helper function to lookup for matching function within a SINGLE module only 
 lookupFunction'
     :: Context 
-    -> Assumption 
     -> [V.Expr]
     -> [Raw.StringToken]
     -> (V.Scope, KeliSymbol)
     -> Either KeliError (Context, V.Expr, V.FuncSignature)
 
-lookupFunction' ctx@(Context _ env importedEnvs) assumption (firstParam:tailParams) funcIds lookupResult = 
+lookupFunction' ctx (firstParam:tailParams) funcIds lookupResult = 
     case lookupResult of
         (scope, KeliSymFunc candidateFuncs) -> do
             case (foldl 
@@ -662,7 +661,7 @@ lookupFunction' ctx@(Context _ env importedEnvs) assumption (firstParam:tailPara
             Left (KErrorUsingUndefinedFunc funcIds [])
 
 
-lookupFunction' ctx@(Context _ env importedEnvs) assumption [] funcIds lookupResult = error "impossible"
+lookupFunction' ctx@(Context _ env importedEnvs)  [] funcIds lookupResult = error "impossible"
 
 verifyBoundedTypeVar 
     :: Context 
@@ -1071,16 +1070,20 @@ unify ctx subst1
     expr@(V.Expr actualExpr actualType@(V.TypeTaggedUnion (V.TaggedUnion name1 _ _ actualInnerTypes)))
     expectedType@(V.TypeTaggedUnion (V.TaggedUnion name2 _ _ expectedInnerTypes)) = 
     if name1 == name2 && (length actualInnerTypes == length expectedInnerTypes) then do
-        subst2 <- 
+        case 
             foldM 
                 (\prevSubst (actualInnerType, expectedInnerType) -> do
                     let mockExpr = V.Expr actualExpr actualInnerType -- mockExpr is just for reporting error location
                     (nextSubst, _) <- unify ctx prevSubst mockExpr expectedInnerType
                     Right (composeSubst prevSubst nextSubst))
                 subst1
-                (zip actualInnerTypes expectedInnerTypes)
+                (zip actualInnerTypes expectedInnerTypes) of
 
-        return (subst2, expr)
+            Right subst2 ->
+                Right (subst2, expr)
+            
+            Left{} ->
+                Left (KErrorTypeMismatch actualExpr actualType expectedType)
     else 
         Left (KErrorTypeMismatch actualExpr actualType expectedType)
 

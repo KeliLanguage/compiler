@@ -235,11 +235,13 @@ data Expr'
         tagMatcherElseBranch :: Maybe Expr
     } 
     | CarrylessTagExpr 
+        StringToken -- prefix (for highlighting error)
         StringToken -- where is it defined?
         StringToken -- where is it used?
         Scope 
 
     | CarryfulTagExpr
+        StringToken -- prefix (for highlighting error)
         StringToken -- tag name
         Expr        -- carry expr
         Scope

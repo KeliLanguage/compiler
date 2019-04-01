@@ -359,11 +359,11 @@ instance HaveRange V.Expr' where
         V.ObjectConstructor Nothing kvs ->
             getRange (fst (kvs !! 0))
         
-        V.CarrylessTagExpr _ x _ ->
-            getRange x
+        V.CarrylessTagExpr prefix _ x _ ->
+            mergeRanges prefix [x]
 
-        V.CarryfulTagExpr name carryExpr _ ->
-            mergeRanges name [carryExpr]
+        V.CarryfulTagExpr prefix _ carryExpr _ ->
+            mergeRanges prefix [carryExpr]
 
 
         V.TagMatcher subject branches _ ->
@@ -436,10 +436,10 @@ instance HaveRange V.Expr' where
         V.ObjectConstructor Nothing kvs ->
             getSourceName (fst (kvs !! 0))
         
-        V.CarrylessTagExpr _ x _ ->
+        V.CarrylessTagExpr _ _ x _ ->
             getSourceName x
 
-        V.CarryfulTagExpr name _ _ ->
+        V.CarryfulTagExpr _ name _ _ ->
             getSourceName name
 
         V.TagMatcher subject _ _ ->

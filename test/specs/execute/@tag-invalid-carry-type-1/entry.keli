@@ -4,7 +4,5 @@ List.of(A Type) = choice
 
 
 z = List.Cons($.
-        current (1) 
-        next    (List.Cons($.
-            current ("123") 
-            next    (List.New))))
+        current(1) 
+        next(List.Cons($.current("123") next(List.New))))

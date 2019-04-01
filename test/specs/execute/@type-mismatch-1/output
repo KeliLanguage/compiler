@@ -1,3 +1,3 @@
 ERROR at ./test/specs/execute/@type-mismatch-1/entry.keli:11:25
 
-    Expected `A` but got `List.of(T$0)`
+    Expected `List.of(T$0)` but got `A`
