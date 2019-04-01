@@ -9,6 +9,7 @@ import Parser
 import qualified Ast.Raw as Raw
 import Env
 import System.FilePath.Posix
+import Data.List.Utils (replace)
 import System.Directory
 import Module
 import qualified Data.HashMap.Strict as HashMap
@@ -55,7 +56,7 @@ keliCompile
     -> ImportTree
     -> IO ([KeliError], Module, ModuleCache, ImportTree)
 keliCompile filepath contents cache importTree = do  
-    let currentModulename = takeBaseName filepath -- Refer http://hackage.haskell.org/package/filepath-1.4.2.1/docs/System-FilePath-Posix.html#v:takeBaseName
+    let currentModulename = takeBaseName (replace "\\" "/" filepath) -- Refer http://hackage.haskell.org/package/filepath-1.4.2.1/docs/System-FilePath-Posix.html#v:takeBaseName
     importerFilePath <- makeAbsolute filepath
     case keliParse filepath contents of
         Right rawDecls -> do
@@ -74,7 +75,7 @@ keliCompile filepath contents cache importTree = do
                                     if isAbsolute (snd importFilePath) then
                                         snd importFilePath
                                     else
-                                        takeDirectory importerFilePath ++ "/" ++ snd importFilePath
+                                        takeDirectory (replace "\\" "/" importerFilePath) ++ "/" ++ snd importFilePath
                             importeeFilePath <- canonicalizePath importPath
                             yes <- doesFileExist importeeFilePath
                             if yes then
