@@ -8,6 +8,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import Text.ParserCombinators.Parsec.Pos
 import Data.Char
 import Diagnostics
+import qualified Data.HashMap.Strict as HashMap
 
 import qualified Ast.Verified as V
 import Module
@@ -15,47 +16,76 @@ import Module
 prefix :: String -> String
 prefix s = "k$" ++ s -- k means Keli, this is to prevent conflicts with other JS libraries
 
-transpileModule 
-    :: Bool -- isEntryFile
-    -> Bool -- showLineNumber
-    -> Module 
-    -> String
-transpileModule isEntryFile showLineNumber  (Module name _ importedModules _ decls) = 
-    "const " 
-        ++ prefix name 
-        ++ "=(()=>{" 
-            ++ transpiledModules 
-            ++ transpiledDecls 
-            ++ "return{" ++ exports ++ "}})();"
-    where
-        transpiledModules = 
-            concatMap (transpileModule False showLineNumber) (importedModules)
+-- this cache is to reduced the output size
+type TranspiledModuleCache 
+    = HashMap.HashMap 
+        String -- full file path of the module
+        () -- unit
 
-        transpiledDecls = 
+globalModuleVariable :: String
+globalModuleVariable = "__k$MODULE"
+
+transpileModule 
+    :: Bool -- showLineNumber
+    -> Module -- input module
+    -> String -- output JavaScript code
+
+transpileModule showLineNumber entryModule =
+    let importedModules = 
+            (nubBy 
+                (\x y -> moduleFilepath x == moduleFilepath y) 
+                (concatMap flattenModule (moduleImported entryModule))) 
+    in
+    -- initialize globalModuleVariable
+    "const " ++ globalModuleVariable ++ "={};" ++
+    intercalate ";" (map
+        (\(Module _ filepath importedModules _ decls, isEntryFile) -> 
+            let exports = 
+                    intercalate "," (
+                    concatMap 
+                        (\d -> 
+                            case d of
+                                V.ConstDecl (_,id) _ ->
+                                    [prefix id]
+                                V.FuncDecl signature _ ->
+                                    [getFuncName signature]
+
+                                V.TaggedUnionDecl (V.TaggedUnion (_,name') _ _ _) ->
+                                    [prefix name']
+
+                                _ ->
+                                    [])
+                        decls) in
+
+            
             let !decls' = 
                     if isEntryFile then 
                         decls 
-                    else -- remove all idless decls, accoding to specification 
+                    else -- remove all idless decls for non-entry file, accoding to specification
                         filter (\d -> case d of V.IdlessDecl _ -> False; _ -> True) decls in
-            (intercalate ";" (map (transpile showLineNumber) (decls'))) ++ ";"
+            
+            globalModuleVariable ++ "[\"" ++ filepath ++ "\"]"
+                ++ "=(()=>{" 
+                    -- 1. link all imported modules
+                    ++ intercalate ";" (map (\m -> 
+                        "const " ++ prefix (moduleName m) ++ "=" ++ globalModuleVariable ++ "[\"" ++ moduleFilepath m ++ "\"]()" ) importedModules)
 
-        exports = 
-            intercalate "," (
-                concatMap 
-                    (\d -> 
-                        case d of
-                            V.ConstDecl (_,id) _ ->
-                                [prefix id]
-                            V.FuncDecl signature _ ->
-                                [getFuncName signature]
+                    -- 2. transpile all declaration of this module
+                    ++ "\n" ++ intercalate ";" (map (transpile showLineNumber) (decls')) 
 
-                            V.TaggedUnionDecl (V.TaggedUnion (_,name') _ _ _) ->
-                                [prefix name']
 
-                            _ ->
-                                [])
-                    decls)
+                    -- 3. return all named declarations
+                    ++ "\nreturn{" ++ exports ++ "}})" 
 
+                    -- 4. if is entry file evaluate it
+                    ++ if isEntryFile then "();" else ";"
+            )
+        (map (\m -> (m, False)) importedModules ++ [(entryModule, True)]))
+        
+
+flattenModule :: Module -> [Module]
+flattenModule m@(Module _ filepath importedModules _ decls) = 
+    m : (concatMap flattenModule importedModules)
 
 
 class Transpilable a where
@@ -112,7 +142,7 @@ instance Transpilable V.Scope where
                 ""
 
             V.FromImports modulename ->
-                prefix modulename ++ "."
+                globalModuleVariable ++ "[\"" ++ modulename ++ "\"]" ++ "."
 
 
 instance Transpilable V.FuncSignature where

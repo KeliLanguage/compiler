@@ -124,7 +124,7 @@ handleKeliCommand input =
             if length errors > 0 then
                 putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
             else
-                putStr (transpileModule True False module')
+                putStr (transpileModule False module')
         
         Repl -> 
             keliRepl

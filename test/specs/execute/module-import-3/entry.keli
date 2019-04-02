@@ -1,3 +1,5 @@
+// this test case is for testing the following requirement
+// non-entry file idless decls should not be evaluated
 = module.import("./A.keli")
 = module.import("./K/B.keli")
 = Answer.Yes.negate

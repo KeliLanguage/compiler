@@ -109,7 +109,7 @@ keliCompile filepath contents cache importTree = do
 
             let (currentErrors, currentEnv, currentDecls) = 
                     -- import intial environment here
-                    let importedEnvs = map (\m -> (moduleName m, moduleEnv m)) importedModules in
+                    let importedEnvs = map (\m -> (moduleFilepath m, moduleEnv m)) importedModules in
                     analyze (("<builtin>",initialEnv):importedEnvs) (map (\(NonImportDecl d) -> d) nonImportRawDecls)
 
             return (

@@ -1,0 +1,6 @@
+= module.import("./Boolean.keli")
+
+(this Int).>(that Int) = 
+    ffi.javascript("k$this > k$that ? k$Boolean.k$Boolean.True : k$Boolean.k$Boolean.False ").as(Boolean)
+
+= 1.>(2)

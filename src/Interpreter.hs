@@ -18,7 +18,7 @@ keliInterpret showLineNumber sourceFileName  = do
         let diagnostics = concatMap toDiagnostic errors in
         return (Left (intercalate "\n\n\n" (map renderDiagnostic diagnostics)))
     else do
-        let code = transpileModule True showLineNumber currentModule
+        let code = transpileModule showLineNumber currentModule
         output <- keliExecute (preludeJSCode ++ code)
         return (Right output)
 
