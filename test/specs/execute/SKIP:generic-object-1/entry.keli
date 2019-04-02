@@ -1,0 +1,3 @@
+Tuple._(A Type):(B Type) = $._(A):(B)
+
+= Tuple._("Hello"):(99)

@@ -8,4 +8,4 @@ List.of(A Type) = choice
 
 {A Type}
 (this $.x(List.of(A))).yo =
-    this.x(.append(List.Nil))
+    this.x(.append(0))

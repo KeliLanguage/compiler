@@ -1,0 +1,10 @@
+List.of(A Type) = choice 
+    .Nil
+    .Cons($.value(A) next(List.of(A)))
+
+{A Type}
+(this A).shouldBe(that A) = "hello"
+
+emptyList = List.Nil
+
+= emptyList.shouldBe(emptyList)
