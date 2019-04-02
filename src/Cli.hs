@@ -12,6 +12,7 @@ import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 import System.IO
 import Interpreter
 import Repl
+import Transpiler
 import Package
 import Compiler
 import Diagnostics(toDiagnostic)
@@ -25,7 +26,10 @@ data KeliCommand
         String  -- filename
         Bool    -- whether to show line number or not
     | Repl
-    | Analyze String 
+    | Analyze 
+        String -- filename
+    | Compile 
+        String -- filename
     | Suggest 
         String --filename
         Int    --line number
@@ -55,6 +59,12 @@ allParser = subparser (
         (Analyze 
             <$> (argument str (metavar "FILENAME")))
         (progDesc "Analyze a Keli program (*.keli) and display error as JSON."))
+    <>
+    command "compile" (info
+        (Compile 
+            <$> (argument str (metavar "FILENAME")))
+        (progDesc "Compile a Keli program (*.keli) into JavaScript file."))
+
     <>
     command "suggest" (info
         (Suggest 
@@ -107,6 +117,14 @@ handleKeliCommand input =
                 
                 Left err ->
                     hPutStrLn stderr err
+
+        Compile filename -> do
+            contents <- readFile filename
+            (errors, module', _, _) <- keliCompile filename contents (HashMap.empty) []
+            if length errors > 0 then
+                putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
+            else
+                putStr (transpileModule True False module')
         
         Repl -> 
             keliRepl
