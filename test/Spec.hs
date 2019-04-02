@@ -29,7 +29,14 @@ runTestCases_compile = do
 
     -- search for test cases prefix with `ONLY:`
     let onlyTestCases = filter (\t -> t `strStartsWith` "ONLY:") allTestCases
-    let finalTestCases = if length onlyTestCases > 0 then onlyTestCases else allTestCases
+    finalTestCases <-
+                if length onlyTestCases > 0 then 
+                    return onlyTestCases 
+                else do
+                    -- take out all test cases prefix with `SKIP:`
+                    let (testCasesToBeRun, testCasesNotToBeRun) = partition (\t -> not (t `strStartsWith` "SKIP:")) allTestCases
+                    putStrLn ("Skipping " ++ show (length testCasesNotToBeRun) ++ " test cases..." )
+                    return testCasesToBeRun
     hspec $ do
         forM_
             finalTestCases 
