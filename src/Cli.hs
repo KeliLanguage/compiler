@@ -10,6 +10,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Debug.Pretty.Simple (pTraceShowId, pTraceShow)
 
 import System.IO
+import PreludeJSCode
 import Interpreter
 import Repl
 import Transpiler
@@ -124,7 +125,7 @@ handleKeliCommand input =
             if length errors > 0 then
                 putStr (Char8.unpack (encode (concat (map toDiagnostic errors))))
             else
-                putStr (transpileModule True False module')
+                putStr (preludeJSCode ++ transpileModule True False module')
         
         Repl -> 
             keliRepl
