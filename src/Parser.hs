@@ -86,6 +86,7 @@ keliFuncCall
         _ ->
             return (convertFuncCallChainToFuncCall chain param1)
 
+
 keliLambda :: Parser Raw.Expr
 keliLambda
     =  keliFuncId       >>= \param
@@ -284,3 +285,65 @@ keliParse filename input =
     case parse keliParser filename (preprocess input) of
         Right decls -> Right decls
         Left parseError -> Left [KErrorParseError (errorPos parseError) (Messages (errorMessages parseError))]
+
+
+------------------------------------------------------
+-- VERSION 2
+------------------------------------------------------
+
+
+arrayLit2 :: Parser (SourcePos, [Raw.Expr])
+arrayLit2 
+    = between 
+        (symbol "[") 
+        (symbol "]") 
+        (symbol "|" >> keliExpr2 `sepBy` (symbol "|")) >>= \exprs -> 
+
+      getPosition >>= \pos ->
+            return (pos, exprs)
+
+keliAtomicExpr2 :: Parser Raw.Expr
+keliAtomicExpr2
+    =  parens keliExpr2
+   <|> (getPosition >>= \pos -> arrayLit2   >>= \(pos,exprs) -> return (Raw.Array exprs pos)) 
+   <|> (getPosition >>= \pos -> try float   >>= \n   　-> return (Raw.NumberExpr (pos, Right n)))
+   <|> (getPosition >>= \pos -> try natural >>= \n   　-> return (Raw.NumberExpr (pos, Left n)))
+   <|> (getPosition >>= \pos -> stringLit   >>= \str 　-> return (Raw.StringExpr (pos, str)))
+   <|> (                        keliFuncId  >>= \id  　-> return (Raw.Id id))
+
+keliParser2 = keliExpr2
+
+keliExpr2 
+    =   try keliFuncCall2 
+    <|> keliAtomicExpr2
+
+keliFuncCall2 
+    =  keliAtomicExpr2 >>= \subject 
+    -> keliFuncCallChain >>= \chain
+    -> return (Raw.FuncCall2 subject chain)
+
+keliFuncCallChain
+    = many1 keliFuncCallTail2
+
+keliFuncCallTail2 
+    -- poly
+    = (try (sepBy1 (
+        keliFuncId >>= \id 
+        -> parens keliExpr2 >>= \expr 
+        -> return (id, expr)
+    ) (symbol ".")) >>= \tuples 
+    -> return (
+        case tuples of 
+            (id, expr):[] ->
+                Raw.BiFuncCallTail id expr
+
+            _ ->
+                Raw.PolyFuncCallTail tuples))
+
+    -- mono
+    <|> (keliFuncId >>= \id 
+        -> return (Raw.MonoFuncCallTail id))
+    
+
+keliParse2 filename input = 
+    parse keliParser2 filename input

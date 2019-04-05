@@ -126,15 +126,26 @@ isSubListOf (x:xs) (y:ys)
 
 main :: IO ()
 main = do 
-    runTestCases_suggest
-    runTestCases_compile
     otherTest
+    -- runTestCases_suggest
+    -- runTestCases_compile
 
 targetTags :: [StringToken]
 targetTags = [newStringToken "a", newStringToken "b", newStringToken "c"]
 
 otherTest :: IO ()
 otherTest = hspec $ do
+    describe "keli parser 2" $ do
+        it "monofunc 1" $ do
+            print (keliParse2 "<test>" "123 square")
+            print (keliParse2 "<test>" "123 square negate")
+
+        it "polyfunc" $ do
+            print (keliParse2 "<test>" "123 +(2) - -(2)")
+            print (keliParse2 "<test>" "123 square plus(2) isBetween(3).and(4) negate")
+            print (keliParse2 "<test>" "Shape=(choice Circle($ radius(Float)) Rectangle($ h(Float).w(Float)))")
+            print (keliParse2 "<test>" "[|x=(123)|x+(x)|(n Int)factorial->(Int)=(0)]")
+
     describe "import trees" $ do
         it "case 1" $ do
             let tree = [ImportNode "A" "B", ImportNode "B" "C", ImportNode "A" "D"]
