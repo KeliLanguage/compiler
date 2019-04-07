@@ -63,15 +63,7 @@ data Expr
         StringToken -- the `choice` keyword, for error reporting purpose
         [([StringToken], [Expr])] -- func call tails
 
-    | FuncCall2 
-        Expr 
-        [FuncCallTail]
 
     deriving (Show,Eq)
 
-data FuncCallTail 
-    = MonoFuncCallTail StringToken
-    | BiFuncCallTail StringToken Expr
-    | PolyFuncCallTail [(StringToken, Expr)]
-    deriving(Show, Eq)
 

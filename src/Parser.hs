@@ -6,9 +6,11 @@ module Parser where
 import Prelude hiding (id)
 
 import qualified Ast.Raw as Raw
+import qualified Ast.PreRaw as PreRaw
 
 import Lexer
 
+import Control.Monad
 import Text.Parsec.Pos
 import StaticError
 import Text.ParserCombinators.Parsec hiding (token)
@@ -292,7 +294,7 @@ keliParse filename input =
 ------------------------------------------------------
 
 
-arrayLit2 :: Parser (SourcePos, [Raw.Expr])
+arrayLit2 :: Parser (SourcePos, [PreRaw.Expr])
 arrayLit2 
     = between 
         (symbol "[") 
@@ -302,25 +304,25 @@ arrayLit2
       getPosition >>= \pos ->
             return (pos, exprs)
 
-keliAtomicExpr2 :: Parser Raw.Expr
+keliAtomicExpr2 :: Parser PreRaw.Expr
 keliAtomicExpr2
     =  parens keliExpr2
-   <|> (getPosition >>= \pos -> arrayLit2   >>= \(pos,exprs) -> return (Raw.Array exprs pos)) 
-   <|> (getPosition >>= \pos -> try float   >>= \n   　-> return (Raw.NumberExpr (pos, Right n)))
-   <|> (getPosition >>= \pos -> try natural >>= \n   　-> return (Raw.NumberExpr (pos, Left n)))
-   <|> (getPosition >>= \pos -> stringLit   >>= \str 　-> return (Raw.StringExpr (pos, str)))
-   <|> (                        keliFuncId  >>= \id  　-> return (Raw.Id id))
+   <|> (getPosition >>= \pos -> arrayLit2   >>= \(pos,exprs) -> return (PreRaw.Array exprs pos)) 
+   <|> (getPosition >>= \pos -> try float   >>= \n   　-> return (PreRaw.NumberExpr (pos, Right n)))
+   <|> (getPosition >>= \pos -> try natural >>= \n   　-> return (PreRaw.NumberExpr (pos, Left n)))
+   <|> (getPosition >>= \pos -> stringLit   >>= \str 　-> return (PreRaw.StringExpr (pos, str)))
+   <|> (                        keliFuncId  >>= \id  　-> return (PreRaw.Id id))
 
-keliParser2 = keliExpr2
+keliParser2 = arrayLit2
 
 keliExpr2 
     =   try keliFuncCall2 
     <|> keliAtomicExpr2
 
 keliFuncCall2 
-    =  keliAtomicExpr2 >>= \subject 
+    =  keliAtomicExpr2   >>= \subject 
     -> keliFuncCallChain >>= \chain
-    -> return (Raw.FuncCall2 subject chain)
+    -> return (PreRaw.FuncCall subject chain)
 
 keliFuncCallChain
     = many1 keliFuncCallTail2
@@ -335,15 +337,117 @@ keliFuncCallTail2
     -> return (
         case tuples of 
             (id, expr):[] ->
-                Raw.BiFuncCallTail id expr
+                PreRaw.BiFuncCallTail id expr
 
             _ ->
-                Raw.PolyFuncCallTail tuples))
+                PreRaw.PolyFuncCallTail tuples))
 
     -- mono
     <|> (keliFuncId >>= \id 
-        -> return (Raw.MonoFuncCallTail id))
+        -> return (PreRaw.MonoFuncCallTail id))
     
-
+keliParse2 :: String -> String -> Either [KeliError] [Raw.Decl]
 keliParse2 filename input = 
-    parse keliParser2 filename input
+    case parse keliParser2 filename input of
+        Right (pos, exprs) -> 
+            case mapM 
+                (\x -> 
+                    case toRaw x of
+                        Right (RawDecl decl) ->
+                            Right decl 
+                        
+                        Right (RawExpr expr) ->
+                            Right (Raw.IdlessDecl (newPos "" (-1) (-1)) expr)
+                            
+                        Left err ->    
+                            Left err) exprs of
+                    Right x ->
+                        Right x
+
+                    Left err ->
+                        Left [err]
+
+        Left parseError -> 
+            Left [KErrorParseError (errorPos parseError) (Messages (errorMessages parseError))]
+
+
+data ToRawResult 
+    = RawDecl Raw.Decl
+    | RawExpr Raw.Expr
+
+asRawExpr :: ToRawResult -> Either KeliError Raw.Expr
+asRawExpr (RawExpr expr) = Right expr
+asRawExpr (RawDecl decl) = Left (KErrorExpectedExprButGotDecl decl)
+
+
+toRaw :: PreRaw.Expr -> Either KeliError ToRawResult
+toRaw preRawExpr = 
+    case preRawExpr of
+        -- const decl
+        PreRaw.FuncCall (PreRaw.Id id) ((PreRaw.BiFuncCallTail (_,"=") expr):[]) -> do
+            expr' <- toRaw expr >>= asRawExpr
+            Right (RawDecl (Raw.ConstDecl (Raw.Const (pTraceShowId id) expr')))
+
+        -- bifunc decl
+        PreRaw.FuncCall param1 ((PreRaw.BiFuncCallTail funcName param2):(PreRaw.BiFuncCallTail (_,"=") body):[]) -> do
+            param1' <- toFuncDeclParam param1
+            param2' <- toFuncDeclParam param2
+            body'   <- toRaw body >>= asRawExpr
+            Right (RawDecl (Raw.FuncDecl (Raw.Func Nothing [] [param1', param2'] [funcName] Nothing body')))
+
+        -- polyfunc decl
+        PreRaw.FuncCall param1 ((PreRaw.PolyFuncCallTail xs):(PreRaw.BiFuncCallTail (_,"=") body):[]) -> do
+            let funcIds = map fst xs 
+            let params = param1 : (map snd xs)
+            params' <- mapM toFuncDeclParam params 
+            body' <- toRaw body >>= asRawExpr
+            Right (RawDecl (Raw.FuncDecl (Raw.Func Nothing [] params' funcIds Nothing body')))
+
+        PreRaw.FuncCall subject ftail -> do
+            subject' <- toRaw subject >>= asRawExpr 
+            result <- foldM 
+                (\acc next -> 
+                    case next of
+                        PreRaw.MonoFuncCallTail s ->
+                            Right (Raw.FuncCall [acc] [s])
+
+                        PreRaw.BiFuncCallTail s e -> do
+                            e' <- toRaw e >>= asRawExpr
+                            Right (Raw.FuncCall [acc, e'] [s])
+
+                        PreRaw.PolyFuncCallTail xs -> do
+                            let funcIds = map fst xs 
+                            let params = map snd xs 
+                            params' <- mapM (\x -> toRaw x >>= asRawExpr) params
+                            Right (Raw.FuncCall (acc:params') funcIds)
+                        )
+                subject'
+                ftail
+            Right (RawExpr result)
+
+        PreRaw.NumberExpr n ->
+            Right (RawExpr (Raw.NumberExpr n))
+
+        PreRaw.StringExpr s ->
+            Right (RawExpr (Raw.StringExpr s))
+
+        PreRaw.Id i ->
+            Right (RawExpr (Raw.Id i))
+
+        PreRaw.Array elements pos -> do
+            elements' <- mapM (\x -> toRaw x >>= asRawExpr) elements
+            Right (RawExpr (Raw.Array elements' pos))
+
+
+toFuncDeclParam :: PreRaw.Expr -> Either KeliError Raw.FuncDeclParam
+toFuncDeclParam expr = 
+    case expr of
+        PreRaw.FuncCall (PreRaw.Id paramName) ((PreRaw.MonoFuncCallTail paramType):[]) -> 
+            Right (paramName, Raw.Id paramType)
+
+        _ ->
+            Left (KErrorExpectedFuncDeclParamButGotOthers expr)
+        
+
+        
+

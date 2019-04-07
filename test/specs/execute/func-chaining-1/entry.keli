@@ -1,3 +1,11 @@
-(this Int).plus(that Int) | Int = (ffi.javascript("k$this + k$that")).as(Int)
+[
+| (x Int) plus(y Int) = (
+    ffi javascript("k$x + k$y") as(Int)
+)
 
-= 1 .plus(2).plus(3)
+| 1 plus(2) plus(3)
+
+
+]
+
+

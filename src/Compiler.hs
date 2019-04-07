@@ -58,7 +58,7 @@ keliCompile
 keliCompile filepath contents cache importTree = do  
     let currentModulename = takeBaseName (replace "\\" "/" filepath) -- Refer http://hackage.haskell.org/package/filepath-1.4.2.1/docs/System-FilePath-Posix.html#v:takeBaseName
     importerFilePath <- makeAbsolute filepath
-    case keliParse filepath contents of
+    case keliParse2 filepath contents of
         Right rawDecls -> do
             let (importStatements, nonImportRawDecls) = 
                     partition 

@@ -13,6 +13,7 @@ import Text.Parsec.Error
 import qualified Ast.Verified as Verified
 import Env
 import qualified Ast.Raw as Raw
+import qualified Ast.PreRaw as PreRaw
 import Util
 
 data Messages = Messages [Message]
@@ -153,6 +154,12 @@ data KeliError
     | KErrorCircularImport
         Raw.StringToken -- location of error
         [String] -- related filepaths
+
+    | KErrorExpectedExprButGotDecl
+        Raw.Decl
+
+    | KErrorExpectedFuncDeclParamButGotOthers
+        PreRaw.Expr
     
     deriving (Show)
 

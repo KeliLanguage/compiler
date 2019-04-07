@@ -1,6 +1,6 @@
-(this String).replace(old String) with (new String)|String="hello"
-
-z="hi".replace("i") with("h") 
-
-g=123
-=z
+[
+| (this String) replace(old String).with(new String) = ("hello")
+| z = ("hi" replace("i").with("h"))
+| g = (123)
+| z
+]
