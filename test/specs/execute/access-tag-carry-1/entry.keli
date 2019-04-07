@@ -1,20 +1,32 @@
-(this Int).+(that Int) | Int = ffi.javascript("k$this + k$that").as(Int)
+[
 
-Color = choice
-    .Red    
-    .Green(Int)
+| (this Int)+(that Int) = (
+    ffi javascript("k$this + k$that") as(Int)
+)
 
-x = Color.Green(2)
-y = Color.Green(5)
+| Color = (
+    choice
+        Red    
+        Green(Int)
+)
 
-=x.
-    if(.Red) then
-        (10) 
-        
-    if(.Green(v1)) then
-        (y.
-            if(.Red) then
-                (99)
-            if(.Green(v2)) then
-                (v1.+(v2)))
+| x = (Color Green(2))
 
+| y = (Color Green(5))
+
+| ans = (
+    x
+        if(_ Red). then 
+            (10).
+
+        if(_ Green(v1)). then 
+            (y
+                if(_ Red). then 
+                    (99).
+
+                if(_ Green(v2)). then 
+                    (v1 +(v2))))
+
+| ans
+
+]

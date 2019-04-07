@@ -12,7 +12,7 @@ languageDef =
            , Token.opStart         = oneOf "~!@#$%^&*-=+:?/<>\\"
            , Token.opLetter        = oneOf "~!@#$%^&*-=+:?/<>\\"
            , Token.identStart      = letter   <|> char '_' <|> char '#' <|> char '$'
-           , Token.identLetter     = alphaNum <|> char '_' <|> char '?' <|> char ':'
+           , Token.identLetter     = alphaNum <|> char '_' <|> char '#' <|> char '$'
            , Token.reservedOpNames = [
                 --  "="
                 "|"

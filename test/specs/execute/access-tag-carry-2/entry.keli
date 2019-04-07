@@ -1,11 +1,34 @@
-Human = choice
-    .Boy    
-    .Baby($.cuteness(Int))
-    .Worker($.salary(Int))
+[
 
-julia=Human.Baby($.cuteness(99))
+| Human = (
+    choice
+        Boy    
+        Baby($ cuteness(Int))
+        Worker($ salary(Int))
+)
 
-=julia.
-    if(.Boy)        then (0) 
-    if(.Baby(b))    then (b.cuteness) 
-    if(.Worker(w))  then (w.salary)
+| julia = (Human Baby($ cuteness(99)))
+
+| julia
+    if(is Boy) then 
+        (0)
+
+    if(is Baby(b)) then 
+        (b cuteness)
+
+    if(is Worker(w)) then 
+        (w salary)
+
+
+| (A Type) => (this List of(A)) length -> (Int) = (
+    this 
+        if(is Nil) then
+            (0)
+
+        if(is Cons(c)) then
+            (1 +(c next length))
+)
+
+| (A Type.extends(Comparable)) 
+
+]
