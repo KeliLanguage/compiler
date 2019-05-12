@@ -3,8 +3,8 @@ Box.of(A Type) = choice
     .Nothing
 
 = Box.Ok($.value(123)).
-    if(.Ok(o)) then
+    if(.Ok(o)):
         (o.value)
 
-    if(.Nothing) then
+    if(.Nothing):
         (4)

@@ -11,11 +11,11 @@ Box.of(A Type) = choice
 (this List.of(A)).last
     | Box.of(A)
     = this.
-        if(.Nil) then
+        if(.Nil):
             (Box.Empty)
-        if(.Cons(c)) then
+        if(.Cons(c)):
             (c.next.
-                if(.Nil) then
+                if(.Nil):
                     (Box.With(c.value))
                 else
                     (Box.Empty))

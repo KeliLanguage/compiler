@@ -5,9 +5,9 @@ List.of(A Type) = choice
 {A Type}
 (this List.of(A)).toString =
     this.
-        if(.Nil) then
+        if(.Nil):
             ("It is a nil")
-        if(.Cons) then
+        if(.Cons):
             ("It is not empty dude")
 
 = List.Nil

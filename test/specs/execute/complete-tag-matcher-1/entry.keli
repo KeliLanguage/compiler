@@ -5,5 +5,5 @@ Shape = choice
 a = Shape.Circle($.radius(2.0))
 
 = a.
-    if(.Circle(c)) then (2) 
-    if(.Nothing) then   (1)
+    if(.Circle(c)): (2) 
+    if(.Nothing):   (1)

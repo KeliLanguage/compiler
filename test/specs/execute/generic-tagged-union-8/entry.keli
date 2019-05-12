@@ -12,8 +12,8 @@ List.of(A Type) = choice
     = Box.Nothing 
 
 = List.Cons($.value(1) next(List.Nil)).at(2).
-    if(.Ok(o)) then
+    if(.Ok(o)):
         (o.value)
     
-    if(.Nothing) then
+    if(.Nothing):
         (0)

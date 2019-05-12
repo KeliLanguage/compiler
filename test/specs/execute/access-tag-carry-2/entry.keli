@@ -6,6 +6,12 @@ Human = choice
 julia=Human.Baby($.cuteness(99))
 
 =julia.
-    if(.Boy)        then (0) 
-    if(.Baby(b))    then (b.cuteness) 
-    if(.Worker(w))  then (w.salary)
+    if(.Boy):
+        (0) 
+
+    if(.Baby(b)):
+        (b.cuteness) 
+
+    if(.Worker(w)):
+        (w.salary)
+

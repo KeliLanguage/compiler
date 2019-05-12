@@ -229,7 +229,6 @@ analyzePaDecl paDecl env importedEnvs = case paDecl of
                         "$",
                         "module",
                         "if",
-                        "then",
                         "else",
                         "Int",
                         "Float",

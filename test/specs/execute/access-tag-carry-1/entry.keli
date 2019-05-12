@@ -8,13 +8,13 @@ x = Color.Green(2)
 y = Color.Green(5)
 
 =x.
-    if(.Red) then
+    if(.Red):
         (10) 
         
-    if(.Green(v1)) then
+    if(.Green(v1)):
         (y.
-            if(.Red) then
+            if(.Red):
                 (99)
-            if(.Green(v2)) then
+            if(.Green(v2)):
                 (v1.+(v2)))
 

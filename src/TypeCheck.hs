@@ -255,7 +255,7 @@ continuePreprocessFuncCall1 ctx assumption
 
         -- 1. check if syntax is correct
         !_ <- mapM (\(pos,x) -> if x == "if" || x == "else" then Right() else Left (KErrorExpectedKeywordIfOrDefault (pos,x))) (evens elselessFuncIds)
-        !_ <- mapM (\(pos,x) -> if x == "then"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
+        !_ <- mapM (\(pos,x) -> if x == ":"  then Right() else Left (KErrorExpectedColon (pos,x))) (odds elselessFuncIds)
 
         let tags = evens elselessParams
         let branches = odds elselessParams

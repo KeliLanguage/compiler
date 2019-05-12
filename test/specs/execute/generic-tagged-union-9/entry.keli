@@ -7,5 +7,5 @@ MyState = $.count(Int)
 x = State.New($.state(MyState.count(0)) runState(.increment))
 
 = x.
-    if(.New(n)) then
+    if(.New(n)):
         (n.runState.apply(MyState.count(1)))

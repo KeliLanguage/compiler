@@ -4,10 +4,10 @@ Answer = choice
 
 a= Answer.Yes
 =a.
-    if(.Yes) then 
+    if(.Yes): 
         (2) 
     
-    if(.Lol) then 
+    if(.Lol): 
         (3)
 
     else

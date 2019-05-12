@@ -4,6 +4,6 @@ Answer = choice
 
 a= Answer.Yes
 =a.
-    if(.Yes) then (2) 
-    if(.No) then  (1)
-    if(.No) then  (1)
+    if(.Yes): (2) 
+    if(.No):  (1)
+    if(.No):  (1)

@@ -6,10 +6,10 @@ Box.of(A Type) = choice
 (this Box.of(A)).then(f Function.in(A) out(B))
     | Box.of(B)
     = this. 
-        if(.Ok(o)) then
+        if(.Ok(o)):
             (Box.Ok($.value(f.apply(o.value))))
 
-        if(.Nothing) then
+        if(.Nothing):
             (Box.Nothing)
 
 = Box.Ok($.value(5)).then(x | x)
